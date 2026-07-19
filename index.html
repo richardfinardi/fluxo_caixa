@@ -59,7 +59,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">fUXO DE CAIXA V4</span>
+      <span class="navbar-brand mb-0 h6">fUXO DE CAIXA V4.1</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -246,6 +246,7 @@
               <h6 class="fw-bold mb-3" id="formClienteTitulo">🤝 Gerenciar Cliente</h6>
               
               <!-- 1. O FORMULÁRIO COM O CHECKBOX -->
+              <!-- FORMULÁRIO COMPLETO COM O ENVIO CORRIGIDO -->
               <form id="formRegra" onsubmit="enviarDadosClienteNovos(event)">
                 <input type="hidden" id="editClienteId" value="">
                 <div class="mb-2"><label class="form-label small">Nome</label><input type="text" id="regraCliente" class="form-control form-control-sm" required></div>
@@ -257,7 +258,7 @@
                   <div class="col-6"><label class="form-label text-xs">A partir de</label><input type="date" id="regraDataVigor" class="form-control form-control-sm"></div>
                 </div>
 
-                <!-- Checkbox de Cobrança por Hora -->
+                <!-- Checkbox -->
                 <div class="form-check mb-3">
                   <input class="form-check-input" type="checkbox" id="regraPorHora">
                   <label class="form-check-label small fw-bold text-secondary" for="regraPorHora" style="cursor: pointer;">
@@ -277,20 +278,17 @@
         </div>
       </div>
 
-      <!-- 2. SCRIPT EXCLUSIVO PARA O FUNCIONAMENTO DO BOTÃO SALVAR -->
+      <!-- SCRIPT CORRIGIDO QUE CONECTA COM O BANCO -->
       <script>
         function enviarDadosClienteNovos(event) {
           event.preventDefault();
 
-          // Captura as informações da tela
           const id = document.getElementById('editClienteId').value;
           const cliente = document.getElementById('regraCliente').value;
           const valorVisita = document.getElementById('regraValor').value;
           const condicaoNome = document.getElementById('regraCondicaoNome').value;
           const novoValor = document.getElementById('regraNovoValor').value;
           const dataVigor = document.getElementById('regraDataVigor').value;
-          
-          // Captura se o checkbox está marcado (SIM) ou desmarcado (NÃO)
           const porHora = document.getElementById('regraPorHora').checked ? "SIM" : "NÃO";
 
           const dados = {
@@ -305,27 +303,32 @@
 
           const acao = id ? "atualizarClienteBackend" : "salvarRegra";
 
-          // Tenta usar a sua função padrão de envio (comum em Apps Script/PWA)
-          // Se sua função global tiver outro nome (ex: chamarBackend, run), mude aqui:
-          const funcaoEnvio = typeof executarNoBackend === "function" ? executarNoBackend : google.script.run.withSuccessHandler;
-
-          funcaoEnvio(acao, dados).then(resposta => {
+          function finalizarSucesso(resposta) {
             alert(resposta || "Processado com sucesso!");
-            
-            // Reseta os campos após salvar
             document.getElementById('formRegra').reset();
             document.getElementById('editClienteId').value = "";
             document.getElementById('regraPorHora').checked = false;
-            
-            // Se tiver a função de atualizar a tabela na tela, executa ela
             if (typeof carregarDados === "function") carregarDados();
             if (typeof listarRegras === "function") listarRegras();
-          }).catch(erro => {
-            alert("Erro ao salvar: " + erro);
-          });
+          }
+
+          if (typeof google !== "undefined" && google.script && google.script.run) {
+            google.script.run
+              .withSuccessHandler(finalizarSucesso)
+              .withFailureHandler(err => alert("Erro no servidor: " + err))
+              [acao](dados);
+          } else if (typeof executarNoBackend === "function") {
+            try {
+              executarNoBackend(acao, dados).then(finalizarSucesso).catch(err => alert("Erro: " + err));
+            } catch(e) {
+              executarNoBackend(acao, dados);
+              finalizarSucesso("Comando enviado!");
+            }
+          } else {
+            alert("Não foi possível encontrar a função de envio para o banco de dados.");
+          }
         }
-      </script>
-      <!-- ==================== FIM DO BLOCO ==================== -->
+      </script>      <!-- ==================== FIM DO BLOCO ==================== -->
 
       <!-- TAB LANÇAMENTOS -->
       <div class="tab-pane fade" id="lancamentos" role="tabpanel">
