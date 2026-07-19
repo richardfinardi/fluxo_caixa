@@ -1,164 +1,915 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Finanças Engine V3</title>
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#2c3e50">
-    <!-- Tailwind CSS para um visual limpo e responsivo -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <style>
-        body {
-            background-color: #f1f5f9;
-            -webkit-tap-highlight-color: transparent;
-        }
-        /* Ajuste fino para tabelas roláveis no celular */
-        .table-container {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Fluxo de Caixa Automatizado</title>
+  
+  <!-- 🔥 REFORÇO MÁXIMO PARA TELA CHEIA (WEB APP) NO CELULAR 🔥 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Finanças V3">
+  
+  <!-- Manifesto embutido otimizado para forçar o Standalone (Tela Cheia) -->
+  <link rel="manifest" href="data:application/json,{%22name%22:%22Finan%C3%A7as%20Engine%20V3%22,%22short_name%22:%22Finan%C3%A7as%22,%22start_url%22:%22%23%22,%22display%22:%22standalone%22,%22orientation%22:%22portrait%22,%22background_color%22:%22%232c3e50%22,%22theme_color%22:%22%232c3e50%22}">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background-color: #f4f6f9; padding-bottom: 50px; font-size: 14px; }
+    .navbar { background-color: #2c3e50; color: white; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 0px !important;}
+    .card { border: none; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; padding: 15px !important; }
+    .stat-card { text-align: center; padding: 15px; color: white; border-radius: 8px; margin-bottom: 10px; }
+    /* CORREÇÃO DO TEXTO DO SALDO SUMIDO */
+    .stat-card h5, .stat-card h6 { color: inherit !important; }
+    .dash-card { text-align: center; padding: 12px; color: white; border-radius: 6px; }
+    .bg-receita { background: linear-gradient(135deg, #3498db, #2980b9); }
+    .bg-despesa { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+    .bg-lucro { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+    .status-negativo { background-color: #e74c3c !important; color: #ffffff !important; } /* Ajustado para melhor contraste no celular */
+    .status-baixo { background-color: #ffe599 !important; color: #7f6000 !important; }
+    .status-moderado { background-color: #f9cb9c !important; color: #7f4c00 !important; }
+    .status-seguro { background-color: #b6d7a8 !important; color: #274e13 !important; }
+    
+    /* 🎨 ESTILIZAÇÃO DO TOM DE CINZA DO FIM DE SEMANA */
+    .col-fim-de-semana { background-color: #eaecef !important; opacity: 0.9; }
+    
+    .nav-tabs .nav-link { color: #555; font-weight: 500; padding: 8px 10px; font-size: 12px; }
+    .nav-tabs .nav-link.active { font-weight: bold; color: #2c3e50; }
+    .table-container { max-height: 400px; overflow-y: auto; }
+    .table-responsive-mobile { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .btn-detalhe { background: none; border: none; padding: 0; font-weight: bold; text-decoration: underline; cursor: pointer; }
+    .filtro-label { font-size: 11px; font-weight: bold; color: #666; margin-bottom: 2px; display: block; }
+
+    /* Estilo customizado para os Toasts de aviso na tela */
+    .toast-container { z-index: 2000; }
+
+    @media (max-width: 576px) {
+      .table-mobile { font-size: 11px !important; width: 100% !important; table-layout: fixed; }
+      .table-mobile th, .table-mobile td { padding: 4px 2px !important; word-wrap: break-word; white-space: normal !important; }
+      .btn-detalhe { font-size: 11px !important; display: block; width: 100%; text-align: center; }
+      .badge-data { font-size: 8px !important; padding: 1px 2px !important; }
+      .card { padding: 8px !important; }
+      .stat-card h5, .stat-card h6 { margin: 0; }
+    }
+  </style>
 </head>
-<body class="font-sans antialiased text-gray-800 pb-12">
+<body>
 
-    <!-- Cabeçalho Fixo -->
-    <header class="bg-[#2c3e50] text-white p-4 sticky top-0 z-50 shadow-md flex justify-between items-center">
-        <h1 class="text-xl font-bold flex items-center gap-2">💰 Finanças Engine V3</h1>
-        <span id="status" class="bg-green-500 text-xs px-2 py-1 rounded-full text-white font-medium">Conectado</span>
-    </header>
+  <nav class="navbar navbar-dark p-2">
+    <div class="container-fluid d-flex justify-content-between align-items-center">
+      <span class="navbar-brand mb-0 h6">💰 Finanças Engine V3</span>
+      <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
+    </div>
+  </nav>
 
-    <main class="max-w-md mx-auto p-4 space-y-4">
-
-        <!-- Dashboard de Cards (Corrigido texto sumido) -->
-        <div class="grid grid-cols-3 gap-2 text-center text-xs font-bold">
-            <div class="bg-gray-700 text-white p-3 rounded-xl shadow-sm flex flex-col justify-between min-h-[85px]">
-                <span class="opacity-90 block mb-1">SALDO HOJE</span>
-                <span id="saldo-hoje" class="text-sm md:text-base break-words">R$ 0,00</span>
-            </div>
-            <div class="bg-blue-600 text-white p-3 rounded-xl shadow-sm flex flex-col justify-between min-h-[85px]">
-                <span class="opacity-90 block mb-1">RECEITAS HOJE</span>
-                <span id="receitas-hoje" class="text-sm md:text-base break-words">R$ 0,00</span>
-            </div>
-            <div class="bg-red-600 text-white p-3 rounded-xl shadow-sm flex flex-col justify-between min-h-[85px]">
-                <span class="opacity-90 block mb-1">SAÍDAS HOJE</span>
-                <span id="saidas-hoje" class="text-sm md:text-base break-words">R$ 0,00</span>
-            </div>
+  <!-- Container de Alertas Flutuantes (Toasts) -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="liveToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body fw-bold text-white" id="toastMensagem">
+          <!-- Mensagem dinâmica -->
         </div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  </div>
 
-        <!-- Área Central (Para simulações ou novos lançamentos futuras) -->
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hidden" id="area-simulacao">
-            <!-- Seu botão de Efetivar ou controles entram aqui se precisar -->
+  <!-- Modal Customizado de Confirmação -->
+  <div class="modal fade" id="modalConfirmacao" tabindex="-1" aria-hidden="true" style="z-index: 2050;">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header bg-dark text-white py-2">
+          <h6 class="modal-title" id="modalConfirmTitulo">Confirmar Ação</h6>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
+        <div class="modal-body py-3 small" id="modalConfirmTexto">
+          Deseja realizar esta ação?
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-xs btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-xs btn-primary fw-bold" id="btnModalConfirmAceitar">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-        <!-- Fluxo de Caixa Diário -->
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
-            <h3 class="font-bold text-lg text-gray-700 border-b border-gray-100 pb-2">Fluxo de Caixa Diário</h3>
-            
-            <div class="table-container rounded-xl border border-gray-100">
-                <table class="w-full text-left text-sm border-collapse">
-                    <thead>
-                        <tr class="bg-gray-800 text-white text-xs uppercase tracking-wider">
-                            <th class="p-3">Data</th>
-                            <th class="p-3">Receitas</th>
-                            <th class="p-3">Saídas</th>
-                            <th class="p-3">Saldo</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabela-fluxo" class="divide-y divide-gray-100">
-                        <!-- Preenchido via JS -->
-                        <tr>
-                            <td colspan="4" class="p-4 text-center text-gray-400">Carregando dados...</td>
-                        </tr>
-                    </tbody>
-                </table>
+  <div class="container-fluid px-3">
+    <!-- Indicadores -->
+    <div class="row">
+      <div class="col-4 px-1"><div class="stat-card" id="cardSaldoContainer"><h6>SALDO HOJE</h6><h5 id="cardSaldo">R$ 0,00</h5></div></div>
+      <div class="col-4 px-1"><div class="stat-card bg-receita"><h6>RECEITAS HOJE</h6><h5 id="cardReceita">R$ 0,00</h5></div></div>
+      <div class="col-4 px-1"><div class="stat-card bg-despesa"><h6>SAÍDAS HOJE</h6><h5 id="cardDespesa">R$ 0,00</h5></div></div>
+    </div>
+
+    <!-- Abas -->
+    <ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist">
+      <li class="nav-item"><button class="nav-link active" id="fluxo-tab" data-bs-toggle="tab" data-bs-target="#fluxo" type="button">📉 Fluxo</button></li>
+      <li class="nav-item"><button class="nav-link" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button" onclick="renderizarDashboardMensal()">📊 Dashboard</button></li>
+      <li class="nav-item"><button class="nav-link" id="faturar-tab" data-bs-toggle="tab" data-bs-target="#faturar" type="button">🧾 A Faturar</button></li>
+      <li class="nav-item"><button class="nav-link" id="recorrente-tab" data-bs-toggle="tab" data-bs-target="#recorrente" type="button">🔁 Fixas Recorrentes</button></li>
+      <li class="nav-item"><button class="nav-link" id="agenda-tab" data-bs-toggle="tab" data-bs-target="#agenda" type="button">📅 Agenda</button></li>
+      <li class="nav-item"><button class="nav-link" id="clientes-tab" data-bs-toggle="tab" data-bs-target="#clientes" type="button">🤝 Clientes</button></li>
+      <li class="nav-item"><button class="nav-link" id="lancamentos-tab" data-bs-toggle="tab" data-bs-target="#lancamentos" type="button">💸 Lançar</button></li>
+      <li class="nav-item"><button class="nav-link" id="categorias-tab" data-bs-toggle="tab" data-bs-target="#categorias" type="button">🏷️ Categorias</button></li>
+      <li class="nav-item"><button class="nav-link" id="condicoes-tab" data-bs-toggle="tab" data-bs-target="#condicoes" type="button">⚙️ Termos Pgto</button></li>
+    </ul>
+
+    <div class="tab-content" id="mainTabsContent">
+      
+      <!-- TAB FLOW -->
+      <div class="tab-pane fade show active" id="fluxo" role="tabpanel">
+        <div class="card mb-3"><div style="height: 220px;"><canvas id="chartFluxo"></canvas></div></div>
+        <div class="card">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="fw-bold mb-0">Fluxo de Caixa Diário</h6>
+            <div class="d-flex gap-2">
+              <button class="btn btn-xs btn-warning px-2 py-1 d-none" id="btnLimparSimulacao" onclick="limparSimulacaoCaixa()" style="font-size:11px; font-weight: bold;">✕ Limpar Simulação</button>
+              <button class="btn btn-xs btn-success px-2 py-1 d-none" id="btnEfetivarSimulacao" onclick="pedirConfirmacaoEfetivar()" style="font-size:11px; font-weight: bold;">🔒 Efetivar Mudanças</button>
+              <button class="btn btn-xs btn-outline-secondary px-2 py-1" id="btnAlternarHistorico" onclick="alternarVisaoHistorico()" style="font-size:11px;">👁️ Ver Histórico Passado</button>
             </div>
+          </div>
+          <div class="table-responsive-mobile table-container">
+            <table class="table table-sm table-bordered table-mobile align-middle m-0">
+              <thead class="table-dark">
+                <tr>
+                  <th style="width: 20%;">Data</th>
+                  <th style="width: 27%;">Receitas</th>
+                  <th style="width: 27%;">Saídas</th>
+                  <th style="width: 26%;">Saldo</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyProjecaoDiaria"></tbody>
+            </table>
+          </div>
         </div>
+      </div>
 
-    </main>
+      <!-- TAB DASHBOARD MENSAL -->
+      <div class="tab-pane fade" id="dashboard" role="tabpanel">
+        <div class="card">
+          <div class="row align-items-center g-2 mb-3">
+            <div class="col-sm-4"><h6 class="fw-bold mb-0">Análise Consolidada do Período</h6></div>
+            <div class="col-sm-4 offset-sm-4">
+              <div class="input-group input-group-sm">
+                <span class="input-group-text bg-secondary text-white font-monospace small">Mês Referência</span>
+                <input type="month" id="dashFiltroMes" class="form-control" onchange="renderizarDashboardMensal()">
+              </div>
+            </div>
+          </div>
+          
+          <div class="row g-2 mb-3">
+            <div class="col-4"><div class="dash-card bg-receita"><h6>Faturamento Total</h6><h5 id="dashReceitas">R$ 0,00</h5></div></div>
+            <div class="col-4"><div class="dash-card bg-despesa"><h6>Gastos Totais</h6><h5 id="dashDespesas">R$ 0,00</h5></div></div>
+            <div class="col-4"><div class="dash-card bg-lucro" id="dashResultadoContainer"><h6>Resultado Líquido</h6><h5 id="dashResultado">R$ 0,00</h5></div></div>
+          </div>
 
-    <script>
-        // Registrar o Service Worker para funcionar como App (PWA)
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').catch(err => console.log("Erro SW:", err));
-        }
+          <div class="border rounded p-3 bg-white mt-2">
+            <h6 class="fw-bold text-secondary mb-3">🏷️ Detalhamento de Despesas por Categoria</h6>
+            <div class="table-responsive">
+              <table class="table table-sm table-striped align-middle m-0">
+                <thead class="table-light"><tr><th>Categoria</th><th class="text-end pe-3">Total Consumido</th><th class="text-center" width="100">Participação</th></tr></thead>
+                <tbody id="tbodyDashCategorias"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
 
-        // URL da sua API do Google Apps Script (Cole a sua URL de Execução aqui se necessário)
-        const API_URL = "SUA_URL_DO_GOOGLE_APPS_SCRIPT_AQUI"; 
+      <!-- TAB A FATURAR -->
+      <div class="tab-pane fade" id="faturar" role="tabpanel">
+        <div class="card p-3">
+          <h6 class="fw-bold mb-1">Visitas Prontas para Cobrança</h6>
+          <div class="table-responsive"><table class="table table-striped table-hover align-middle"><thead class="table-dark"><tr><th>Vencimento</th><th>Cliente / Detalhes</th><th>Valor</th><th width="150" class="text-center">Ação</th></tr></thead><tbody id="tbodyFilaFaturamento"></tbody></table></div>
+        </div>
+      </div>
 
-        // Função utilitária para formatar números brutos em Moeda Real (R$ 1.234,56)
-        function formatarMoeda(valor) {
-            const numero = parseFloat(valor) || 0;
-            return numero.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-        }
+      <!-- TAB RECORRENTES -->
+      <div class="tab-pane fade" id="recorrente" role="tabpanel">
+        <div class="row">
+          <div class="col-md-5">
+            <div class="card">
+              <h6 class="fw-bold mb-3">⚙️ Configurar Nova Conta Fixa</h6>
+              <form id="formRecorrencia" onsubmit="salvarContasFixasRecorrentes(event)">
+                <div class="mb-2"><label class="form-label small">Descrição</label><input type="text" id="recDesc" class="form-control form-control-sm" required></div>
+                <div class="row">
+                  <div class="col-6 mb-2"><label class="form-label small">Valor</label><input type="number" step="0.01" id="recValor" class="form-control form-control-sm" required></div>
+                  <div class="col-6 mb-2"><label class="form-label small">Data Inicial</label><input type="date" id="recDataInicio" class="form-control form-control-sm" required></div>
+                </div>
+                <div class="mb-2"><label class="form-label small">Categoria</label><select id="recCategoria" class="form-select form-select-sm" required></select></div>
+                <div class="row mb-2">
+                  <div class="col-6"><label class="form-label small">Frequência</label><select id="recFrequencia" class="form-select form-select-sm" onchange="ajustarLabelDiaAlvo()" required><option value="Mensal">Mensal</option><option value="Semanal">Semanal</option></select></div>
+                  <div class="col-6"><label class="form-label small" id="labelDiaAlvo">Dia do Mês</label><input type="number" id="recDiaAlvo" class="form-control form-control-sm" required></div>
+                </div>
 
-        // Função para buscar dados da API da planilha
-        async function carregarDados() {
+                <div class="border p-2 rounded bg-light mb-2">
+                  <label class="fw-bold text-muted small d-block mb-1">Termina em</label>
+                  <div class="form-check d-flex align-items-center mb-1">
+                    <input class="form-check-input" type="radio" name="tipoTermino" id="termNunca" value="nunca" onchange="alternarCamposTermino()" checked>
+                    <label class="form-check-label small ms-2" for="termNunca">Nunca</label>
+                  </div>
+                  <div class="form-check d-flex align-items-center mb-1">
+                    <input class="form-check-input" type="radio" name="tipoTermino" id="termData" value="data" onchange="alternarCamposTermino()">
+                    <label class="form-check-label small ms-2 me-2" for="termData" style="min-width: 40px;">Em</label>
+                    <input type="date" id="recTerminoData" class="form-control form-control-sm p-1 py-0 w-auto d-none">
+                  </div>
+                  <div class="form-check d-flex align-items-center mb-1">
+                    <input class="form-check-input" type="radio" name="tipoTermino" id="termOcorr" value="ocorrencias" onchange="alternarCamposTermino()">
+                    <label class="form-check-label small ms-2 me-2" for="termOcorr" style="min-width: 40px;">Após</label>
+                    <div id="boxOcorrInput" class="d-none align-items-center gap-1">
+                      <input type="number" id="recTerminoOcorrencias" class="form-control form-control-sm p-1 py-0 text-center" placeholder="12" style="width: 60px;">
+                      <span class="text-muted small">ocorrências</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mb-3"><label class="form-label small">Tipo</label><select id="recTipo" class="form-select form-select-sm" required><option value="Despesa">Despesa Fixa</option><option value="Receita">Receita Fixa</option></select></div>
+                <button type="submit" class="btn btn-sm btn-primary w-100">Agendar Recorrência</button>
+              </form>
+            </div>
+          </div>
+          <div class="col-md-7"><div class="card"><h6>Contratos Ativos</h6><div class="table-container"><table class="table table-sm align-middle"><thead><tr><th>Descrição</th><th>Valor</th><th>Ciclo</th><th>Dia</th><th></th></tr></thead><tbody id="tbodyRecorrenciasConfig"></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- TAB AGENDA -->
+      <div class="tab-pane fade" id="agenda" role="tabpanel">
+        <div class="card text-center py-4"><button class="btn btn-primary" id="btnSincronizar" onclick="sincronizarAgendaReal()">🔄 Sincronizar Google Calendar</button><div id="msgAgenda" class="mt-2 small fw-bold"></div></div>
+      </div>
+
+      <!-- TAB CLIENTES -->
+      <div class="tab-pane fade" id="clientes" role="tabpanel">
+        <div class="row">
+          <div class="col-md-5">
+            <div class="card" id="cardFormCliente">
+              <h6 class="fw-bold mb-3" id="formClienteTitulo">🤝 Gerenciar Cliente</h6>
+              <form id="formRegra" onsubmit="processarClienteForm(event)">
+                <input type="hidden" id="editClienteId" value="">
+                <div class="mb-2"><label class="form-label small">Nome</label><input type="text" id="regraCliente" class="form-control form-control-sm" required></div>
+                <div class="mb-2"><label class="form-label small">Valor/Visita</label><input type="number" step="0.01" id="regraValor" class="form-control form-control-sm" required></div>
+                <div class="mb-2"><label class="form-label small">Termo</label><select id="regraCondicaoNome" class="form-select form-select-sm" required></select></div>
+                <div class="row bg-light p-2 rounded mb-3">
+                  <div class="col-6"><label class="form-label text-xs">Novo Valor</label><input type="number" step="0.01" id="regraNovoValor" class="form-control form-control-sm"></div>
+                  <div class="col-6"><label class="form-label text-xs">A partir de</label><input type="date" id="regraDataVigor" class="form-control form-control-sm"></div>
+                </div>
+                <div class="d-flex gap-2"><button type="submit" class="btn btn-sm btn-success flex-grow-1" id="btnClienteSubmit">Salvar</button><button type="button" class="btn btn-sm btn-secondary d-none" id="btnCancelarClienteEdicao" onclick="cancelarClienteEdicao()">X</button></div>
+              </form>
+            </div>
+          </div>
+          <div class="col-md-7"><div class="card"><h6>Clientes Cadastrados</h6><div class="table-container"><table class="table table-sm align-middle"><tbody id="tbodyRegras"></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- TAB LANÇAMENTOS -->
+      <div class="tab-pane fade" id="lancamentos" role="tabpanel">
+        <div class="row">
+          <div class="col-md-4">
+            <div class="card" id="cardFormLancamento">
+              <h6 class="fw-bold mb-3" id="formLancamentoTitulo">📑 Novo Lançamento Manual</h6>
+              <form id="formLancamento" onsubmit="processarLancamentoForm(event)">
+                <input type="hidden" id="editLancamentoId" value="">
+                <input type="hidden" id="editLancamentoRecorrenciaId" value="">
+                <input type="hidden" id="editLancamentoDataOriginal" value="">
+                <div class="mb-2"><label class="form-label small">Descrição</label><input type="text" id="lDesc" class="form-control form-control-sm" required></div>
+                <div class="row">
+                  <div class="col-6 mb-2"><label class="form-label small">Valor</label><input type="number" step="0.01" id="lValor" class="form-control form-control-sm" required></div>
+                  <div class="col-6 mb-2"><label class="form-label small">Data</label><input type="date" id="lData" class="form-control form-control-sm" required></div>
+                </div>
+                <div class="mb-2"><label class="form-label small">Categoria</label><select id="lCategoria" class="form-select form-select-sm" required></select></div>
+                <div class="mb-3"><label class="form-label small">Tipo</label><select id="lTipo" class="form-select form-select-sm" required><option value="Despesa">Despesa</option><option value="Receita">Receita Extra</option></select></div>
+                <div class="d-flex gap-2"><button type="submit" class="btn btn-sm btn-danger flex-grow-1" id="btnLancamento">Gravar</button><button type="button" class="btn btn-sm btn-secondary d-none" id="btnCancelarEdicao" onclick="cancelarEdicao()">X</button></div>
+              </form>
+            </div>
+          </div>
+          
+          <div class="col-md-8">
+            <div class="card">
+              <div class="mb-2">
+                <h6 class="fw-bold mb-0">Extrato Geral</h6>
+              </div>
+
+              <div class="row g-2 p-2 bg-light rounded border mb-3">
+                <div class="col-sm-4">
+                  <span class="filtro-label">🔍 Descrição / Termo</span>
+                  <input type="text" id="filtroTexto" class="form-control form-control-sm" placeholder="Ex: JOY, Faturamento...">
+                </div>
+                <div class="col-sm-3">
+                  <span class="filtro-label">🏷️ Categoria</span>
+                  <select id="filtroCategoria" class="form-select form-select-sm"></select>
+                </div>
+                <div class="col-sm-2.5 col-6">
+                  <span class="filtro-label">📅 Início</span>
+                  <input type="date" id="filtroDataInicio" class="form-control form-control-sm">
+                </div>
+                <div class="col-sm-2.5 col-6">
+                  <span class="filtro-label">📅 Fim</span>
+                  <input type="date" id="filtroDataFim" class="form-control form-control-sm">
+                </div>
+                <div class="col-12 d-flex gap-2 mt-2 justify-content-between align-items-center">
+                  <button type="button" class="btn btn-xs btn-outline-secondary px-3 py-1" id="btnAlternarHistoricoExtrato" style="font-size:11px;" onclick="alternarHistoricoExtrato()">👁️ Mostrar Histórico</button>
+                  <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-xs btn-secondary text-white px-3 py-1" style="font-size:11px;" onclick="limparFiltrosExtrato()">Limpar Filtros</button>
+                    <button type="button" class="btn btn-xs btn-primary px-3 py-1" style="font-size:11px; font-weight:bold;" onclick="renderizarTabelas(true)">⚡ Aplicar Filtro</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="table-container"><table class="table table-sm align-middle"><tbody id="tbodyLancamentos"></tbody></table></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB CATEGORIAS -->
+      <div class="tab-pane fade" id="categorias" role="tabpanel">
+        <div class="row">
+          <div class="col-md-5">
+            <div class="card"><form id="formCategoria" onsubmit="salvarNovaCategoria(event)"><div class="mb-3"><label class="form-label small">Nova Categoria</label><input type="text" id="catNome" class="form-control form-control-sm" required></div><button type="submit" class="btn btn-sm btn-primary w-100">Cadastrar</button></form></div>
+          </div>
+          <div class="col-md-7"><div class="card"><div class="table-container"><table class="table table-sm"><tbody id="tbodyCategorias"></tbody></table></div></div></div>
+        </div>
+      </div>
+
+      <!-- TAB TERMOS -->
+      <div class="tab-pane fade" id="condicoes" role="tabpanel">
+        <div class="row">
+          <div class="col-md-5">
+            <div class="card"><form id="formCondicao" onsubmit="salvarNovaCondition(event)"><div class="mb-2"><label class="form-label small">Nome do Termo</label><input type="text" id="condNome" class="form-control form-control-sm" required></div><div class="mb-2"><label class="form-label small">Ciclo</label><select id="condPeriodo" class="form-select form-select-sm" required><option value="Mensal">Mensal</option><option value="Semanal">Semanal</option></select></div><div class="mb-2"><label class="form-label small">Corte</label><input type="number" id="condCorte" class="form-control form-control-sm" required></div><div class="mb-2"><label class="form-label small">Deslocamento</label><input type="number" id="condDeslocamento" class="form-control form-control-sm" required></div><div class="mb-3"><label class="form-label small">Dia Pagamento</label><input type="number" id="condPagamento" class="form-control form-control-sm" required></div><button type="submit" class="btn btn-sm btn-dark w-100">Cadastrar</button></form></div>
+          </div>
+          <div class="col-md-7"><div class="card"><div class="table-container"><table class="table table-sm align-middle"><thead class="table-light"><tr><th>Nome</th><th>Ciclo</th><th>Corte</th><th>Mês+</th><th>Dia Vcto</th><th></th></tr></thead><tbody id="tbodyCondicoes"></tbody></table></div></div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="modal fade" id="modalDetalhes" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-dark text-white py-2">
+          <h6 id="modalDetalhesTitulo">Detalhes do Dia</h6>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-0">
+          <div class="table-responsive">
+            <table class="table table-striped table-sm m-0 align-middle">
+              <thead>
+                <tr class="table-light">
+                  <th class="ps-3">Descrição / Parcela</th>
+                  <th class="text-end">Valor</th>
+                  <th class="text-center" style="width: 170px;">Simular Nova Data</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyModalDetalhes"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer bg-light py-2 d-flex justify-content-between">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-warning font-weight-bold" onclick="executarSimulacaoEmTela()">📊 Simular Projeção</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 🔗 INSIRA A URL DO SEU GOOGLE APPS SCRIPT AQUI DENTRO DAS ASPAS:
+    const GOOGLE_API_URL = "SUA_URL_DO_GOOGLE_APPS_SCRIPT_AQUI";
+
+    // 🔄 PONTE DE COMUNICAÇÃO EXTERNA PARA SUBSTITUIR O GOOGLE.SCRIPT.RUN
+    const google = {
+      script: {
+        run: {
+          successHandler: null,
+          withSuccessHandler: function(handler) {
+            this.successHandler = handler;
+            return this;
+          },
+          executarGenerico: async function(funcaoBackend, argumentos = null) {
             try {
-                document.getElementById('status').innerText = "Atualizando...";
-                document.getElementById('status').className = "bg-yellow-500 text-xs px-2 py-1 rounded-full text-white font-medium";
-
-                const response = await fetch(API_URL);
-                const data = await response.json();
-
-                // 1. Atualizar os Cards do Topo com formatação bonita
-                document.getElementById('saldo-hoje').innerText = formatarMoeda(data.saldoHoje);
-                document.getElementById('receitas-hoje').innerText = formatarMoeda(data.receitasHoje);
-                document.getElementById('saidas-hoje').innerText = formatarMoeda(data.saidasHoje);
-
-                // 2. Montar a tabela de fluxo de caixa corrigindo dízimas periódicas
-                const tbody = document.getElementById('tabela-fluxo');
-                tbody.innerHTML = "";
-
-                if (data.fluxoDiario && data.fluxoDiario.length > 0) {
-                    data.fluxoDiario.forEach(item => {
-                        const tr = document.createElement('tr');
-                        tr.className = "hover:bg-gray-55/50 transition-colors";
-                        tr.innerHTML = `
-                            <td class="p-3 font-medium text-gray-600">${item.data}</td>
-                            <td class="p-3 text-green-600">${formatarMoeda(item.receitas)}</td>
-                            <td class="p-3 text-red-600">${formatarMoeda(item.saidas)}</td>
-                            <td class="p-3 font-semibold ${item.saldo >= 0 ? 'text-blue-600' : 'text-amber-600'}">${formatarMoeda(item.saldo)}</td>
-                        `;
-                        tbody.appendChild(tr);
-                    });
-                } else {
-                    tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">Nenhum dado encontrado.</td></tr>`;
-                }
-
-                document.getElementById('status').innerText = "Conectado";
-                document.getElementById('status').className = "bg-green-500 text-xs px-2 py-1 rounded-full text-white font-medium";
-
-            } catch (error) {
-                console.error("Erro ao carregar dados:", error);
-                document.getElementById('status').innerText = "Erro de Conexão";
-                document.getElementById('status').className = "bg-red-500 text-xs px-2 py-1 rounded-full text-white font-medium";
+              document.getElementById('status-conexao').innerText = "🔄 Sincronizando...";
+              document.getElementById('status-conexao').className = "badge bg-warning";
+              
+              const resposta = await fetch(GOOGLE_API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ funcao: funcaoBackend, args: argumentos })
+              });
+              const resultado = await resposta.json();
+              
+              document.getElementById('status-conexao').innerText = "🟢 Conectado";
+              document.getElementById('status-conexao').className = "badge bg-success";
+              
+              if (this.successHandler) this.successHandler(resultado);
+            } catch (err) {
+              console.error("Erro na requisição:", err);
+              document.getElementById('status-conexao').innerText = "🔴 Erro de Conexão";
+              document.getElementById('status-conexao').className = "badge bg-danger";
             }
+          },
+          obterDadosIniciais: function() { this.executarGenerico('obterDadosIniciais'); },
+          atualizarDatasLoteBackend: function(vetor) { this.executarGenerico('atualizarDatasLoteBackend', vetor); },
+          excluirLinha: function(nomeAba, id) { this.executarGenerico('excluirLinha', {aba: nomeAba, id: id}); },
+          excluirLancamentoAvancado: function(id, tipo, recId, data) { this.executarGenerico('excluirLancamentoAvancado', {id, tipo, recId, data}); },
+          atualizarClienteBackend: function(dados) { this.executarGenerico('atualizarClienteBackend', dados); },
+          salvarRegra: function(dados) { this.executarGenerico('salvarRegra', dados); },
+          atualizarLancamentoAvancado: function(dados, tipo) { this.executarGenerico('atualizarLancamentoAvancado', {dados, tipo}); },
+          atualizarLancamentoBackend: function(dados) { this.executarGenerico('atualizarLancamentoBackend', dados); },
+          salvarLancamentoManual: function(dados) { this.executarGenerico('salvarLancamentoManual', dados); },
+          salvarContasRecorrentesMaster: function(dados) { this.executarGenerico('salvarContasRecorrentesMaster', dados); },
+          salvarCategoria: function(dados) { this.executarGenerico('salvarCategoria', dados); },
+          salvarCondicaoPagamento: function(dados) { this.executarGenerico('salvarCondicaoPagamento', dados); },
+          sincronizarCalendarBackend: function() { this.executarGenerico('sincronizarCalendarBackend'); },
+          faturamentoImediatoFila: function(id) { this.executarGenerico('faturamentoImediatoFila', id); }
+        }
+      }
+    };
+
+    var state = { lancamentos: [], regras: [], categorias: [], condicoes: [], recorrenciasConfig: [] };
+    var lancamentosSimulados = null; 
+    var listaAlteracoesSimuladas = {}; 
+    var chartInstance = null; var modalBS = null; var modalConfirmBS = null; var toastBS = null;
+    var exibirHistoricoCompleto = false; 
+    var exibirHistoricoExtrato = false;
+    var filtrosAtivos = { texto: "", categoria: "todas", inicio: "", fim: "" };
+
+    function obterClasseStatusCaixa(valorSaldo) {
+      if (valorSaldo < 0) return 'status-negativo';
+      if (valorSaldo >= 0 && valorSaldo < 1000) return 'status-baixo';
+      if (valorSaldo >= 1000 && valorSaldo < 1500) return 'status-moderado';
+      return 'status-seguro';
+    }
+
+    function exibirAvisoNaTela(mensagem, tipo = 'success') {
+      var toastElement = document.getElementById('liveToast');
+      var toastMensagem = document.getElementById('toastMensagem');
+      toastMensagem.innerText = message = mensagem;
+      
+      toastElement.className = "toast align-items-center border-0 bg-" + (tipo === 'success' ? 'success' : 'danger');
+      toastBS.show();
+    }
+
+    function exibirModalConfirmacao(texto, acaoAoAceitar) {
+      document.getElementById('modalConfirmTexto').innerText = texto;
+      var btnConfirmar = document.getElementById('btnModalConfirmAceitar');
+      
+      var novoBtn = btnConfirmar.cloneNode(true);
+      btnConfirmar.parentNode.replaceChild(novoBtn, btnConfirmar);
+      
+      novoBtn.addEventListener('click', function() {
+        modalConfirmBS.hide();
+        acaoAoAceitar();
+      });
+      modalConfirmBS.show();
+    }
+
+    window.addEventListener('load', function() { 
+      modalBS = new bootstrap.Modal(document.getElementById('modalDetalhes'));
+      modalConfirmBS = new bootstrap.Modal(document.getElementById('modalConfirmacao'));
+      toastBS = new bootstrap.Toast(document.getElementById('liveToast'), { delay: 4000 });
+      
+      var d = new Date();
+      var mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      document.getElementById('dashFiltroMes').value = mStr;
+      recarregarDadosGlobais(); 
+    });
+
+    function recarregarDadosGlobais() {
+      google.script.run
+        .withSuccessHandler(function(dadosPlanilha) {
+          state.lancamentos = dadosPlanilha.lancamentos || [];
+          state.regras = dadosPlanilha.regras || [];
+          state.categorias = dadosPlanilha.categorias || [];
+          state.condicoes = dadosPlanilha.condicoes || [];
+          state.recorrenciasConfig = dadosPlanilha.recorrenciasConfig || [];
+          
+          lancamentosSimulados = null;
+          listaAlteracoesSimuladas = {};
+          document.getElementById('btnLimparSimulacao').classList.add('d-none');
+          document.getElementById('btnEfetivarSimulacao').classList.add('d-none');
+
+          renderizarTabelas(false);
+          alimentarSelects();
+          calcularFluxoEGráfico();
+          renderizarDashboardMensal();
+        })
+        .obterDadosIniciais();
+    }
+
+    function executarSimulacaoEmTela() {
+      var inputs = document.querySelectorAll('.input-simular-data');
+      var houveMudanca = false;
+      if (!lancamentosSimulados) { lancamentosSimulados = JSON.parse(JSON.stringify(state.lancamentos)); }
+
+      inputs.forEach(function(ipt) {
+        var lancId = ipt.getAttribute('data-id');
+        var dataOriginal = ipt.getAttribute('data-original');
+        var novaData = ipt.value;
+        if (novaData && novaData !== dataOriginal) {
+          houveMudanca = true;
+          listaAlteracoesSimuladas[lancId] = novaData;
+          var item = lancamentosSimulados.find(l => l.id == lancId);
+          if (item) item.data = novaData;
+        }
+      });
+
+      if (houveMudanca) {
+        document.getElementById('btnLimparSimulacao').classList.remove('d-none');
+        document.getElementById('btnEfetivarSimulacao').classList.remove('d-none');
+        modalBS.hide();
+        calcularFluxoEGráfico(); 
+        exibirAvisoNaTela("📊 Projeção simulada na tela com sucesso!", "success");
+      } else { 
+        exibirAvisoNaTela("Nenhuma data foi alterada para simulação.", "danger"); 
+      }
+    }
+
+    function limparSimulacaoCaixa() {
+      lancamentosSimulados = null;
+      listaAlteracoesSimuladas = {};
+      document.getElementById('btnLimparSimulacao').classList.add('d-none');
+      document.getElementById('btnEfetivarSimulacao').classList.add('d-none');
+      calcularFluxoEGráfico();
+      exibirAvisoNaTela("Simulação limpa!", "success");
+    }
+
+    function pedirConfirmacaoEfetivar() {
+      exibirModalConfirmacao("Deseja gravar as novas datas simuladas na sua planilha do Sheets?", efetivarDatasSimuladasNoSheets);
+    }
+
+    function efetivarDatasSimuladasNoSheets() {
+      var vetorEnvio = [];
+      for (var id in listaAlteracoesSimuladas) { vetorEnvio.push({ id: Number(id), novaData: listaAlteracoesSimuladas[id] }); }
+      google.script.run
+        .withSuccessHandler(function(resposta) { 
+          exibirAvisoNaTela(resposta, "success"); 
+          recarregarDadosGlobais(); 
+        })
+        .atualizarDatasLoteBackend(vetorEnvio);
+    }
+
+    function limparFiltrosExtrato() {
+      document.getElementById('filtroTexto').value = "";
+      document.getElementById('filtroCategoria').value = "todas";
+      document.getElementById('filtroDataInicio').value = "";
+      document.getElementById('filtroDataFim').value = "";
+      filtrosAtivos = { texto: "", categoria: "todas", inicio: "", fim: "" };
+      renderizarTabelas(false);
+    }
+
+    function renderizarDashboardMensal() {
+      var mesAlvoStr = document.getElementById('dashFiltroMes').value; 
+      if (!mesAlvoStr) return;
+      var totalReceitas = 0; var totalDespesas = 0; var mapaCategorias = {};
+      state.lancamentos.forEach(function(l) {
+        var lMes = l.data.substring(0, 7);
+        if (lMes === mesAlvoStr) {
+          if (l.tipo === "Receita") { totalReceitas += l.valor; } 
+          else { totalDespesas += l.valor; var cat = l.categoria || "Sem Categoria"; mapaCategorias[cat] = (mapaCategorias[cat] || 0) + l.valor; }
+        }
+      });
+      var resultadoLiquido = totalReceitas - totalDespesas;
+      document.getElementById('dashReceitas').innerText = "R$ " + totalReceitas.toFixed(2);
+      document.getElementById('dashDespesas').innerText = "R$ " + totalDespesas.toFixed(2);
+      document.getElementById('dashResultado').innerText = "R$ " + resultadoLiquido.toFixed(2);
+      var cardResult = document.getElementById('dashResultadoContainer');
+      if (resultadoLiquido >= 0) { cardResult.className = "dash-card bg-lucro"; } else { cardResult.className = "dash-card bg-despesa"; }
+      var listaCategorias = [];
+      for (var cNome in mapaCategorias) { listaCategorias.push({ nome: cNome, valor: mapaCategorias[cNome] }); }
+      listaCategorias.sort((a, b) => b.valor - a.valor);
+      var htmlDashTable = "";
+      if (listaCategorias.length === 0) { htmlDashTable = "<tr><td colspan='3' class='text-center text-muted py-3'>Nenhuma despesa registrada para o período selecionado.</td></tr>"; } 
+      else {
+        listaCategorias.forEach(function(catItem) {
+          var part = totalDespesas > 0 ? (catItem.valor / totalDespesas) * 100 : 0;
+          htmlDashTable += `<tr><td class="ps-2 py-2 fw-bold text-dark">${catItem.nome}</td><td class="text-end pe-3 text-danger font-monospace fw-bold">R$ ${catItem.valor.toFixed(2)}</td><td class="text-center"><span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill">${part.toFixed(1)}%</span></td></tr>`;
+        });
+      }
+      document.getElementById('tbodyDashCategorias').innerHTML = htmlDashTable;
+    }
+
+    function alternarCamposTermino() {
+      var modo = document.querySelector('input[name="tipoTermino"]:checked').value;
+      document.getElementById('recTerminoData').classList.add('d-none');
+      document.getElementById('boxOcorrInput').classList.add('d-none');
+      document.getElementById('recTerminoData').removeAttribute('required');
+      document.getElementById('recTerminoOcorrencias').removeAttribute('required');
+      if(modo === 'data') { document.getElementById('recTerminoData').classList.remove('d-none'); document.getElementById('recTerminoData').setAttribute('required', 'true'); } 
+      else if(modo === 'ocorrencias') { document.getElementById('boxOcorrInput').classList.remove('d-none'); document.getElementById('boxOcorrInput').classList.add('d-flex'); document.getElementById('recTerminoOcorrencias').setAttribute('required', 'true'); }
+    }
+
+    function ajustarLabelDiaAlvo() {
+      var freq = document.getElementById('recFrequencia').value;
+      var label = document.getElementById('labelDiaAlvo');
+      if(freq === "Mensal") label.innerText = "Dia do Mês (1 a 31)"; else label.innerText = "Dia da Semana (1=Seg, 7=Dom)";
+    }
+
+    function alimentarSelects() {
+      var htmlOptions = '<option value="Sem Categoria">-- Selecione --</option>';
+      var htmlFiltroCat = '<option value="todas">-- Todas as Categorias --</option>';
+      state.categorias.forEach(function(cat) { 
+        htmlOptions += `<option value="${cat.nome}">${cat.nome}</option>`; 
+        htmlFiltroCat += `<option value="${cat.nome}">${cat.nome}</option>`;
+      });
+      document.getElementById('lCategoria').innerHTML = htmlOptions;
+      document.getElementById('recCategoria').innerHTML = htmlOptions;
+      document.getElementById('filtroCategoria').innerHTML = htmlFiltroCat;
+
+      var htmlConds = '<option value="">-- Selecione o Termo --</option>';
+      var nomesVistos = {};
+      state.condicoes.forEach(function(c) {
+        var nLimpo = c.nome.trim();
+        if(!nomesVistos[nLimpo]){ htmlConds += `<option value="${nLimpo}">${nLimpo}</option>`; nomesVistos[nLimpo] = true; }
+      });
+      document.getElementById('regraCondicaoNome').innerHTML = htmlConds;
+    }
+
+    function renderizarTabelas(deveFiltrar) {
+      var htmlRegras = "";
+      state.regras.forEach(function(r) {
+        var textoReajuste = r.novoValor ? `<br><small class="text-muted">📈 R$ ${r.novoValor} de reajuste</small>` : "";
+        htmlRegras += `<tr><td><b>${r.cliente}</b><br><small class="text-success">${r.condicaoNome}</small>${textoReajuste}</td><td class="text-end">R$ ${r.valorVisita.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicaoCliente(${r.id}, '${r.cliente}', ${r.valorVisita}, '${r.condicaoNome}', '${r.novoValor}', '${r.dataVigor}')">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="pedirConfirmacaoDeletarSimples('RegrasClientes', ${r.id})">🗑️</button></td></tr>`;
+      });
+      document.getElementById('tbodyRegras').innerHTML = htmlRegras || "<tr><td>Nenhum cliente cadastrado.</td></tr>";
+
+      if (deveFiltrar === true) {
+        filtrosAtivos.texto = document.getElementById('filtroTexto').value.toLowerCase().trim();
+        filtrosAtivos.categoria = document.getElementById('filtroCategoria').value;
+        filtrosAtivos.inicio = document.getElementById('filtroDataInicio').value;
+        filtrosAtivos.fim = document.getElementById('filtroDataFim').value;
+      }
+
+      var htmlLanc = "";
+      var dHoje = new Date();
+      var hojeStr = `${dHoje.getFullYear()}-${String(dHoje.getMonth() + 1).padStart(2, '0')}-${String(dHoje.getDate()).padStart(2, '0')}`;
+      var lancsOrdenados = [...state.lancamentos].sort((a,b) => new Date(a.data) - new Date(b.data));
+      
+      lancsOrdenados.forEach(function(l) {
+        if (!exibirHistoricoExtrato && l.data < hojeStr) return; 
+
+        if (filtrosAtivos.texto !== "") {
+          var descL = l.descricao.toLowerCase();
+          var catL = l.categoria.toLowerCase();
+          if (descL.indexOf(filtrosAtivos.texto) === -1 && catL.indexOf(filtrosAtivos.texto) === -1) return;
         }
 
-        // Executa ao abrir a página
-        window.onload = () => {
-            // Se você ainda não colou a URL real do Apps Script, vamos puxar dados fictícios apenas para testar o layout
-            if(API_URL.includes("SUA_URL_DO_GOOGLE")){
-                mockTest();
-            } else {
-                carregarDados();
-            }
-        };
+        if (filtrosAtivos.categoria !== "todas" && l.categoria !== filtrosAtivos.categoria) return;
+        if (filtrosAtivos.inicio !== "" && l.data < filtrosAtivos.inicio) return;
+        if (filtrosAtivos.fim !== "" && l.data > filtrosAtivos.fim) return;
 
-        // Função apenas para você ver o layout lindo antes mesmo de colar sua URL do Apps Script se quiser
-        function mockTest() {
-            document.getElementById('saldo-hoje').innerText = formatarMoeda(-75800.03);
-            document.getElementById('receitas-hoje').innerText = formatarMoeda(3500);
-            document.getElementById('saidas-hoje').innerText = formatarMoeda(450.50);
-            
-            const tbody = document.getElementById('tabela-fluxo');
-            tbody.innerHTML = `
-                <tr class="border-b border-gray-100"><td class="p-3 text-gray-600">16/07</td><td class="p-3 text-green-600">${formatarMoeda(338.72)}</td><td class="p-3 text-red-600">${formatarMoeda(0)}</td><td class="p-3 font-semibold text-blue-600">${formatarMoeda(338.72)}</td></tr>
-                <tr class="border-b border-gray-100"><td class="p-3 text-gray-600">17/07</td><td class="p-3 text-green-600">${formatarMoeda(0)}</td><td class="p-3 text-red-600">${formatarMoeda(63.42)}</td><td class="p-3 font-semibold text-blue-600">${formatarMoeda(275.30)}</td></tr>
-                <tr class="border-b border-gray-100"><td class="p-3 text-gray-600">18/07</td><td class="p-3 text-green-600">${formatarMoeda(0)}</td><td class="p-3 text-red-600">${formatarMoeda(167.709999999998)}</td><td class="p-3 font-semibold text-blue-600">${formatarMoeda(107.59)}</td></tr>
-            `;
-        }
-    </script>
+        var corTipo = l.tipo === "Receita" ? "text-success fw-bold" : "text-danger";
+        var labelRecorrente = l.recorrenciaId ? " 🔁" : "";
+        htmlLanc += `<tr><td><small>${l.data.split('-').reverse().join('/')}</small> <span class="badge bg-light text-dark border">${l.categoria}</span><br><span>${l.descricao}${labelRecorrente}</span></td><td class="${corTipo} text-end">R$ ${l.valor.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicao(${l.id}, '${l.descricao}', ${l.valor}, '${l.data}', '${l.tipo}', '${l.categoria}', '${l.recorrenciaId}')">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="solicitarExclusaoLancamento(${l.id}, '${l.recorrenciaId}', '${l.data}')">🗑️</button></td></tr>`;
+      });
+      document.getElementById('tbodyLancamentos').innerHTML = htmlLanc || "<tr><td class='text-center text-muted py-3'>Nenhum lançamento encontrado.</td></tr>";
+
+      var htmlFila = "";
+      var pendentes = state.lancamentos.filter(function(l) { return l.tipo === "Receita" && l.status === "Projetado" && l.descricao.indexOf("Faturamento:") === 0; }).sort((a, b) => new Date(a.data) - new Date(b.data));
+      pendentes.forEach(function(item) {
+        htmlFila += `<tr><td>${item.data.split('-').reverse().join('/')}</td><td><b>${item.descricao.replace("Faturamento: ", "")}</b></td><td class="text-success fw-bold">R$ ${item.valor.toFixed(2)}</td><td class="text-center"><button type="button" class="btn btn-sm btn-success py-1 px-2" onclick="marcarComoConsolidadoDaFila(${item.id})">🔒 Emitir Nota</button></td></tr>`;
+      });
+      document.getElementById('tbodyFilaFaturamento').innerHTML = htmlFila || "<tr><td colspan='4'>Nenhuma cobrança pendente.</td></tr>";
+
+      var htmlRecsMaster = "";
+      state.recorrenciasConfig.forEach(function(rec) {
+        var txtTermino = "Sem fim";
+        if (rec.tipoTermino === "data" && rec.valorTermino) { var p = rec.valorTermino.split('-'); txtTermino = `Até ${p[2]}/${p[1]}/${p[0]}`; } 
+        else if (rec.tipoTermino === "ocorrencias" && rec.valorTermino) { txtTermino = `${rec.valorTermino} parcelas`; }
+        htmlRecsMaster += `<tr><td><b>${rec.descricao}</b><br><small class="text-muted">${txtTermino}</small></td><td>R$ ${rec.valor.toFixed(2)}</td><td>${rec.frequencia}</td><td>${rec.diaAlvo}</td><td><button type="button" class="btn btn-xs text-danger border-0" onclick="pedirConfirmacaoContratoRecorrente('${rec.idSerie}')">🗑️</button></td></tr>`;
+      });
+      document.getElementById('tbodyRecorrenciasConfig').innerHTML = htmlRecsMaster || "<tr><td colspan='5'>Nenhuma conta fixa activa.</td></tr>";
+
+      var htmlCats = "";
+      state.categorias.forEach(function(c) { htmlCats += `<tr><td><b>${c.nome}</b></td><td class="text-end"><button type="button" class="btn btn-xs text-danger border-0" onclick="pedirConfirmacaoDeletarSimples('Categorias', ${c.id})">🗑️</button></td></tr>`; });
+      document.getElementById('tbodyCategorias').innerHTML = htmlCats || "<tr><td>Nenhuma.</td></tr>";
+
+      var htmlCondsTable = "";
+      state.condicoes.forEach(function(c) {
+        htmlCondsTable += `<tr><td><small>${c.nome}</small></td><td>${c.periodo}</td><td>${c.diaCorte}</td><td>${c.mesDeslocamento}</td><td>${c.diaPagamento}</td><td><button type="button" class="btn btn-xs text-danger border-0" onclick="pedirConfirmacaoDeletarSimples('CondicoesPagamento', ${c.id})">🗑️</button></td></tr>`;
+      });
+      document.getElementById('tbodyCondicoes').innerHTML = htmlCondsTable || "<tr><td colspan='6'>Nenhuma.</td></tr>";
+    }
+
+    function alternarHistoricoExtrato() {
+      exibirHistoricoExtrato = !exibirHistoricoExtrato;
+      var btn = document.getElementById('btnAlternarHistoricoExtrato');
+      if (exibirHistoricoExtrato) { btn.innerText = "📉 Ocultar Histórico"; btn.className = "btn btn-xs btn-secondary text-white px-3 py-1"; } 
+      else { btn.innerText = "👁️ Mostrar Histórico"; btn.className = "btn btn-xs btn-outline-secondary px-3 py-1"; }
+      renderizarTabelas(false);
+    }
+
+    function pedirConfirmacaoDeletarSimples(nomeAba, idLinha) {
+      exibirModalConfirmacao("Confirmar exclusão definitiva desse registro?", function() {
+        google.script.run.withSuccessHandler(function() { 
+          exibirAvisoNaTela("Registro removido!", "success");
+          recarregarDadosGlobais(); 
+        }).excluirLinha(nomeAba, Number(idLinha));
+      });
+    }
+
+    function pedirConfirmacaoContratoRecorrente(idSerie) {
+      exibirModalConfirmacao("Deseja apagar esse contrato fixo e remover as cobranças futuras?", function() {
+        google.script.run.withSuccessHandler(function() { 
+          google.script.run.withSuccessHandler(function() { 
+            exibirAvisoNaTela("Recorrência removida!", "success");
+            recarregarDadosGlobais(); 
+          }).excluirLancamentoAvancado("0", "posteriores", idSerie, "2000-01-01");
+        });
+      });
+    }
+
+    function solicitarExclusaoLancamento(linhaId, recorrenciaId, dataCorte) {
+      if (!recorrenciaId) { 
+        exibirModalConfirmacao("Deseja excluir este lançamento manual?", function() {
+          google.script.run.withSuccessHandler(function(){ 
+            exibirAvisoNaTela("Lançamento removido!", "success");
+            recarregarDadosGlobais(); 
+          }).excluirLinha('Lancamentos', linhaId);
+        });
+        return; 
+      }
+      var escolha = prompt("Esta conta faz parte de uma RECORRÊNCIA.\nDigite a opção desejada:\n\n1 - Excluir APENAS esta parcela\n2 - Excluir ESTA e as parcelas FUTURAS");
+      if (escolha === "1") {
+        google.script.run.withSuccessHandler(function(){ exibirAvisoNaTela("Parcela única excluída!", "success"); recarregarDadosGlobais(); }).excluirLancamentoAvancado(linhaId, "unico", "", "");
+      } else if (escolha === "2") {
+        google.script.run.withSuccessHandler(function(){ exibirAvisoNaTela("Série futura cancelada!", "success"); recarregarDadosGlobais(); }).excluirLancamentoAvancado(linhaId, "posteriores", recorrenciaId, dataCorte);
+      }
+    }
+
+    var dsT = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
+
+    function alternarVisaoHistorico() {
+      exibirHistoricoCompleto = !exibirHistoricoCompleto;
+      var btn = document.getElementById('btnAlternarHistorico');
+      if(exibirHistoricoCompleto) { btn.innerText = "📉 Ocultar Passado"; btn.className = "btn btn-xs btn-secondary text-white px-2 py-1"; } 
+      else { btn.innerText = "👁️ Ver Histórico Passado"; btn.className = "btn btn-xs btn-outline-secondary px-2 py-1"; }
+      calcularFluxoEGráfico();
+    }
+
+    function marcarComoConsolidadoDaFila(linhaId) { 
+      google.script.run.withSuccessHandler(function() { 
+        exibirAvisoNaTela("Faturamento Consolidado com sucesso!", "success");
+        recarregarDadosGlobais(); 
+      }).faturamentoImediatoFila(linhaId); 
+    }
+
+    function abrirModoEdicaoCliente(id, cliente, valor, condicaoNome, novoValor, dataVigor) {
+      document.getElementById('editClienteId').value = id; document.getElementById('regraCliente').value = cliente; document.getElementById('regraValor').value = valor; document.getElementById('regraCondicaoNome').value = condicaoNome;
+      document.getElementById('regraNovoValor').value = novoValor === "undefined" ? "" : novoValor; document.getElementById('regraDataVigor').value = dataVigor === "undefined" ? "" : dataVigor;
+      document.getElementById('formClienteTitulo').innerText = "✏️ Editando Cliente"; document.getElementById('btnClienteSubmit').innerText = "Atualizar Cliente"; document.getElementById('btnCancelarClienteEdicao').classList.remove('d-none');
+    }
+
+    function cancelarClienteEdicao() { document.getElementById('editClienteId').value = ""; document.getElementById('formRegra').reset(); document.getElementById('formClienteTitulo').innerText = "🤝 Gerenciar Cliente"; document.getElementById('btnClienteSubmit').innerText = "Salvar Vínculo"; document.getElementById('btnCancelarClienteEdicao').classList.add('d-none'); }
+
+    function processarClienteForm(e) {
+      e.preventDefault(); var idEdit = document.getElementById('editClienteId').value;
+      var dados = { id: idEdit, cliente: document.getElementById('regraCliente').value, valorVisita: document.getElementById('regraValor').value, condicaoNome: document.getElementById('regraCondicaoNome').value, novoValor: document.getElementById('regraNovoValor').value, dataVigor: document.getElementById('regraDataVigor').value };
+      if (idEdit) { 
+        google.script.run.withSuccessHandler(function() { 
+          cancelarClienteEdicao(); 
+          exibirAvisoNaTela("Cliente updated!", "success");
+          recarregarDadosGlobais(); 
+        }).atualizarClienteBackend(dados); 
+      } else { 
+        google.script.run.withSuccessHandler(function() { 
+          document.getElementById('formRegra').reset(); 
+          exibirAvisoNaTela("Cliente cadastrado!", "success");
+          recarregarDadosGlobais(); 
+        }).salvarRegra(dados); 
+      }
+    }
+
+    function verDetalhesDoDia(dataStr, tipoFiltro) {
+      var bancoDeDadosOrigem = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;
+      var listaFiltrada = bancoDeDadosOrigem.filter(function(l) { return l.data.trim() === dataStr.trim() && l.tipo === tipoFiltro; });
+      if (listaFiltrada.length === 0) return;
+      
+      var htmlModal = "";
+      listaFiltrada.forEach(function(item) {
+        var dataOriginal = item.data;
+        var dataAtualIpt = listaAlteracoesSimuladas[item.id] ? listaAlteracoesSimuladas[item.id] : item.data;
+        htmlModal += `<tr>
+          <td class="ps-3 py-2"><strong>${item.recorrenciaId ? '🔁 ' : ''}${item.descricao}</strong><br><small class="text-muted">${item.categoria} (${item.status})</small></td>
+          <td class="text-end pe-2 fw-bold ${tipoFiltro === 'Receita' ? 'text-success' : 'text-danger'}">R$ ${item.valor.toFixed(2)}</td>
+          <td class="pe-3"><input type="date" class="form-control form-control-sm p-1 py-0 input-simular-data" data-id="${item.id}" data-original="${dataOriginal}" value="${dataAtualIpt}"></td>
+        </tr>`;
+      });
+      document.getElementById('tbodyModalDetalhes').innerHTML = htmlModal;
+      document.getElementById('modalDetalhesTitulo').innerText = `${tipoFiltro}s do dia ${dataStr.split('-').reverse().join('/')}`;
+      modalBS.show();
+    }
+
+    function abrirModoEdicao(id, descricao, valor, data, tipo, category, recorrenciaId) { 
+      document.getElementById('editLancamentoId').value = id; document.getElementById('lDesc').value = descricao; document.getElementById('lValor').value = valor; document.getElementById('lData').value = data; document.getElementById('lTipo').value = tipo; document.getElementById('lCategoria').value = category;
+      document.getElementById('editLancamentoRecorrenciaId').value = recorrenciaId || ""; document.getElementById('editLancamentoDataOriginal').value = data;
+      document.getElementById('formLancamentoTitulo').innerText = recorrenciaId ? "✏️ Editando Conta Recorrente" : "✏️ Editando Lançamento Normal"; document.getElementById('btnLancamento').innerText = "Atualizar"; document.getElementById('btnCancelarEdicao').classList.remove('d-none'); 
+    }
+
+    function cancelarEdicao() { 
+      document.getElementById('editLancamentoId').value = ""; document.getElementById('editLancamentoRecorrenciaId').value = ""; document.getElementById('editLancamentoDataOriginal').value = "";
+      document.getElementById('formLancamento').reset(); document.getElementById('formLancamentoTitulo').innerText = "📑 Novo Lançamento Manual"; document.getElementById('btnLancamento').innerText = "Gravar"; document.getElementById('btnCancelarEdicao').classList.add('d-none'); 
+    }
+    
+    function processarLancamentoForm(e) {
+      e.preventDefault(); var idEdit = document.getElementById('editLancamentoId').value; var rId = document.getElementById('editLancamentoRecorrenciaId').value; var dtOriginal = document.getElementById('editLancamentoDataOriginal').value;
+      var dados = { id: idEdit, descricao: document.getElementById('lDesc').value, valor: document.getElementById('lValor').value, data: document.getElementById('lData').value, tipo: document.getElementById('lTipo').value, categoria: document.getElementById('lCategoria').value, recorrenciaId: rId, dataOriginalCorte: dtOriginal };
+      if (idEdit) { 
+        if (rId) {
+          var escolha = prompt("Esta conta faz parte de uma RECORRÊNCIA.\n1 - Mudar APENAS esta parcela\n2 - Mudar ESTA e TODAS as futuras");
+          if (escolha === "1") google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Parcela modificada!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoAvancado(dados, "unico");
+          else if (escolha === "2") google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Série modificada!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoAvancado(dados, "posteriores");
+        } else { google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Lançamento atualizado!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoBackend(dados); }
+      } else { google.script.run.withSuccessHandler(function() { document.getElementById('formLancamento').reset(); exibirAvisoNaTela("Lançamento realizado!", "success"); recarregarDadosGlobais(); }).salvarLancamentoManual(dados); }
+    }
+
+    function salvarContasFixasRecorrentes(e) {
+      e.preventDefault(); var tTermino = document.querySelector('input[name="tipoTermino"]:checked').value; var vTermino = "";
+      if(tTermino === 'data') vTermino = document.getElementById('recTerminoData').value; else if(tTermino === 'ocorrencias') vTermino = document.getElementById('recTerminoOcorrencias').value;
+      var dados = { descricao: document.getElementById('recDesc').value, valor: document.getElementById('recValor').value, dataInicio: document.getElementById('recDataInicio').value, categoria: document.getElementById('recCategoria').value, frequencia: document.getElementById('recFrequencia').value, diaAlvo: document.getElementById('recDiaAlvo').value, tipo: document.getElementById('recTipo').value, tipoTermino: tTermino, valorTermino: vTermino };
+      google.script.run.withSuccessHandler(function(){ document.getElementById('formRecorrencia').reset(); alternarCamposTermino(); exibirAvisoNaTela("Conta Recorrente configurada!", "success"); recarregarDadosGlobais(); }).salvarContasRecorrentesMaster(dados);
+    }
+
+    function salvarNovaCategoria(e) { e.preventDefault(); google.script.run.withSuccessHandler(function() { document.getElementById('formCategoria').reset(); exibirAvisoNaTela("Categoria salva!", "success"); recarregarDadosGlobais(); }).salvarCategoria({ nome: document.getElementById('catNome').value }); }
+    function salvarNovaCondition(e) { e.preventDefault(); var dados = { nome: document.getElementById('condNome').value, periodo: document.getElementById('condPeriodo').value, diaCorte: document.getElementById('condCorte').value, mesDeslocamento: document.getElementById('condDeslocamento').value, diaPagamento: document.getElementById('condPagamento').value }; google.script.run.withSuccessHandler(function() { document.getElementById('formCondicao').reset(); exibirAvisoNaTela("Condição cadastrada!", "success"); recarregarDadosGlobais(); }).salvarCondicaoPagamento(dados); }
+    function sincronizarAgendaReal() { var btn = document.getElementById('btnSincronizar'); if(btn) btn.disabled = true; google.script.run.withSuccessHandler(function(resp) { exibirAvisoNaTela(resp, "success"); if(btn) btn.disabled = false; recarregarDadosGlobais(); }).sincronizarCalendarBackend(); }
+
+    function calcularFluxoEGráfico() {
+      var mapaDatas = {};
+      var fonteDadosParaFluxo = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;
+      fonteDadosParaFluxo.forEach(function(l) {
+        if (!mapaDatas[l.data]) mapaDatas[l.data] = { receita: 0, despesa: 0 };
+        if (l.tipo === "Receita") { mapaDatas[l.data].receita += l.valor; } else { mapaDatas[l.data].despesa += l.valor; }
+      });
+
+      var dHoje = new Date();
+      var hojeStr = `${dHoje.getFullYear()}-${String(dHoje.getMonth() + 1).padStart(2, '0')}-${String(dHoje.getDate()).padStart(2, '0')}`;
+      var dadosDeHoje = mapaDatas[hojeStr] || { receita: 0, despesa: 0 };
+      var todasDatasDisponiveis = Object.keys(mapaDatas).sort();
+      var saldoHojeAcumulado = 0;
+      todasDatasDisponiveis.forEach(function(dStr) { if (dStr <= hojeStr) { saldoHojeAcumulado += (mapaDatas[dStr].receita - mapaDatas[dStr].despesa); } });
+
+      document.getElementById('cardReceita').innerText = "R$ " + dadosDeHoje.receita.toFixed(2);
+      document.getElementById('cardDespesa').innerText = "R$ " + dadosDeHoje.despesa.toFixed(2);
+      document.getElementById('cardSaldo').innerText = "R$ " + saldoHojeAcumulado.toFixed(2);
+      document.getElementById('cardSaldoContainer').className = "stat-card " + obterClasseStatusCaixa(saldoHojeAcumulado);
+
+      var dataPonteiroInicial = new Date(dHoje.getFullYear(), dHoje.getMonth(), dHoje.getDate(), 12, 0, 0);
+      if (exibirHistoricoCompleto && todasDatasDisponiveis.length > 0) { 
+        var p0 = todasDatasDisponiveis[0].split('-');
+        dataPonteiroInicial = new Date(Number(p0[0]), Number(p0[1]) - 1, Number(p0[2]), 12, 0, 0);
+      }
+
+      var dataLimiteFuturaGrafico = new Date(dHoje.getTime() + (90 * 24 * 60 * 60 * 1000));
+      var ultimaDataDoBanco = todasDatasDisponiveis[todasDatasDisponiveis.length - 1] || hojeStr;
+      var pU = ultimaDataDoBanco.split('-');
+      var dataLimiteFuturaTabela = new Date(Number(pU[0]), Number(pU[1]) - 1, Number(pU[2]), 12, 0, 0);
+      var seisMesesPraFrente = new Date(dHoje.getTime() + (180 * 24 * 60 * 60 * 1000));
+      if (dataLimiteFuturaTabela.getTime() < seisMesesPraFrente.getTime()) { dataLimiteFuturaTabela = new Date(seisMesesPraFrente.getFullYear(), seisMesesPraFrente.getMonth(), seisMesesPraFrente.getDate(), 12, 0, 0); }
+
+      var htmlTabelaDiaria = ""; var dadosEixoX = []; var dadosEixoY = []; var saldoAcumuladoLinha = 0;
+      var stringDataInicialIso = `${dataPonteiroInicial.getFullYear()}-${String(dataPonteiroInicial.getMonth() + 1).padStart(2, '0')}-${String(dataPonteiroInicial.getDate()).padStart(2, '0')}`;
+      todasDatasDisponiveis.forEach(function(dStr) { if (dStr < stringDataInicialIso) { saldoAcumuladoLinha += (mapaDatas[dStr].receita - mapaDatas[dStr].despesa); } });
+
+      var ponteiroData = new Date(dataPonteiroInicial.getTime());
+      while (ponteiroData.getTime() <= dataLimiteFuturaTabela.getTime()) {
+        var dataLoopStr = `${ponteiroData.getFullYear()}-${String(ponteiroData.getMonth() + 1).padStart(2, '0')}-${String(ponteiroData.getDate()).padStart(2, '0')}`;
+        var recDoDia = mapaDatas[dataLoopStr] ? mapaDatas[dataLoopStr].receita : 0;
+        var despDoDia = mapaDatas[dataLoopStr] ? mapaDatas[dataLoopStr].despesa : 0;
+        saldoAcumuladoLinha += (recDoDia - despDoDia);
+        var dataFormatadaBR = `${String(ponteiroData.getDate()).padStart(2, '0')}/${String(ponteiroData.getMonth() + 1).padStart(2, '0')}`;
+        if (ponteiroData.getTime() <= dataLimiteFuturaGrafico.getTime()) { dadosEixoX.push(dataFormatadaBR + "/" + ponteiroData.getFullYear()); dadosEixoY.push(saldoAcumuladoLinha); }
+        
+        var tdReceita = recDoDia > 0 ? `<button type="button" class="btn-detalhe text-success" onclick="verDetalhesDoDia('${dataLoopStr}', 'Receita')">+R$${recDoDia.toFixed(0)}</button>` : `<span class="text-muted">-</span>`;
+        var tdDespesa = despDoDia > 0 ? `<button type="button" class="btn-detalhe text-danger" onclick="verDetalhesDoDia('${dataLoopStr}', 'Despesa')">-R$${despDoDia.toFixed(0)}</button>` : `<span class="text-muted">-</span>`;
+        var classeCorLinha = obterClasseStatusCaixa(saldoAcumuladoLinha);
+        var indiceDiaSemana = ponteiroData.getDay(); var txtDiaSemana = dsT[indiceDiaSemana]; 
+        
+        var classeFdsCol = (indiceDiaSemana === 0 || indiceDiaSemana === 6) ? "col-fim-de-semana" : "";
+        
+        htmlTabelaDiaria += `<tr>
+          <td class="${classeFdsCol}">
+            <b>${dataFormatadaBR}</b>${dataLoopStr === hojeStr ? '<br><span class="badge bg-warning text-dark badge-data" style="padding:1px 2px;">Hoje</span>' : ''}
+            <br><span class="badge bg-secondary-subtle text-secondary-emphasis badge-data" style="font-weight:bold;">${txtDiaSemana}</span>
+          </td>
+          <td class="${classeFdsCol}">${tdReceita}</td>
+          <td class="${classeFdsCol}">${tdDespesa}</td>
+          <td class="fw-bold ${classeCorLinha}">R$${saldoAcumuladoLinha.toFixed(0)}</td>
+        </tr>`;
+        ponteiroData.setDate(ponteiroData.getDate() + 1);
+      }
+      document.getElementById('tbodyProjecaoDiaria').innerHTML = htmlTabelaDiaria;
+
+      if (chartInstance) chartInstance.destroy();
+      var ctx = document.getElementById('chartFluxo').getContext('2d');
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { labels: dadosEixoX, datasets: [{ label: 'Saldo', data: dadosEixoY, borderColor: '#1abc9c', backgroundColor: 'rgba(26, 188, 156, 0.05)', borderWidth: 2, fill: true, tension: 0.1 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 9 }, maxRotation: 45 } } } }
+      });
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
