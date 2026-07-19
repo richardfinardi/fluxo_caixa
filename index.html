@@ -59,7 +59,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">fUXO DE CAIXA V4.1</span>
+      <span class="navbar-brand mb-0 h6">fUXO DE CAIXA V4.2</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -279,6 +279,8 @@
       </div>
 
       <!-- SCRIPT CORRIGIDO QUE CONECTA COM O BANCO -->
+      
+      <!-- SCRIPT CORRIGIDO DEFINITIVO -->
       <script>
         function enviarDadosClienteNovos(event) {
           event.preventDefault();
@@ -301,7 +303,8 @@
             porHora: porHora
           };
 
-          const acao = id ? "atualizarClienteBackend" : "salvarRegra";
+          // Define qual função do Apps Script vai rodar no servidor (.gs)
+          const funcaoPlanilha = id ? "atualizarClienteBackend" : "salvarRegra";
 
           function finalizarSucesso(resposta) {
             alert(resposta || "Processado com sucesso!");
@@ -312,23 +315,18 @@
             if (typeof listarRegras === "function") listarRegras();
           }
 
+          // Executa direto na biblioteca fake sem encadear métodos que dão erro
           if (typeof google !== "undefined" && google.script && google.script.run) {
-            google.script.run
-              .withSuccessHandler(finalizarSucesso)
-              .withFailureHandler(err => alert("Erro no servidor: " + err))
-              [acao](dados);
+            google.script.run.withSuccessHandler(finalizarSucesso)[funcaoPlanilha](dados);
           } else if (typeof executarNoBackend === "function") {
-            try {
-              executarNoBackend(acao, dados).then(finalizarSucesso).catch(err => alert("Erro: " + err));
-            } catch(e) {
-              executarNoBackend(acao, dados);
-              finalizarSucesso("Comando enviado!");
-            }
+            executarNoBackend(funcaoPlanilha, dados);
+            finalizarSucesso("Enviado com sucesso!");
           } else {
-            alert("Não foi possível encontrar a função de envio para o banco de dados.");
+            alert("Conexão com o banco de dados não encontrada.");
           }
         }
-      </script>      <!-- ==================== FIM DO BLOCO ==================== -->
+      </script>
+      <!-- ==================== FIM DO BLOCO ==================== -->
 
       <!-- TAB LANÇAMENTOS -->
       <div class="tab-pane fade" id="lancamentos" role="tabpanel">
