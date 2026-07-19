@@ -59,7 +59,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">fUXO DE CAIXA V4.3</span>
+      <span class="navbar-brand mb-0 h6">fUXO DE CAIXA V4.4</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -346,8 +346,9 @@
                 <h6 class="fw-bold mb-0">Extrato Geral</h6>
               </div>
 
+              <!-- 🚀 BLOCO DE FILTROS ATUALIZADO COM SELETOR DE TIPO (RECEITA / DESPESA) -->
               <div class="row g-2 p-2 bg-light rounded border mb-3">
-                <div class="col-sm-4">
+                <div class="col-sm-3">
                   <span class="filtro-label">🔍 Descrição / Termo</span>
                   <input type="text" id="filtroTexto" class="form-control form-control-sm" placeholder="Ex: JOY, Faturamento...">
                 </div>
@@ -355,11 +356,19 @@
                   <span class="filtro-label">🏷️ Categoria</span>
                   <select id="filtroCategoria" class="form-select form-select-sm"></select>
                 </div>
-                <div class="col-sm-2.5 col-6">
+                <div class="col-sm-3">
+                  <span class="filtro-label">💰 Tipo</span>
+                  <select id="filtroTipo" class="form-select form-select-sm">
+                    <option value="todos">-- Todos os Tipos --</option>
+                    <option value="Receita">Receitas</option>
+                    <option value="Despesa">Despesas</option>
+                  </select>
+                </div>
+                <div class="col-sm-1.5 col-6">
                   <span class="filtro-label">📅 Início</span>
                   <input type="date" id="filtroDataInicio" class="form-control form-control-sm">
                 </div>
-                <div class="col-sm-2.5 col-6">
+                <div class="col-sm-1.5 col-6">
                   <span class="filtro-label">📅 Fim</span>
                   <input type="date" id="filtroDataFim" class="form-control form-control-sm">
                 </div>
@@ -423,7 +432,7 @@
           </div>
         </div>
         <div class="modal-footer bg-light py-2 d-flex justify-content-between">
-          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-modal="modal">Fechar</button>
           <div class="d-flex gap-2">
             <button type="button" class="btn btn-sm btn-warning font-weight-bold" onclick="executarSimulacaoEmTela()">📊 Simular Projeção</button>
           </div>
@@ -505,7 +514,8 @@
     var chartInstance = null; var modalBS = null; var modalConfirmBS = null; var toastBS = null;
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
-    var filtrosAtivos = { texto: "", categoria: "todas", inicio: "", fim: "" };
+    // 🚀 INCLUSÃO DA PROPRIEDADE TIPO NOS FILTROS ATIVOS[cite: 2]
+    var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", inicio: "", fim: "" };
 
     function obterClasseStatusCaixa(valorSaldo) {
       if (valorSaldo < 0) return 'status-negativo';
@@ -629,9 +639,11 @@
     function limparFiltrosExtrato() {
       document.getElementById('filtroTexto').value = "";
       document.getElementById('filtroCategoria').value = "todas";
+      // 🚀 LIMPA O SELETOR DE TIPO DO MENU[cite: 2]
+      document.getElementById('filtroTipo').value = "todos";
       document.getElementById('filtroDataInicio').value = "";
       document.getElementById('filtroDataFim').value = "";
-      filtrosAtivos = { texto: "", categoria: "todas", inicio: "", fim: "" };
+      filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", inicio: "", fim: "" };
       renderizarTabelas(false);
     }
 
@@ -713,6 +725,8 @@
       if (deveFiltrar === true) {
         filtrosAtivos.texto = document.getElementById('filtroTexto').value.toLowerCase().trim();
         filtrosAtivos.categoria = document.getElementById('filtroCategoria').value;
+        // 🚀 CAPTURA O TIPO EXECUTADO NO FRONTEND PELO BOTÃO[cite: 2]
+        filtrosAtivos.tipo = document.getElementById('filtroTipo').value;
         filtrosAtivos.inicio = document.getElementById('filtroDataInicio').value;
         filtrosAtivos.fim = document.getElementById('filtroDataFim').value;
       }
@@ -732,6 +746,10 @@
         }
 
         if (filtrosAtivos.categoria !== "todas" && l.categoria !== filtrosAtivos.categoria) return;
+        
+        // 🚀 REGRA DE VALIDAÇÃO DE FILTRAGEM POR TIPO (RECEITA / DESPESA)[cite: 2]
+        if (filtrosAtivos.tipo !== "todos" && l.tipo !== filtrosAtivos.tipo) return;
+        
         if (filtrosAtivos.inicio !== "" && l.data < filtrosAtivos.inicio) return;
         if (filtrosAtivos.fim !== "" && l.data > filtrosAtivos.fim) return;
 
@@ -964,7 +982,7 @@
         if (ponteiroData.getTime() <= dataLimiteFuturaGrafico.getTime()) { 
           dadosEixoX.push(dataFormatadaBR + "/" + ponteiroData.getFullYear()); 
           dadosEixoY.push(saldoAcumuladoLinha); 
-          mapeamentoDatasGrafico.push(dataLoopStr); // Guarda a data ISO equivalente para usar no clique do gráfico
+          mapeamentoDatasGrafico.push(dataLoopStr);
         }
         
         var tdReceita = recDoDia > 0 ? `<button type="button" class="btn-detalhe text-success" onclick="verDetalhesDoDia('${dataLoopStr}', 'Receita')">+R$${recDoDia.toFixed(0)}</button>` : `<span class="text-muted">-</span>`;
@@ -997,13 +1015,10 @@
           maintainAspectRatio: false, 
           plugins: { legend: { display: false } }, 
           scales: { y: { ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 9 }, maxRotation: 45 } } },
-          // 🚀 CONFIGURAÇÃO DO CLIQUE INTERATIVO NO PONTO DO GRÁFICO 🚀
           onClick: function(evt, activeElements) {
             if (activeElements && activeElements.length > 0) {
               var index = activeElements[0].index;
               var dataIsoClicada = mapeamentoDatasGrafico[index];
-              
-              // Verifica se o dia clicado tem mais receita ou despesa para abrir o modal correto
               var dadosDia = mapaDatas[dataIsoClicada] || { receita: 0, despesa: 0 };
               
               if (dadosDia.receita > 0) {
@@ -1011,7 +1026,6 @@
               } else if (dadosDia.despesa > 0) {
                 verDetalhesDoDia(dataIsoClicada, 'Despesa');
               } else {
-                // Se for um dia zerado, força o modal de Despesa vazio informativo
                 verDetalhesDoDia(dataIsoClicada, 'Despesa');
               }
             }
