@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Fluxo de Caixa Automatizado</title>
+  
+  <!-- Configurações mobile agressivas para App Nativo -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#2c3e50">
+  
+  <!-- Ícone padrão para aparecer na tela do seu celular -->
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2454/2454269.png">
+  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2454/2454269.png">
+
+  <!-- Link que conecta o HTML ao arquivo do manifesto do App -->
+  <link rel="manifest" href="manifest.json">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background-color: #f4f6f9; padding-bottom: 50px; font-size: 14px; }
+    .navbar { background-color: #2c3e50; color: white; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .card { border: none; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; padding: 15px !important; }
+    .stat-card { text-align: center; padding: 15px; color: white; border-radius: 8px; margin-bottom: 10px; }
+    .bg-receita { background: linear-gradient(135deg, #3498db, #2980b9); }
+    .bg-despesa { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+    .status-negativo { background-color: #e69191 !important; color: #721c24 !important; }
+    .status-baixo { background-color: #ffe599 !important; color: #7f6000 !important; }
+    .status-moderado { background-color: #f9cb9c !important; color: #7f4c00 !important; }
+    .status-seguro { background-color: #b6d7a8 !important; color: #274e13 !important; }
+    .col-fim-de-semana { background-color: #eaecef !important; opacity: 0.9; }
+    .table-container { max-height: 400px; overflow-y: auto; }
+    .table-responsive-mobile { width: 100%; overflow-x: auto; }
+    .btn-detalhe { background: none; border: none; padding: 0; font-weight: bold; text-decoration: underline; cursor: pointer; }
+    .toast-container { z-index: 2000; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar navbar-dark p-2">
+    <div class="container-fluid d-flex justify-content-between align-items-center">
+      <span class="navbar-brand mb-0 h6">💰 Finanças Engine V3</span>
+      <span class="badge bg-success" style="font-size: 11px;">🟢 Conectado</span>
+    </div>
+  </nav>
+
+  <div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="liveToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body fw-bold text-white" id="toastMensagem"></div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid px-3">
+    <div class="row">
+      <div class="col-4 px-1"><div class="stat-card" id="cardSaldoContainer"><h6>SALDO HOJE</h6><h5 id="cardSaldo">R$ 0,00</h5></div></div>
+      <div class="col-4 px-1"><div class="stat-card bg-receita"><h6>RECEITAS HOJE</h6><h5 id="cardReceita">R$ 0,00</h5></div></div>
+      <div class="col-4 px-1"><div class="stat-card bg-despesa"><h6>SAÍDAS HOJE</h6><h5 id="cardDespesa">R$ 0,00</h5></div></div>
+    </div>
+
+    <!-- Gráfico e Tabela Diária -->
+    <div class="card mb-3"><div style="height: 220px;"><canvas id="chartFluxo"></canvas></div></div>
+    <div class="card">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="fw-bold mb-0">Fluxo de Caixa Diário</h6>
+        <div class="d-flex gap-2">
+          <button class="btn btn-xs btn-warning px-2 py-1 d-none" id="btnLimparSimulacao" onclick="limparSimulacaoCaixa()">✕ Limpar</button>
+          <button class="btn btn-xs btn-success px-2 py-1 d-none" id="btnEfetivarSimulacao" onclick="efetivarDatasSimuladasNoSheets()">🔒 Efetivar Mudanças</button>
+        </div>
+      </div>
+      <div class="table-responsive-mobile table-container">
+        <table class="table table-sm table-bordered align-middle m-0">
+          <thead class="table-dark">
+            <tr><th>Data</th><th>Receitas</th><th>Saídas</th><th>Saldo</th></tr>
+          </thead>
+          <tbody id="tbodyProjecaoDiaria"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 🔥 COLE O LINK DA SUA API ENTRE AS ASPAS ABAIXO:
+    const URL_DA_SUA_API = "https://script.google.com/macros/s/AKfycbyPGpW6_YUbWEKYBvEPok8VISZxgCxBNqh2yTwqSM4MjjgpRycyuLusZ62PzDZVzZgHiw/exec";
+
+    var state = { lancamentos: [], regras: [], categorias: [], condicoes: [], recorrenciasConfig: [] };
+    var lancamentosSimulados = null; 
+    var listaAlteracoesSimuladas = {}; 
+    var chartInstance = null; var toastBS = null;
+
+    function exibirAvisoNaTela(msg, tipo = 'success') {
+      document.getElementById('toastMensagem').innerText = msg;
+      document.getElementById('liveToast').className = "toast align-items-center border-0 bg-" + (tipo === 'success' ? 'success' : 'danger');
+      toastBS.show();
+    }
+
+    window.addEventListener('load', function() {
+      toastBS = new bootstrap.Toast(document.getElementById('liveToast'), { delay: 4000 });
+      recarregarDadosGlobais();
+      
+      // Ativa o segundo plano do App
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(err => console.log("SW erro:", err));
+      }
+    });
+
+    function recarregarDadosGlobais() {
+      fetch(URL_DA_SUA_API)
+        .then(res => res.json())
+        .then(dadosPlanilha => {
+          state = dadosPlanilha;
+          lancamentosSimulados = null;
+          listaAlteracoesSimuladas = {};
+          document.getElementById('btnLimparSimulacao').classList.add('d-none');
+          document.getElementById('btnEfetivarSimulacao').classList.add('d-none');
+          calcularFluxoEGráfico();
+        });
+    }
+
+    function calcularFluxoEGráfico() {
+      var mapaDatas = {};
+      var fonte = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;
+      if(!fonte) return;
+      
+      fonte.forEach(l => {
+        if (!mapaDatas[l.data]) mapaDatas[l.data] = { receita: 0, despesa: 0 };
+        if (l.tipo === "Receita") mapaDatas[l.data].receita += l.valor; else mapaDatas[l.data].despesa += l.valor;
+      });
+
+      var dHoje = new Date();
+      var hojeStr = `${dHoje.getFullYear()}-${String(dHoje.getMonth() + 1).padStart(2, '0')}-${String(dHoje.getDate()).padStart(2, '0')}`;
+      var dadosDeHoje = mapaDatas[hojeStr] || { receita: 0, despesa: 0 };
+      
+      document.getElementById('cardReceita').innerText = "R$ " + dadosDeHoje.receita.toFixed(2);
+      document.getElementById('cardDespesa').innerText = "R$ " + dadosDeHoje.despesa.toFixed(2);
+      
+      var html = "";
+      var saldoAcumulado = 0;
+      Object.keys(mapaDatas).sort().forEach(dStr => {
+        saldoAcumulado += (mapaDatas[dStr].receita - mapaDatas[dStr].despesa);
+        var p = dStr.split('-');
+        html += `<tr><td><b>${p[2]}/${p[1]}</b></td><td>R$ ${mapaDatas[dStr].receita}</td><td>R$ ${mapaDatas[dStr].despesa}</td><td><b>R$ ${saldoAcumulado}</b></td></tr>`;
+      });
+      document.getElementById('tbodyProjecaoDiaria').innerHTML = html;
+      document.getElementById('cardSaldo').innerText = "R$ " + saldoAcumulado.toFixed(2);
+    }
+
+    function efetivarDatasSimuladasNoSheets() {
+      var vetorEnvio = [];
+      for (var id in listaAlteracoesSimuladas) { vetorEnvio.push({ id: Number(id), novaData: listaAlteracoesSimuladas[id] }); }
+      
+      fetch(URL_DA_SUA_API, {
+        method: "POST",
+        body: JSON.stringify({ action: "atualizarDatasLote", listaAlteracoes: vetorEnvio })
+      })
+      .then(res => res.json())
+      .then(resp => {
+        exibirAvisoNaTela(resp.message);
+        recarregarDadosGlobais();
+      });
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
