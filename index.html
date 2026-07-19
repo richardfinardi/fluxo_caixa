@@ -1,170 +1,164 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado</title>
-  
-  <!-- Configurações mobile agressivas para App Nativo -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#2c3e50">
-  
-  <!-- Ícone padrão para aparecer na tela do seu celular -->
-  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2454/2454269.png">
-  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2454/2454269.png">
-
-  <!-- Link que conecta o HTML ao arquivo do manifesto do App -->
-  <link rel="manifest" href="manifest.json">
-
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { background-color: #f4f6f9; padding-bottom: 50px; font-size: 14px; }
-    .navbar { background-color: #2c3e50; color: white; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .card { border: none; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; padding: 15px !important; }
-    .stat-card { text-align: center; padding: 15px; color: white; border-radius: 8px; margin-bottom: 10px; }
-    .bg-receita { background: linear-gradient(135deg, #3498db, #2980b9); }
-    .bg-despesa { background: linear-gradient(135deg, #e74c3c, #c0392b); }
-    .status-negativo { background-color: #e69191 !important; color: #721c24 !important; }
-    .status-baixo { background-color: #ffe599 !important; color: #7f6000 !important; }
-    .status-moderado { background-color: #f9cb9c !important; color: #7f4c00 !important; }
-    .status-seguro { background-color: #b6d7a8 !important; color: #274e13 !important; }
-    .col-fim-de-semana { background-color: #eaecef !important; opacity: 0.9; }
-    .table-container { max-height: 400px; overflow-y: auto; }
-    .table-responsive-mobile { width: 100%; overflow-x: auto; }
-    .btn-detalhe { background: none; border: none; padding: 0; font-weight: bold; text-decoration: underline; cursor: pointer; }
-    .toast-container { z-index: 2000; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Finanças Engine V3</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2c3e50">
+    <!-- Tailwind CSS para um visual limpo e responsivo -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        body {
+            background-color: #f1f5f9;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Ajuste fino para tabelas roláveis no celular */
+        .table-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+    </style>
 </head>
-<body>
+<body class="font-sans antialiased text-gray-800 pb-12">
 
-  <nav class="navbar navbar-dark p-2">
-    <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">💰 Finanças Engine V3</span>
-      <span class="badge bg-success" style="font-size: 11px;">🟢 Conectado</span>
-    </div>
-  </nav>
+    <!-- Cabeçalho Fixo -->
+    <header class="bg-[#2c3e50] text-white p-4 sticky top-0 z-50 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold flex items-center gap-2">💰 Finanças Engine V3</h1>
+        <span id="status" class="bg-green-500 text-xs px-2 py-1 rounded-full text-white font-medium">Conectado</span>
+    </header>
 
-  <div class="toast-container position-fixed bottom-0 end-0 p-3">
-    <div id="liveToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
-      <div class="d-flex">
-        <div class="toast-body fw-bold text-white" id="toastMensagem"></div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-      </div>
-    </div>
-  </div>
+    <main class="max-w-md mx-auto p-4 space-y-4">
 
-  <div class="container-fluid px-3">
-    <div class="row">
-      <div class="col-4 px-1"><div class="stat-card" id="cardSaldoContainer"><h6>SALDO HOJE</h6><h5 id="cardSaldo">R$ 0,00</h5></div></div>
-      <div class="col-4 px-1"><div class="stat-card bg-receita"><h6>RECEITAS HOJE</h6><h5 id="cardReceita">R$ 0,00</h5></div></div>
-      <div class="col-4 px-1"><div class="stat-card bg-despesa"><h6>SAÍDAS HOJE</h6><h5 id="cardDespesa">R$ 0,00</h5></div></div>
-    </div>
-
-    <!-- Gráfico e Tabela Diária -->
-    <div class="card mb-3"><div style="height: 220px;"><canvas id="chartFluxo"></canvas></div></div>
-    <div class="card">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h6 class="fw-bold mb-0">Fluxo de Caixa Diário</h6>
-        <div class="d-flex gap-2">
-          <button class="btn btn-xs btn-warning px-2 py-1 d-none" id="btnLimparSimulacao" onclick="limparSimulacaoCaixa()">✕ Limpar</button>
-          <button class="btn btn-xs btn-success px-2 py-1 d-none" id="btnEfetivarSimulacao" onclick="efetivarDatasSimuladasNoSheets()">🔒 Efetivar Mudanças</button>
+        <!-- Dashboard de Cards (Corrigido texto sumido) -->
+        <div class="grid grid-cols-3 gap-2 text-center text-xs font-bold">
+            <div class="bg-gray-700 text-white p-3 rounded-xl shadow-sm flex flex-col justify-between min-h-[85px]">
+                <span class="opacity-90 block mb-1">SALDO HOJE</span>
+                <span id="saldo-hoje" class="text-sm md:text-base break-words">R$ 0,00</span>
+            </div>
+            <div class="bg-blue-600 text-white p-3 rounded-xl shadow-sm flex flex-col justify-between min-h-[85px]">
+                <span class="opacity-90 block mb-1">RECEITAS HOJE</span>
+                <span id="receitas-hoje" class="text-sm md:text-base break-words">R$ 0,00</span>
+            </div>
+            <div class="bg-red-600 text-white p-3 rounded-xl shadow-sm flex flex-col justify-between min-h-[85px]">
+                <span class="opacity-90 block mb-1">SAÍDAS HOJE</span>
+                <span id="saidas-hoje" class="text-sm md:text-base break-words">R$ 0,00</span>
+            </div>
         </div>
-      </div>
-      <div class="table-responsive-mobile table-container">
-        <table class="table table-sm table-bordered align-middle m-0">
-          <thead class="table-dark">
-            <tr><th>Data</th><th>Receitas</th><th>Saídas</th><th>Saldo</th></tr>
-          </thead>
-          <tbody id="tbodyProjecaoDiaria"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
 
-  <script>
-    // 🔥 COLE O LINK DA SUA API ENTRE AS ASPAS ABAIXO:
-    const URL_DA_SUA_API = "https://script.google.com/macros/s/AKfycbyPGpW6_YUbWEKYBvEPok8VISZxgCxBNqh2yTwqSM4MjjgpRycyuLusZ62PzDZVzZgHiw/exec";
+        <!-- Área Central (Para simulações ou novos lançamentos futuras) -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hidden" id="area-simulacao">
+            <!-- Seu botão de Efetivar ou controles entram aqui se precisar -->
+        </div>
 
-    var state = { lancamentos: [], regras: [], categorias: [], condicoes: [], recorrenciasConfig: [] };
-    var lancamentosSimulados = null; 
-    var listaAlteracoesSimuladas = {}; 
-    var chartInstance = null; var toastBS = null;
+        <!-- Fluxo de Caixa Diário -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+            <h3 class="font-bold text-lg text-gray-700 border-b border-gray-100 pb-2">Fluxo de Caixa Diário</h3>
+            
+            <div class="table-container rounded-xl border border-gray-100">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-gray-800 text-white text-xs uppercase tracking-wider">
+                            <th class="p-3">Data</th>
+                            <th class="p-3">Receitas</th>
+                            <th class="p-3">Saídas</th>
+                            <th class="p-3">Saldo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-fluxo" class="divide-y divide-gray-100">
+                        <!-- Preenchido via JS -->
+                        <tr>
+                            <td colspan="4" class="p-4 text-center text-gray-400">Carregando dados...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-    function exibirAvisoNaTela(msg, tipo = 'success') {
-      document.getElementById('toastMensagem').innerText = msg;
-      document.getElementById('liveToast').className = "toast align-items-center border-0 bg-" + (tipo === 'success' ? 'success' : 'danger');
-      toastBS.show();
-    }
+    </main>
 
-    window.addEventListener('load', function() {
-      toastBS = new bootstrap.Toast(document.getElementById('liveToast'), { delay: 4000 });
-      recarregarDadosGlobais();
-      
-      // Ativa o segundo plano do App
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(err => console.log("SW erro:", err));
-      }
-    });
+    <script>
+        // Registrar o Service Worker para funcionar como App (PWA)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log("Erro SW:", err));
+        }
 
-    function recarregarDadosGlobais() {
-      fetch(URL_DA_SUA_API)
-        .then(res => res.json())
-        .then(dadosPlanilha => {
-          state = dadosPlanilha;
-          lancamentosSimulados = null;
-          listaAlteracoesSimuladas = {};
-          document.getElementById('btnLimparSimulacao').classList.add('d-none');
-          document.getElementById('btnEfetivarSimulacao').classList.add('d-none');
-          calcularFluxoEGráfico();
-        });
-    }
+        // URL da sua API do Google Apps Script (Cole a sua URL de Execução aqui se necessário)
+        const API_URL = "SUA_URL_DO_GOOGLE_APPS_SCRIPT_AQUI"; 
 
-    function calcularFluxoEGráfico() {
-      var mapaDatas = {};
-      var fonte = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;
-      if(!fonte) return;
-      
-      fonte.forEach(l => {
-        if (!mapaDatas[l.data]) mapaDatas[l.data] = { receita: 0, despesa: 0 };
-        if (l.tipo === "Receita") mapaDatas[l.data].receita += l.valor; else mapaDatas[l.data].despesa += l.valor;
-      });
+        // Função utilitária para formatar números brutos em Moeda Real (R$ 1.234,56)
+        function formatarMoeda(valor) {
+            const numero = parseFloat(valor) || 0;
+            return numero.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
 
-      var dHoje = new Date();
-      var hojeStr = `${dHoje.getFullYear()}-${String(dHoje.getMonth() + 1).padStart(2, '0')}-${String(dHoje.getDate()).padStart(2, '0')}`;
-      var dadosDeHoje = mapaDatas[hojeStr] || { receita: 0, despesa: 0 };
-      
-      document.getElementById('cardReceita').innerText = "R$ " + dadosDeHoje.receita.toFixed(2);
-      document.getElementById('cardDespesa').innerText = "R$ " + dadosDeHoje.despesa.toFixed(2);
-      
-      var html = "";
-      var saldoAcumulado = 0;
-      Object.keys(mapaDatas).sort().forEach(dStr => {
-        saldoAcumulado += (mapaDatas[dStr].receita - mapaDatas[dStr].despesa);
-        var p = dStr.split('-');
-        html += `<tr><td><b>${p[2]}/${p[1]}</b></td><td>R$ ${mapaDatas[dStr].receita}</td><td>R$ ${mapaDatas[dStr].despesa}</td><td><b>R$ ${saldoAcumulado}</b></td></tr>`;
-      });
-      document.getElementById('tbodyProjecaoDiaria').innerHTML = html;
-      document.getElementById('cardSaldo').innerText = "R$ " + saldoAcumulado.toFixed(2);
-    }
+        // Função para buscar dados da API da planilha
+        async function carregarDados() {
+            try {
+                document.getElementById('status').innerText = "Atualizando...";
+                document.getElementById('status').className = "bg-yellow-500 text-xs px-2 py-1 rounded-full text-white font-medium";
 
-    function efetivarDatasSimuladasNoSheets() {
-      var vetorEnvio = [];
-      for (var id in listaAlteracoesSimuladas) { vetorEnvio.push({ id: Number(id), novaData: listaAlteracoesSimuladas[id] }); }
-      
-      fetch(URL_DA_SUA_API, {
-        method: "POST",
-        body: JSON.stringify({ action: "atualizarDatasLote", listaAlteracoes: vetorEnvio })
-      })
-      .then(res => res.json())
-      .then(resp => {
-        exibirAvisoNaTela(resp.message);
-        recarregarDadosGlobais();
-      });
-    }
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+                const response = await fetch(API_URL);
+                const data = await response.json();
+
+                // 1. Atualizar os Cards do Topo com formatação bonita
+                document.getElementById('saldo-hoje').innerText = formatarMoeda(data.saldoHoje);
+                document.getElementById('receitas-hoje').innerText = formatarMoeda(data.receitasHoje);
+                document.getElementById('saidas-hoje').innerText = formatarMoeda(data.saidasHoje);
+
+                // 2. Montar a tabela de fluxo de caixa corrigindo dízimas periódicas
+                const tbody = document.getElementById('tabela-fluxo');
+                tbody.innerHTML = "";
+
+                if (data.fluxoDiario && data.fluxoDiario.length > 0) {
+                    data.fluxoDiario.forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.className = "hover:bg-gray-55/50 transition-colors";
+                        tr.innerHTML = `
+                            <td class="p-3 font-medium text-gray-600">${item.data}</td>
+                            <td class="p-3 text-green-600">${formatarMoeda(item.receitas)}</td>
+                            <td class="p-3 text-red-600">${formatarMoeda(item.saidas)}</td>
+                            <td class="p-3 font-semibold ${item.saldo >= 0 ? 'text-blue-600' : 'text-amber-600'}">${formatarMoeda(item.saldo)}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">Nenhum dado encontrado.</td></tr>`;
+                }
+
+                document.getElementById('status').innerText = "Conectado";
+                document.getElementById('status').className = "bg-green-500 text-xs px-2 py-1 rounded-full text-white font-medium";
+
+            } catch (error) {
+                console.error("Erro ao carregar dados:", error);
+                document.getElementById('status').innerText = "Erro de Conexão";
+                document.getElementById('status').className = "bg-red-500 text-xs px-2 py-1 rounded-full text-white font-medium";
+            }
+        }
+
+        // Executa ao abrir a página
+        window.onload = () => {
+            // Se você ainda não colou a URL real do Apps Script, vamos puxar dados fictícios apenas para testar o layout
+            if(API_URL.includes("SUA_URL_DO_GOOGLE")){
+                mockTest();
+            } else {
+                carregarDados();
+            }
+        };
+
+        // Função apenas para você ver o layout lindo antes mesmo de colar sua URL do Apps Script se quiser
+        function mockTest() {
+            document.getElementById('saldo-hoje').innerText = formatarMoeda(-75800.03);
+            document.getElementById('receitas-hoje').innerText = formatarMoeda(3500);
+            document.getElementById('saidas-hoje').innerText = formatarMoeda(450.50);
+            
+            const tbody = document.getElementById('tabela-fluxo');
+            tbody.innerHTML = `
+                <tr class="border-b border-gray-100"><td class="p-3 text-gray-600">16/07</td><td class="p-3 text-green-600">${formatarMoeda(338.72)}</td><td class="p-3 text-red-600">${formatarMoeda(0)}</td><td class="p-3 font-semibold text-blue-600">${formatarMoeda(338.72)}</td></tr>
+                <tr class="border-b border-gray-100"><td class="p-3 text-gray-600">17/07</td><td class="p-3 text-green-600">${formatarMoeda(0)}</td><td class="p-3 text-red-600">${formatarMoeda(63.42)}</td><td class="p-3 font-semibold text-blue-600">${formatarMoeda(275.30)}</td></tr>
+                <tr class="border-b border-gray-100"><td class="p-3 text-gray-600">18/07</td><td class="p-3 text-green-600">${formatarMoeda(0)}</td><td class="p-3 text-red-600">${formatarMoeda(167.709999999998)}</td><td class="p-3 font-semibold text-blue-600">${formatarMoeda(107.59)}</td></tr>
+            `;
+        }
+    </script>
 </body>
 </html>
