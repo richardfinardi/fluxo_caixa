@@ -59,7 +59,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">fUXO DE CAIXA V4.5</span>
+      <span class="navbar-brand mb-0 h6">fUXO DE CAIXA V4.6</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -346,7 +346,7 @@
                 <h6 class="fw-bold mb-0">Extrato Geral</h6>
               </div>
 
-              <!-- BLOCO DE FILTROS ATUALIZADO COM SELETOR DE TIPO (RECEITA / DESPESA) -->
+              <!-- BLOCO DE FILTROS COM SELETOR DE TIPO (RECEITA / DESPESA) -->
               <div class="row g-2 p-2 bg-light rounded border mb-3">
                 <div class="col-sm-3">
                   <span class="filtro-label">🔍 Descrição / Termo</span>
@@ -496,7 +496,8 @@
           excluirLancamentoAvancado: function(id, tipo, recId, data) { this.executarGenerico('excluirLancamentoAvancado', {id, tipo, recId, data}); },
           atualizarClienteBackend: function(dados) { this.executarGenerico('atualizarClienteBackend', dados); },
           salvarRegra: function(dados) { this.executarGenerico('salvarRegra', dados); },
-          atualizarLancamentoAvancado: function(dados, tipo) { this.executarGenerico('atualizarLancamentoAvancado', {dados, tipo}); },
+          // 🚀 PADRONIZAÇÃO NO ENVIO DE EDIÇÃO AVANÇADA
+          atualizarLancamentoAvancado: function(dados, tipo) { this.executarGenerico('atualizarLancamentoAvancado', { dados: dados, tipo: tipo, argsArray: [dados, tipo] }); },
           atualizarLancamentoBackend: function(dados) { this.executarGenerico('atualizarLancamentoBackend', dados); },
           salvarLancamentoManual: function(dados) { this.executarGenerico('salvarLancamentoManual', dados); },
           salvarContasRecorrentesMaster: function(dados) { this.executarGenerico('salvarContasRecorrentesMaster', dados); },
@@ -514,7 +515,6 @@
     var chartInstance = null; var modalBS = null; var modalConfirmBS = null; var toastBS = null;
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
-    // INCLUSÃO DA PROPRIEDADE TIPO NOS FILTROS ATIVOS
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", inicio: "", fim: "" };
 
     function obterClasseStatusCaixa(valorSaldo) {
@@ -584,7 +584,6 @@
         .obterDadosIniciais();
     }
 
-    // 🚀 CORREÇÃO DO NOME DA FUNÇÃO DE "ejecutar..." PARA "executar..."[cite: 1]
     function executarSimulacaoEmTela() {
       var inputs = document.querySelectorAll('.input-simular-data');
       var houveMudanca = false;
@@ -640,7 +639,6 @@
     function limparFiltrosExtrato() {
       document.getElementById('filtroTexto').value = "";
       document.getElementById('filtroCategoria').value = "todas";
-      // LIMPA O SELETOR DE TIPO DO MENU
       document.getElementById('filtroTipo').value = "todos";
       document.getElementById('filtroDataInicio').value = "";
       document.getElementById('filtroDataFim').value = "";
@@ -726,7 +724,6 @@
       if (deveFiltrar === true) {
         filtrosAtivos.texto = document.getElementById('filtroTexto').value.toLowerCase().trim();
         filtrosAtivos.categoria = document.getElementById('filtroCategoria').value;
-        // CAPTURA O TIPO EXECUTADO NO FRONTEND PELO BOTÃO
         filtrosAtivos.tipo = document.getElementById('filtroTipo').value;
         filtrosAtivos.inicio = document.getElementById('filtroDataInicio').value;
         filtrosAtivos.fim = document.getElementById('filtroDataFim').value;
@@ -747,16 +744,18 @@
         }
 
         if (filtrosAtivos.categoria !== "todas" && l.categoria !== filtrosAtivos.categoria) return;
-        
-        // REGRA DE VALIDAÇÃO DE FILTRAGEM POR TIPO (RECEITA / DESPESA)
         if (filtrosAtivos.tipo !== "todos" && l.tipo !== filtrosAtivos.tipo) return;
-        
         if (filtrosAtivos.inicio !== "" && l.data < filtrosAtivos.inicio) return;
         if (filtrosAtivos.fim !== "" && l.data > filtrosAtivos.fim) return;
 
         var corTipo = l.tipo === "Receita" ? "text-success fw-bold" : "text-danger";
-        var labelRecorrente = l.recorrenciaId ? " 🔁" : "";
-        htmlLanc += `<tr><td><small>${l.data.split('-').reverse().join('/')}</small> <span class="badge bg-light text-dark border">${l.categoria}</span><br><span>${l.descricao}${labelRecorrente}</span></td><td class="${corTipo} text-end">R$ ${l.valor.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicao(${l.id}, '${l.descricao}', ${l.valor}, '${l.data}', '${l.tipo}', '${l.categoria}', '${l.recorrenciaId}')">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="solicitarExclusaoLancamento(${l.id}, '${l.recorrenciaId}', '${l.data}')">🗑️</button></td></tr>`;
+        
+        // Validação estrita para identificar se possui uma recorrência real ativa
+        var possuiRecorrencia = l.recorrenciaId && l.recorrenciaId !== "undefined" && l.recorrenciaId !== "null" && String(l.recorrenciaId).trim() !== "";
+        var labelRecorrente = possuiRecorrencia ? " 🔁" : "";
+        
+        // 🚀 CHAMADA DE EDIÇÃO SEGURA APENAS PELO ID DO REGISTRO
+        htmlLanc += `<tr><td><small>${l.data.split('-').reverse().join('/')}</small> <span class="badge bg-light text-dark border">${l.categoria}</span><br><span>${l.descricao}${labelRecorrente}</span></td><td class="${corTipo} text-end">R$ ${l.valor.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicao(${l.id})">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="solicitarExclusaoLancamento(${l.id}, '${possuiRecorrencia ? l.recorrenciaId : ''}', '${l.data}')">🗑️</button></td></tr>`;
       });
       document.getElementById('tbodyLancamentos').innerHTML = htmlLanc || "<tr><td class='text-center text-muted py-3'>Nenhum lançamento encontrado.</td></tr>";
 
@@ -816,7 +815,7 @@
     }
 
     function solicitarExclusaoLancamento(linhaId, recorrenciaId, dataCorte) {
-      if (!recorrenciaId) { 
+      if (!recorrenciaId || recorrenciaId === "undefined" || recorrenciaId === "null" || String(recorrenciaId).trim() === "") { 
         exibirModalConfirmacao("Deseja excluir este lançamento manual?", function() {
           google.script.run.withSuccessHandler(function(){ 
             exibirAvisoNaTela("Lançamento removido!", "success");
@@ -825,7 +824,7 @@
         });
         return; 
       }
-      var escolha = prompt("Esta conta faz parte de uma RECORRÊNCIA.\nDigite a opção desejada:\n\n1 - Excluir APENAS esta parcela\n2 - Excluir ESTA e las parcelas FUTURAS");
+      var escolha = prompt("Esta conta faz parte de uma RECORRÊNCIA.\nDigite a opção desejada:\n\n1 - Excluir APENAS esta parcela\n2 - Excluir ESTA e as parcelas FUTURAS");
       if (escolha === "1") {
         google.script.run.withSuccessHandler(function(){ exibirAvisoNaTela("Parcela única excluída!", "success"); recarregarDadosGlobais(); }).excluirLancamentoAvancado(linhaId, "unico", "", "");
       } else if (escolha === "2") {
@@ -885,8 +884,9 @@
       listaFiltrada.forEach(function(item) {
         var dataOriginal = item.data;
         var dataAtualIpt = listaAlteracoesSimuladas[item.id] ? listaAlteracoesSimuladas[item.id] : item.data;
+        var possuiRec = item.recorrenciaId && item.recorrenciaId !== "undefined" && item.recorrenciaId !== "null";
         htmlModal += `<tr>
-          <td class="ps-3 py-2"><strong>${item.recorrenciaId ? '🔁 ' : ''}${item.descricao}</strong><br><small class="text-muted">${item.categoria} (${item.status})</small></td>
+          <td class="ps-3 py-2"><strong>${possuiRec ? '🔁 ' : ''}${item.descricao}</strong><br><small class="text-muted">${item.categoria} (${item.status})</small></td>
           <td class="text-end pe-2 fw-bold ${tipoFiltro === 'Receita' ? 'text-success' : 'text-danger'}">R$ ${item.valor.toFixed(2)}</td>
           <td class="pe-3"><input type="date" class="form-control form-control-sm p-1 py-0 input-simular-data" data-id="${item.id}" data-original="${dataOriginal}" value="${dataAtualIpt}"></td>
         </tr>`;
@@ -896,10 +896,29 @@
       modalBS.show();
     }
 
-    function abrirModoEdicao(id, descricao, valor, data, tipo, category, recorrenciaId) { 
-      document.getElementById('editLancamentoId').value = id; document.getElementById('lDesc').value = descricao; document.getElementById('lValor').value = valor; document.getElementById('lData').value = data; document.getElementById('lTipo').value = tipo; document.getElementById('lCategoria').value = category;
-      document.getElementById('editLancamentoRecorrenciaId').value = recorrenciaId || ""; document.getElementById('editLancamentoDataOriginal').value = data;
-      document.getElementById('formLancamentoTitulo').innerText = recorrenciaId ? "✏️ Editando Conta Recorrente" : "✏️ Editando Lançamento Normal"; document.getElementById('btnLancamento').innerText = "Atualizar"; document.getElementById('btnCancelarEdicao').classList.remove('d-none'); 
+    // 🚀 MODO DE EDIÇÃO TOTALMENTE REESTRUTURADO E SEGURO
+    function abrirModoEdicao(id) { 
+      var banco = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;
+      var item = banco.find(function(l) { return l.id == id; });
+      if (!item) return;
+
+      var recId = (item.recorrenciaId && item.recorrenciaId !== "undefined" && item.recorrenciaId !== "null") ? String(item.recorrenciaId).trim() : "";
+
+      document.getElementById('editLancamentoId').value = item.id;
+      document.getElementById('lDesc').value = item.descricao || "";
+      document.getElementById('lValor').value = item.valor || 0;
+      document.getElementById('lData').value = item.data || "";
+      document.getElementById('lTipo').value = item.tipo || "Despesa";
+      document.getElementById('lCategoria').value = item.categoria || "Sem Categoria";
+      document.getElementById('editLancamentoRecorrenciaId').value = recId;
+      document.getElementById('editLancamentoDataOriginal').value = item.data || "";
+
+      document.getElementById('formLancamentoTitulo').innerText = recId ? "✏️ Editando Conta Recorrente" : "✏️ Editando Lançamento Normal"; 
+      document.getElementById('btnLancamento').innerText = "Atualizar"; 
+      document.getElementById('btnCancelarEdicao').classList.remove('d-none'); 
+
+      // Rola a página suavemente até o formulário de edição
+      document.getElementById('cardFormLancamento').scrollIntoView({ behavior: 'smooth' });
     }
 
     function cancelarEdicao() { 
@@ -915,13 +934,18 @@
     function processarLancamentoForm(e) {
       e.preventDefault(); var idEdit = document.getElementById('editLancamentoId').value; var rId = document.getElementById('editLancamentoRecorrenciaId').value; var dtOriginal = document.getElementById('editLancamentoDataOriginal').value;
       var dados = { id: idEdit, descricao: document.getElementById('lDesc').value, valor: document.getElementById('lValor').value, data: document.getElementById('lData').value, tipo: document.getElementById('lTipo').value, categoria: document.getElementById('lCategoria').value, recorrenciaId: rId, dataOriginalCorte: dtOriginal };
+      
       if (idEdit) { 
-        if (rId) {
-          var escolha = prompt("Esta conta faz parte de uma RECORRÊNCIA.\n1 - Mudar APENAS esta parcela\n2 - Mudar ESTA e TODAS as futuras");
+        if (rId && rId !== "undefined" && rId !== "null" && String(rId).trim() !== "") {
+          var escolha = prompt("Esta conta faz parte de uma RECORRÊNCIA.\n\n1 - Mudar APENAS esta parcela\n2 - Mudar ESTA e TODAS as futuras");
           if (escolha === "1") google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Parcela modificada!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoAvancado(dados, "unico");
           else if (escolha === "2") google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Série modificada!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoAvancado(dados, "posteriores");
-        } else { google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Lançamento atualizado!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoBackend(dados); }
-      } else { google.script.run.withSuccessHandler(function() { document.getElementById('formLancamento').reset(); exibirAvisoNaTela("Lançamento realizado!", "success"); recarregarDadosGlobais(); }).salvarLancamentoManual(dados); }
+        } else { 
+          google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Lançamento atualizado!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoBackend(dados); 
+        }
+      } else { 
+        google.script.run.withSuccessHandler(function() { document.getElementById('formLancamento').reset(); exibirAvisoNaTela("Lançamento realizado!", "success"); recarregarDadosGlobais(); }).salvarLancamentoManual(dados); 
+      }
     }
 
     function salvarContasFixasRecorrentes(e) {
