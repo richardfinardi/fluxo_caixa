@@ -27,12 +27,11 @@
     .bg-receita { background: linear-gradient(135deg, #3498db, #2980b9); }
     .bg-despesa { background: linear-gradient(135deg, #e74c3c, #c0392b); }
     .bg-lucro { background: linear-gradient(135deg, #2ecc71, #27ae60); }
-    .status-negativo { background-color: #e74c3c !important; color: #ffffff !important; } /* Ajustado para melhor contraste no celular */
+    .status-negativo { background-color: #e74c3c !important; color: #ffffff !important; }
     .status-baixo { background-color: #ffe599 !important; color: #7f6000 !important; }
     .status-moderado { background-color: #f9cb9c !important; color: #7f4c00 !important; }
     .status-seguro { background-color: #b6d7a8 !important; color: #274e13 !important; }
     
-    /* 🎨 ESTILIZAÇÃO DO TOM DE CINZA DO FIM DE SEMANA */
     .col-fim-de-semana { background-color: #eaecef !important; opacity: 0.9; }
     
     .nav-tabs .nav-link { color: #555; font-weight: 500; padding: 8px 10px; font-size: 12px; }
@@ -42,7 +41,6 @@
     .btn-detalhe { background: none; border: none; padding: 0; font-weight: bold; text-decoration: underline; cursor: pointer; }
     .filtro-label { font-size: 11px; font-weight: bold; color: #666; margin-bottom: 2px; display: block; }
 
-    /* Estilo customizado para os Toasts de aviso na tela */
     .toast-container { z-index: 2000; }
 
     @media (max-width: 576px) {
@@ -59,7 +57,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">fUXO DE CAIXA V4.6</span>
+      <span class="navbar-brand mb-0 h6">fUXO DE CAIXA V4.7</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -255,7 +253,6 @@
                   <div class="col-6"><label class="form-label text-xs">A partir de</label><input type="date" id="regraDataVigor" class="form-control form-control-sm"></div>
                 </div>
 
-                <!-- Checkbox -->
                 <div class="form-check mb-3">
                   <input class="form-check-input" type="checkbox" id="regraPorHora">
                   <label class="form-check-label small fw-bold text-secondary" for="regraPorHora" style="cursor: pointer;">
@@ -346,7 +343,6 @@
                 <h6 class="fw-bold mb-0">Extrato Geral</h6>
               </div>
 
-              <!-- BLOCO DE FILTROS COM SELETOR DE TIPO (RECEITA / DESPESA) -->
               <div class="row g-2 p-2 bg-light rounded border mb-3">
                 <div class="col-sm-3">
                   <span class="filtro-label">🔍 Descrição / Termo</span>
@@ -459,8 +455,13 @@
               document.getElementById('status-conexao').innerText = "🔄 Sincronizando...";
               document.getElementById('status-conexao').className = "badge bg-warning";
               
-              const corpoRequisicao = new URLSearchParams();
-              corpoRequisicao.append('contents', JSON.stringify({ funcao: funcaoBackend, args: argumentos }));
+              // 🚀 SUPORTE MÚLTIPLOS ARGUMENTOS NO PAYLOAD DO GOOGLE APPS SCRIPT
+              var payload = { funcao: funcaoBackend };
+              if (argumentos !== null && typeof argumentos === 'object' && argumentos.argsArray) {
+                payload.args = argumentos.argsArray;
+              } else {
+                payload.args = argumentos;
+              }
 
               const resposta = await fetch(GOOGLE_API_URL, {
                 method: 'POST',
@@ -468,7 +469,7 @@
                 headers: {
                   'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8'
                 },
-                body: JSON.stringify({ funcao: funcaoBackend, args: argumentos })
+                body: JSON.stringify(payload)
               });
               
               const resultado = await resposta.json();
@@ -493,11 +494,11 @@
           obterDadosIniciais: function() { this.executarGenerico('obterDadosIniciais'); },
           atualizarDatasLoteBackend: function(vetor) { this.executarGenerico('atualizarDatasLoteBackend', vetor); },
           excluirLinha: function(nomeAba, id) { this.executarGenerico('excluirLinha', {aba: nomeAba, id: id}); },
-          excluirLancamentoAvancado: function(id, tipo, recId, data) { this.executarGenerico('excluirLancamentoAvancado', {id, tipo, recId, data}); },
+          excluirLancamentoAvancado: function(id, tipo, recId, data) { this.executarGenerico('excluirLancamentoAvancado', {argsArray: [id, tipo, recId, data]}); },
           atualizarClienteBackend: function(dados) { this.executarGenerico('atualizarClienteBackend', dados); },
           salvarRegra: function(dados) { this.executarGenerico('salvarRegra', dados); },
-          // 🚀 PADRONIZAÇÃO NO ENVIO DE EDIÇÃO AVANÇADA
-          atualizarLancamentoAvancado: function(dados, tipo) { this.executarGenerico('atualizarLancamentoAvancado', { dados: dados, tipo: tipo, argsArray: [dados, tipo] }); },
+          // 🚀 ENVIAR AMBOS OS PARÂMETROS PARA O BACKEND DO APPS SCRIPT
+          atualizarLancamentoAvancado: function(dados, tipo) { this.executarGenerico('atualizarLancamentoAvancado', { argsArray: [dados, tipo] }); },
           atualizarLancamentoBackend: function(dados) { this.executarGenerico('atualizarLancamentoBackend', dados); },
           salvarLancamentoManual: function(dados) { this.executarGenerico('salvarLancamentoManual', dados); },
           salvarContasRecorrentesMaster: function(dados) { this.executarGenerico('salvarContasRecorrentesMaster', dados); },
@@ -750,11 +751,9 @@
 
         var corTipo = l.tipo === "Receita" ? "text-success fw-bold" : "text-danger";
         
-        // Validação estrita para identificar se possui uma recorrência real ativa
         var possuiRecorrencia = l.recorrenciaId && l.recorrenciaId !== "undefined" && l.recorrenciaId !== "null" && String(l.recorrenciaId).trim() !== "";
         var labelRecorrente = possuiRecorrencia ? " 🔁" : "";
         
-        // 🚀 CHAMADA DE EDIÇÃO SEGURA APENAS PELO ID DO REGISTRO
         htmlLanc += `<tr><td><small>${l.data.split('-').reverse().join('/')}</small> <span class="badge bg-light text-dark border">${l.categoria}</span><br><span>${l.descricao}${labelRecorrente}</span></td><td class="${corTipo} text-end">R$ ${l.valor.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicao(${l.id})">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="solicitarExclusaoLancamento(${l.id}, '${possuiRecorrencia ? l.recorrenciaId : ''}', '${l.data}')">🗑️</button></td></tr>`;
       });
       document.getElementById('tbodyLancamentos').innerHTML = htmlLanc || "<tr><td class='text-center text-muted py-3'>Nenhum lançamento encontrado.</td></tr>";
@@ -896,10 +895,9 @@
       modalBS.show();
     }
 
-    // 🚀 MODO DE EDIÇÃO TOTALMENTE REESTRUTURADO E SEGURO
     function abrirModoEdicao(id) { 
-      var banco = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;
-      var item = banco.find(function(l) { return l.id == id; });
+      var banco = state.lancamentos;
+      var item = banco.find(function(l) { return Number(l.id) === Number(id); });
       if (!item) return;
 
       var recId = (item.recorrenciaId && item.recorrenciaId !== "undefined" && item.recorrenciaId !== "null") ? String(item.recorrenciaId).trim() : "";
@@ -917,7 +915,13 @@
       document.getElementById('btnLancamento').innerText = "Atualizar"; 
       document.getElementById('btnCancelarEdicao').classList.remove('d-none'); 
 
-      // Rola a página suavemente até o formulário de edição
+      // Garante a troca de aba para a tela de lançamentos se estiver em outra
+      var tabBtn = document.getElementById('lancamentos-tab');
+      if (tabBtn) {
+        var tabBS = bootstrap.Tab.getOrCreateInstance(tabBtn);
+        tabBS.show();
+      }
+
       document.getElementById('cardFormLancamento').scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -932,14 +936,30 @@
     }
     
     function processarLancamentoForm(e) {
-      e.preventDefault(); var idEdit = document.getElementById('editLancamentoId').value; var rId = document.getElementById('editLancamentoRecorrenciaId').value; var dtOriginal = document.getElementById('editLancamentoDataOriginal').value;
-      var dados = { id: idEdit, descricao: document.getElementById('lDesc').value, valor: document.getElementById('lValor').value, data: document.getElementById('lData').value, tipo: document.getElementById('lTipo').value, categoria: document.getElementById('lCategoria').value, recorrenciaId: rId, dataOriginalCorte: dtOriginal };
+      e.preventDefault(); 
+      var idEdit = document.getElementById('editLancamentoId').value; 
+      var rId = document.getElementById('editLancamentoRecorrenciaId').value; 
+      var dtOriginal = document.getElementById('editLancamentoDataOriginal').value;
+      
+      var dados = { 
+        id: idEdit, 
+        descricao: document.getElementById('lDesc').value, 
+        valor: document.getElementById('lValor').value, 
+        data: document.getElementById('lData').value, 
+        tipo: document.getElementById('lTipo').value, 
+        categoria: document.getElementById('lCategoria').value, 
+        recorrenciaId: rId, 
+        dataOriginalCorte: dtOriginal 
+      };
       
       if (idEdit) { 
         if (rId && rId !== "undefined" && rId !== "null" && String(rId).trim() !== "") {
           var escolha = prompt("Esta conta faz parte de uma RECORRÊNCIA.\n\n1 - Mudar APENAS esta parcela\n2 - Mudar ESTA e TODAS as futuras");
-          if (escolha === "1") google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Parcela modificada!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoAvancado(dados, "unico");
-          else if (escolha === "2") google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Série modificada!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoAvancado(dados, "posteriores");
+          if (escolha === "1") {
+            google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Parcela modificada!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoAvancado(dados, "unico");
+          } else if (escolha === "2") {
+            google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Série modificada!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoAvancado(dados, "posteriores");
+          }
         } else { 
           google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Lançamento atualizado!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoBackend(dados); 
         }
