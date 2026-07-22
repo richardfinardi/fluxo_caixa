@@ -56,7 +56,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.1</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -509,7 +509,7 @@
             }
           },
           obterDadosIniciais: function() { this.executarGenerico('obterDadosIniciais'); },
-          atualizarDatasLoteBackend: function(vetor) { this.executarGenerico('atualizarDatasLoteBackend', vetor); },
+          atualizarDatasLoteBackend: function(vetor) { this.executarGenerico('atualizarDatasLoteBackend', { argsArray: [vetor] }); },
           excluirLinha: function(nomeAba, id) { this.executarGenerico('excluirLinha', {aba: nomeAba, id: id}); },
           excluirLancamentoAvancado: function(id, tipo, recId, data) { this.executarGenerico('excluirLancamentoAvancado', {argsArray: [id, tipo, recId, data]}); },
           atualizarClienteBackend: function(dados) { this.executarGenerico('atualizarClienteBackend', dados); },
@@ -649,13 +649,16 @@
 
     function efetivarDatasSimuladasNoSheets() {
       var vetorEnvio = [];
-      for (var id in listaAlteracoesSimuladas) { vetorEnvio.push({ id: Number(id), novaData: listaAlteracoesSimuladas[id] }); }
+      for (var id in listaAlteracoesSimuladas) { 
+        vetorEnvio.push({ id: Number(id), novaData: listaAlteracoesSimuladas[id] }); 
+      }
+      
       google.script.run
         .withSuccessHandler(function(resposta) { 
-          exibirAvisoNaTela(resposta, "success"); 
+          exibirAvisoNaTela(resposta || "Datas alteradas!", "success"); 
           recarregarDadosGlobais(); 
         })
-        .atualizarDatasLoteBackend(vetorEnvio);
+        .executarGenerico('atualizarDatasLoteBackend', { argsArray: [vetorEnvio] });
     }
 
     function limparFiltrosExtrato() {
@@ -777,7 +780,7 @@
         
         htmlLanc += `<tr><td><small>${l.data.split('-').reverse().join('/')}</small> <span class="badge bg-light text-dark border">${l.categoria}</span><br><span>${l.descricao}${labelRecorrente}</span></td><td class="${corTipo} text-end">R$ ${l.valor.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicao(${l.id})">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="solicitarExclusaoLancamento(${l.id}, '${possuiRecorrencia ? l.recorrenciaId : ''}', '${l.data}')">🗑️</button></td></tr>`;
       });
-      document.getElementById('tbodyLancamentos').innerHTML = htmlLanc || "<tr><td class='text-center text-muted py-3'>Nenum lançamento encontrado.</td></tr>";
+      document.getElementById('tbodyLancamentos').innerHTML = htmlLanc || "<tr><td class='text-center text-muted py-3'>Nenhum lançamento encontrado.</td></tr>";
 
       var htmlFila = "";
       var pendentes = state.lancamentos.filter(function(l) { return l.tipo === "Receita" && l.status === "Projetado" && l.descricao.indexOf("Faturamento:") === 0; }).sort((a, b) => new Date(a.data) - new Date(b.data));
@@ -785,8 +788,8 @@
         htmlFila += `<tr><td>${item.data.split('-').reverse().join('/')}</td><td><b>${item.descricao.replace("Faturamento: ", "")}</b></td><td class="text-success fw-bold">R$ ${item.valor.toFixed(2)}</td><td class="text-center"><button type="button" class="btn btn-sm btn-success py-1 px-2" onclick="marcarComoConsolidadoDaFila(${item.id})">🔒 Emitir Nota</button></td></tr>`;
       });
       document.getElementById('tbodyFilaFaturamento').innerHTML = htmlFila || "<tr><td colspan='4'>Nenhuma cobrança pendente.</td></tr>";
-      
-      // Filtra clientes da tabela A Faturar
+
+      // Re-aplica filtro da aba A Faturar
       if (document.getElementById('filtroClienteFaturar')) filtrarClientesFaturar();
 
       var htmlRecsMaster = "";
@@ -809,7 +812,6 @@
       document.getElementById('tbodyCondicoes').innerHTML = htmlCondsTable || "<tr><td colspan='6'>Nenhuma.</td></tr>";
     }
 
-    // LÓGICA DO FILTRO A FATURAR
     function filtrarClientesFaturar() {
       var inputEl = document.getElementById("filtroClienteFaturar");
       if (!inputEl) return;
