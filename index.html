@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado V5.4</title>
+  <title>Fluxo de Caixa Automatizado 5.5</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.4">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.5">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -86,7 +86,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.4</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.5</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -143,7 +143,7 @@
       
       <!-- TAB FLOW -->
       <div class="tab-pane fade show active" id="fluxo" role="tabpanel">
-        <div class="card mb-3"><div style="height: 220px;"><canvas id="chartFluxo"></canvas></div></div>
+        <div class="card mb-3"><div style="height: 350px;"><canvas id="chartFluxo"></canvas></div></div>
         <div class="card">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <h6 class="fw-bold mb-0">Fluxo de Caixa Diário</h6>
@@ -899,7 +899,6 @@
         if (filtrosAtivos.categoria !== "todas" && l.categoria !== filtrosAtivos.categoria) return;
         if (filtrosAtivos.tipo !== "todos" && l.tipo !== filtrosAtivos.tipo) return;
         
-        // FILTRO DE STATUS (CONSOLIDADO vs PROJETADO)
         if (filtrosAtivos.status !== "todos") {
           var lStatus = l.status ? l.status.toLowerCase().trim() : "projetado";
           if (lStatus !== filtrosAtivos.status) return;
@@ -927,7 +926,6 @@
       });
       document.getElementById('tbodyLancamentos').innerHTML = htmlLanc || "<tr><td class='text-center text-muted py-3'>Nenhum lançamento encontrado.</td></tr>";
 
-      // ATUALIZA PAINEL DE TOTAIS NO EXTRATO
       var painelEl = document.getElementById('painelTotaisExtrato');
       if (painelEl) {
         painelEl.classList.remove('d-none');
@@ -1271,8 +1269,15 @@
       }
       document.getElementById('tbodyProjecaoDiaria').innerHTML = htmlTabelaDiaria;
 
+      // CONFIGURAÇÃO DO GRÁFICO COM FORÇAMENTO DE PASSOS DE 500 EM 500 NO EIXO Y
       if (chartInstance) chartInstance.destroy();
       var ctx = document.getElementById('chartFluxo').getContext('2d');
+      
+      var valorMaximoBanco = Math.max(...dadosEixoY, 500);
+      var valorMinimoBanco = Math.min(...dadosEixoY, 0);
+      var maximoEscalaY = Math.ceil(valorMaximoBanco / 500) * 500 + 500;
+      var minimoEscalaY = Math.floor(valorMinimoBanco / 500) * 500;
+
       chartInstance = new Chart(ctx, {
         type: 'line',
         data: { labels: dadosEixoX, datasets: [{ label: 'Saldo', data: dadosEixoY, borderColor: '#1abc9c', backgroundColor: 'rgba(26, 188, 156, 0.05)', borderWidth: 2, fill: true, tension: 0.1 }] },
@@ -1282,9 +1287,12 @@
           plugins: { legend: { display: false } }, 
           scales: { 
             y: { 
+              min: minimoEscalaY,
+              max: maximoEscalaY,
               ticks: { 
                 font: { size: 10 },
-                stepSize: 500
+                stepSize: 500,
+                autoSkip: false
               } 
             }, 
             x: { 
