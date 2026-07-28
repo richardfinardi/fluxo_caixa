@@ -4,14 +4,12 @@
   <meta charset="UTF-8">
   <title>Fluxo de Caixa Automatizado</title>
   
-  <!-- 🔥 REFORÇO MÁXIMO PARA TELA CHEIA (WEB APP) NO CELULAR 🔥 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Finanças V3">
   
-  <!-- Manifesto embutido otimizado para forçar o Standalone (Tela Cheia) -->
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -20,7 +18,6 @@
     .navbar { background-color: #2c3e50; color: white; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 0px !important;}
     .card { border: none; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; padding: 15px !important; }
     .stat-card { text-align: center; padding: 15px; color: white; border-radius: 8px; margin-bottom: 10px; }
-    /* CORREÇÃO DO TEXTO DO SALDO SUMIDO */
     .stat-card h5, .stat-card h6 { color: inherit !important; }
     .dash-card { text-align: center; padding: 12px; color: white; border-radius: 6px; }
     .bg-receita { background: linear-gradient(135deg, #3498db, #2980b9); }
@@ -39,6 +36,39 @@
     .table-responsive-mobile { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .btn-detalhe { background: none; border: none; padding: 0; font-weight: bold; text-decoration: underline; cursor: pointer; }
     .filtro-label { font-size: 11px; font-weight: bold; color: #666; margin-bottom: 2px; display: block; }
+
+    /* ESTILO BARRA NAVEGAÇÃO DE MESES ESTILO APP */
+    .bar-navegacao-mes {
+      background-color: #0d47a1;
+      color: white;
+      border-radius: 30px;
+      padding: 6px 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      user-select: none;
+    }
+    .btn-nav-mes {
+      background: none;
+      border: none;
+      color: white;
+      font-weight: bold;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 0 6px;
+      line-height: 1;
+    }
+    .btn-nav-mes:hover { opacity: 0.8; }
+    .btn-nav-hoje {
+      background-color: white;
+      color: #0d47a1;
+      border: none;
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+    }
 
     .toast-container { z-index: 2000; }
 
@@ -65,9 +95,7 @@
   <div class="toast-container position-fixed bottom-0 end-0 p-3">
     <div id="liveToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
       <div class="d-flex">
-        <div class="toast-body fw-bold text-white" id="toastMensagem">
-          <!-- Mensagem dinâmica -->
-        </div>
+        <div class="toast-body fw-bold text-white" id="toastMensagem"></div>
         <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
       </div>
     </div>
@@ -81,9 +109,7 @@
           <h6 class="modal-title" id="modalConfirmTitulo">Confirmar Ação</h6>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
-        <div class="modal-body py-3 small" id="modalConfirmTexto">
-          Deseja realizar esta ação?
-        </div>
+        <div class="modal-body py-3 small" id="modalConfirmTexto">Deseja realizar esta ação?</div>
         <div class="modal-footer py-2">
           <button type="button" class="btn btn-xs btn-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="button" class="btn btn-xs btn-primary fw-bold" id="btnModalConfirmAceitar">Confirmar</button>
@@ -93,7 +119,7 @@
   </div>
 
   <div class="container-fluid px-3">
-    <!-- Indicadores -->
+    <!-- Indicadores superiores -->
     <div class="row">
       <div class="col-4 px-1"><div class="stat-card" id="cardSaldoContainer"><h6>SALDO HOJE</h6><h5 id="cardSaldo">R$ 0,00</h5></div></div>
       <div class="col-4 px-1"><div class="stat-card bg-receita"><h6>RECEITAS HOJE</h6><h5 id="cardReceita">R$ 0,00</h5></div></div>
@@ -143,16 +169,47 @@
         </div>
       </div>
 
-      <!-- TAB DASHBOARD MENSAL -->
+      <!-- TAB DASHBOARD MENSAL E POR PERÍODO -->
       <div class="tab-pane fade" id="dashboard" role="tabpanel">
         <div class="card">
-          <div class="row align-items-center g-2 mb-3">
-            <div class="col-sm-4"><h6 class="fw-bold mb-0">Análise Consolidada do Período</h6></div>
-            <div class="col-sm-4 offset-sm-4">
-              <div class="input-group input-group-sm">
-                <span class="input-group-text bg-secondary text-white font-monospace small">Mês Referência</span>
-                <input type="month" id="dashFiltroMes" class="form-control" onchange="renderizarDashboardMensal()">
-              </div>
+          
+          <!-- CONTROLE DE MODO DE FILTRO -->
+          <div class="d-flex justify-content-between align-items-center flex-wrap g-2 mb-3 border-bottom pb-2">
+            <div><h6 class="fw-bold mb-0">Análise Consolidada do Período</h6></div>
+            <div class="btn-group btn-group-sm" role="group">
+              <input type="radio" class="btn-check" name="tipoFiltroDash" id="dashModoMes" autocomplete="off" checked onchange="alternarModoFiltroDash('mes')">
+              <label class="btn btn-outline-primary" for="dashModoMes">📅 Por Mês</label>
+
+              <input type="radio" class="btn-check" name="tipoFiltroDash" id="dashModoIntervalo" autocomplete="off" onchange="alternarModoFiltroDash('intervalo')">
+              <label class="btn btn-outline-primary" for="dashModoIntervalo">📆 Entre Datas</label>
+            </div>
+          </div>
+
+          <!-- SELETOR NAVEGADOR DE MESES (ESTILO BARRA MODERNA) -->
+          <div id="boxFiltroMesDash" class="d-flex justify-content-center mb-3">
+            <div class="bar-navegacao-mes">
+              <button class="btn-nav-mes" onclick="navegarMesDash(-1)" title="Mês Anterior">‹</button>
+              <span class="d-flex align-items-center gap-1">
+                📅 <span id="labelNomeMesDash" class="fw-bold" style="min-width: 130px; text-align: center;">Julho De 2026</span>
+              </span>
+              <button class="btn-nav-mes" onclick="navegarMesDash(1)" title="Próximo Mês">›</button>
+              <button class="btn-nav-hoje" onclick="navegarMesDash(0)">Hoje</button>
+            </div>
+            <input type="month" id="dashFiltroMes" class="d-none" onchange="renderizarDashboardMensal()">
+          </div>
+
+          <!-- SELETOR POR INTERVALO DE DATAS (ENTRE DATAS) -->
+          <div id="boxFiltroIntervaloDash" class="row g-2 mb-3 align-items-end d-none bg-light p-2 rounded border">
+            <div class="col-sm-5 col-6">
+              <span class="filtro-label">📅 Data Inicial</span>
+              <input type="date" id="dashDataInicio" class="form-control form-control-sm">
+            </div>
+            <div class="col-sm-5 col-6">
+              <span class="filtro-label">📅 Data Final</span>
+              <input type="date" id="dashDataFim" class="form-control form-control-sm">
+            </div>
+            <div class="col-sm-2 col-12">
+              <button type="button" class="btn btn-sm btn-primary w-100 fw-bold" onclick="renderizarDashboardMensal()">⚡ Filtrar</button>
             </div>
           </div>
           
@@ -182,13 +239,7 @@
               <h6 class="fw-bold mb-0">Visitas Prontas para Cobrança</h6>
             </div>
             <div class="col-sm-4 mt-2 mt-sm-0">
-              <input 
-                type="text" 
-                id="filtroClienteFaturar" 
-                class="form-control form-control-sm" 
-                placeholder="🔍 Pesquisar cliente..." 
-                oninput="filtrarClientesFaturar()"
-              >
+              <input type="text" id="filtroClienteFaturar" class="form-control form-control-sm" placeholder="🔍 Pesquisar cliente..." oninput="filtrarClientesFaturar()">
             </div>
             <div class="col-sm-3 text-end mt-2 mt-sm-0">
               <button type="button" class="btn btn-sm btn-outline-primary fw-bold w-100" onclick="dispararAlertasDoSite()">
@@ -300,16 +351,7 @@
           const dataVigor = document.getElementById('regraDataVigor').value;
           const porHora = document.getElementById('regraPorHora').checked ? "SIM" : "NÃO";
 
-          const dados = {
-            id: id,
-            cliente: cliente,
-            valorVisita: valorVisita,
-            condicaoNome: condicaoNome,
-            novoValor: novoValor,
-            dataVigor: dataVigor,
-            porHora: porHora
-          };
-
+          const dados = { id: id, cliente: cliente, valorVisita: valorVisita, condicaoNome: condicaoNome, novoValor: novoValor, dataVigor: dataVigor, porHora: porHora };
           const funcaoPlanilha = id ? "atualizarClienteBackend" : "salvarRegra";
 
           function finalizarSucesso(resposta) {
@@ -358,6 +400,28 @@
             <div class="card">
               <div class="mb-2">
                 <h6 class="fw-bold mb-0">Extrato Geral</h6>
+              </div>
+
+              <!-- PAINEL DINÂMICO DE TOTAIS NO EXTRATO -->
+              <div class="row g-2 mb-2 d-none" id="painelTotaisExtrato">
+                <div class="col-4" id="colTotalReceitas">
+                  <div class="dash-card bg-receita p-2">
+                    <h6 style="font-size: 11px;" class="m-0">Entradas</h6>
+                    <h6 id="extratoTotalReceitas" class="fw-bold m-0 mt-1">R$ 0,00</h6>
+                  </div>
+                </div>
+                <div class="col-4" id="colTotalDespesas">
+                  <div class="dash-card bg-despesa p-2">
+                    <h6 style="font-size: 11px;" class="m-0">Saídas</h6>
+                    <h6 id="extratoTotalDespesas" class="fw-bold m-0 mt-1">R$ 0,00</h6>
+                  </div>
+                </div>
+                <div class="col-4" id="colResultadoLiquido">
+                  <div class="dash-card bg-lucro p-2" id="cardResultadoExtrato">
+                    <h6 style="font-size: 11px;" class="m-0">Resultado</h6>
+                    <h6 id="extratoResultadoLiquido" class="fw-bold m-0 mt-1">R$ 0,00</h6>
+                  </div>
+                </div>
               </div>
 
               <div class="row g-2 p-2 bg-light rounded border mb-3">
@@ -455,10 +519,8 @@
   </div>
 
   <script>
-    // 🔗 URL DO GOOGLE APPS SCRIPT
     const GOOGLE_API_URL = "https://script.google.com/macros/s/AKfycbyPGpW6_YUbWEKYBvEPok8VISZxgCxBNqh2yTwqSM4MjjgpRycyuLusZ62PzDZVzZgHiw/exec";
 
-    // 🔄 PONTE DE COMUNICAÇÃO TOTALMENTE ADAPTADA PARA MÚLTIPLOS ARGUMENTOS NO BACKEND
     const google = {
       script: {
         run: {
@@ -482,19 +544,13 @@
               const resposta = await fetch(GOOGLE_API_URL, {
                 method: 'POST',
                 redirect: 'follow',
-                headers: {
-                  'Content-Type': 'text/plain;charset=utf-8'
-                },
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
               });
               
               const textoResposta = await resposta.text();
               let resultado = null;
-              try {
-                resultado = JSON.parse(textoResposta);
-              } catch(e) {
-                resultado = textoResposta;
-              }
+              try { resultado = JSON.parse(textoResposta); } catch(e) { resultado = textoResposta; }
 
               if (resultado && resultado.erro) {
                 console.error("Erro retornado do Google:", resultado.erro);
@@ -519,9 +575,7 @@
           excluirLancamentoAvancado: function(id, tipo, recId, data) { this.executarGenerico('excluirLancamentoAvancado', {argsArray: [id, tipo, recId, data]}); },
           atualizarClienteBackend: function(dados) { this.executarGenerico('atualizarClienteBackend', dados); },
           salvarRegra: function(dados) { this.executarGenerico('salvarRegra', dados); },
-          atualizarLancamentoAvancado: function(dados, tipo) { 
-            this.executarGenerico('atualizarLancamentoAvancado', { argsArray: [dados, tipo] }); 
-          },
+          atualizarLancamentoAvancado: function(dados, tipo) { this.executarGenerico('atualizarLancamentoAvancado', { argsArray: [dados, tipo] }); },
           atualizarLancamentoBackend: function(dados) { this.executarGenerico('atualizarLancamentoBackend', { argsArray: [dados] }); },
           salvarLancamentoManual: function(dados) { this.executarGenerico('salvarLancamentoManual', dados); },
           salvarContasRecorrentesMaster: function(dados) { this.executarGenerico('salvarContasRecorrentesMaster', dados); },
@@ -540,6 +594,10 @@
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", inicio: "", fim: "" };
+    
+    // VARIÁVEIS DE NAVEGAÇÃO DE MÊS DO DASHBOARD
+    var mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    var dataPonteiroDash = new Date();
 
     function obterClasseStatusCaixa(valorSaldo) {
       if (valorSaldo < 0) return 'status-negativo';
@@ -552,7 +610,6 @@
       var toastElement = document.getElementById('liveToast');
       var toastMensagem = document.getElementById('toastMensagem');
       toastMensagem.innerText = mensagem;
-      
       toastElement.className = "toast align-items-center border-0 bg-" + (tipo === 'success' ? 'success' : 'danger');
       toastBS.show();
     }
@@ -560,10 +617,8 @@
     function exibirModalConfirmacao(texto, acaoAoAceitar) {
       document.getElementById('modalConfirmTexto').innerText = texto;
       var btnConfirmar = document.getElementById('btnModalConfirmAceitar');
-      
       var novoBtn = btnConfirmar.cloneNode(true);
       btnConfirmar.parentNode.replaceChild(novoBtn, btnConfirmar);
-      
       novoBtn.addEventListener('click', function() {
         modalConfirmBS.hide();
         acaoAoAceitar();
@@ -583,6 +638,7 @@
       var hojeStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       document.getElementById('lData').value = hojeStr;
 
+      atualizarLabelBarraMesDash();
       recarregarDadosGlobais(); 
     });
 
@@ -606,6 +662,84 @@
           renderizarDashboardMensal();
         })
         .obterDadosIniciais();
+    }
+
+    /* LÓGICA DO DASHBOARD (MÊS vs INTERVALO DE DATAS) */
+    function alternarModoFiltroDash(modo) {
+      if (modo === 'mes') {
+        document.getElementById('boxFiltroMesDash').classList.remove('d-none');
+        document.getElementById('boxFiltroIntervaloDash').classList.add('d-none');
+      } else {
+        document.getElementById('boxFiltroMesDash').classList.add('d-none');
+        document.getElementById('boxFiltroIntervaloDash').classList.remove('d-none');
+      }
+      renderizarDashboardMensal();
+    }
+
+    function atualizarLabelBarraMesDash() {
+      var nomeM = mesesNomes[dataPonteiroDash.getMonth()];
+      var anoM = dataPonteiroDash.getFullYear();
+      document.getElementById('labelNomeMesDash').innerText = `${nomeM} De ${anoM}`;
+      
+      var mVal = `${anoM}-${String(dataPonteiroDash.getMonth() + 1).padStart(2, '0')}`;
+      document.getElementById('dashFiltroMes').value = mVal;
+    }
+
+    function navegarMesDash(passo) {
+      if (passo === 0) {
+        dataPonteiroDash = new Date();
+      } else {
+        dataPonteiroDash.setMonth(dataPonteiroDash.getMonth() + passo);
+      }
+      atualizarLabelBarraMesDash();
+      renderizarDashboardMensal();
+    }
+
+    function renderizarDashboardMensal() {
+      var modoIntervalo = document.getElementById('dashModoIntervalo').checked;
+      var totalReceitas = 0; var totalDespesas = 0; var mapaCategorias = {};
+
+      if (modoIntervalo) {
+        var dtInicio = document.getElementById('dashDataInicio').value;
+        var dtFim = document.getElementById('dashDataFim').value;
+        
+        state.lancamentos.forEach(function(l) {
+          if ((!dtInicio || l.data >= dtInicio) && (!dtFim || l.data <= dtFim)) {
+            if (l.tipo === "Receita") { totalReceitas += l.valor; } 
+            else { totalDespesas += l.valor; var cat = l.categoria || "Sem Categoria"; mapaCategorias[cat] = (mapaCategorias[cat] || 0) + l.valor; }
+          }
+        });
+      } else {
+        var mesAlvoStr = document.getElementById('dashFiltroMes').value; 
+        if (!mesAlvoStr) return;
+        state.lancamentos.forEach(function(l) {
+          var lMes = l.data.substring(0, 7);
+          if (lMes === mesAlvoStr) {
+            if (l.tipo === "Receita") { totalReceitas += l.valor; } 
+            else { totalDespesas += l.valor; var cat = l.categoria || "Sem Categoria"; mapaCategorias[cat] = (mapaCategorias[cat] || 0) + l.valor; }
+          }
+        });
+      }
+
+      var resultadoLiquido = totalReceitas - totalDespesas;
+      document.getElementById('dashReceitas').innerText = "R$ " + totalReceitas.toFixed(2);
+      document.getElementById('dashDespesas').innerText = "R$ " + totalDespesas.toFixed(2);
+      document.getElementById('dashResultado').innerText = "R$ " + resultadoLiquido.toFixed(2);
+      var cardResult = document.getElementById('dashResultadoContainer');
+      if (resultadoLiquido >= 0) { cardResult.className = "dash-card bg-lucro"; } else { cardResult.className = "dash-card bg-despesa"; }
+      
+      var listaCategorias = [];
+      for (var cNome in mapaCategorias) { listaCategorias.push({ nome: cNome, valor: mapaCategorias[cNome] }); }
+      listaCategorias.sort((a, b) => b.valor - a.valor);
+      var htmlDashTable = "";
+      if (listaCategorias.length === 0) { htmlDashTable = "<tr><td colspan='3' class='text-center text-muted py-3'>Nenhuma despesa registrada para o período selecionado.</td></tr>"; } 
+      else {
+        listaCategorias.forEach(function(catItem) {
+          var part = totalDespesas > 0 ? (catItem.valor / totalDespesas) * 100 : 0;
+          htmlDashTable += `<tr><td class="ps-2 py-2 fw-bold text-dark">${catItem.nome}</td><td class="text-end pe-3 text-danger font-monospace fw-bold">R$ ${catItem.valor.toFixed(2)}</td><td class="text-center"><span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill">${part.toFixed(1)}%</span></td></tr>`;
+        });
+      }
+      document.getElementById('tbodyDashCategorias').innerHTML = htmlDashTable;
     }
 
     function dispararAlertasDoSite() {
@@ -684,37 +818,6 @@
       renderizarTabelas(false);
     }
 
-    function renderizarDashboardMensal() {
-      var mesAlvoStr = document.getElementById('dashFiltroMes').value; 
-      if (!mesAlvoStr) return;
-      var totalReceitas = 0; var totalDespesas = 0; var mapaCategorias = {};
-      state.lancamentos.forEach(function(l) {
-        var lMes = l.data.substring(0, 7);
-        if (lMes === mesAlvoStr) {
-          if (l.tipo === "Receita") { totalReceitas += l.valor; } 
-          else { totalDespesas += l.valor; var cat = l.categoria || "Sem Categoria"; mapaCategorias[cat] = (mapaCategorias[cat] || 0) + l.valor; }
-        }
-      });
-      var resultadoLiquido = totalReceitas - totalDespesas;
-      document.getElementById('dashReceitas').innerText = "R$ " + totalReceitas.toFixed(2);
-      document.getElementById('dashDespesas').innerText = "R$ " + totalDespesas.toFixed(2);
-      document.getElementById('dashResultado').innerText = "R$ " + resultadoLiquido.toFixed(2);
-      var cardResult = document.getElementById('dashResultadoContainer');
-      if (resultadoLiquido >= 0) { cardResult.className = "dash-card bg-lucro"; } else { cardResult.className = "dash-card bg-despesa"; }
-      var listaCategorias = [];
-      for (var cNome in mapaCategorias) { listaCategorias.push({ nome: cNome, valor: mapaCategorias[cNome] }); }
-      listaCategorias.sort((a, b) => b.valor - a.valor);
-      var htmlDashTable = "";
-      if (listaCategorias.length === 0) { htmlDashTable = "<tr><td colspan='3' class='text-center text-muted py-3'>Nenhuma despesa registrada para o período selecionado.</td></tr>"; } 
-      else {
-        listaCategorias.forEach(function(catItem) {
-          var part = totalDespesas > 0 ? (catItem.valor / totalDespesas) * 100 : 0;
-          htmlDashTable += `<tr><td class="ps-2 py-2 fw-bold text-dark">${catItem.nome}</td><td class="text-end pe-3 text-danger font-monospace fw-bold">R$ ${catItem.valor.toFixed(2)}</td><td class="text-center"><span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill">${part.toFixed(1)}%</span></td></tr>`;
-        });
-      }
-      document.getElementById('tbodyDashCategorias').innerHTML = htmlDashTable;
-    }
-
     function alternarCamposTermino() {
       var modo = document.querySelector('input[name="tipoTermino"]:checked').value;
       document.getElementById('recTerminoData').classList.add('d-none');
@@ -771,6 +874,9 @@
       var dHoje = new Date();
       var hojeStr = `${dHoje.getFullYear()}-${String(dHoje.getMonth() + 1).padStart(2, '0')}-${String(dHoje.getDate()).padStart(2, '0')}`;
       var lancsOrdenados = [...state.lancamentos].sort((a,b) => new Date(a.data) - new Date(b.data));
+
+      var totalReceitasFiltradas = 0;
+      var totalDespesasFiltradas = 0;
       
       lancsOrdenados.forEach(function(l) {
         if (!exibirHistoricoExtrato && l.data < hojeStr) return; 
@@ -786,14 +892,54 @@
         if (filtrosAtivos.inicio !== "" && l.data < filtrosAtivos.inicio) return;
         if (filtrosAtivos.fim !== "" && l.data > filtrosAtivos.fim) return;
 
+        if (l.tipo === "Receita") {
+          totalReceitasFiltradas += l.valor;
+        } else {
+          totalDespesasFiltradas += l.valor;
+        }
+
         var corTipo = l.tipo === "Receita" ? "text-success fw-bold" : "text-danger";
-        
         var possuiRecorrencia = l.recorrenciaId && l.recorrenciaId !== "undefined" && l.recorrenciaId !== "null" && String(l.recorrenciaId).trim() !== "";
         var labelRecorrente = possuiRecorrencia ? " 🔁" : "";
         
         htmlLanc += `<tr><td><small>${l.data.split('-').reverse().join('/')}</small> <span class="badge bg-light text-dark border">${l.categoria}</span><br><span>${l.descricao}${labelRecorrente}</span></td><td class="${corTipo} text-end">R$ ${l.valor.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicao(${l.id})">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="solicitarExclusaoLancamento(${l.id}, '${possuiRecorrencia ? l.recorrenciaId : ''}', '${l.data}')">🗑️</button></td></tr>`;
       });
       document.getElementById('tbodyLancamentos').innerHTML = htmlLanc || "<tr><td class='text-center text-muted py-3'>Nenhum lançamento encontrado.</td></tr>";
+
+      // ATUALIZA PAINEL DE TOTAIS NO EXTRATO
+      var painelEl = document.getElementById('painelTotaisExtrato');
+      if (painelEl) {
+        painelEl.classList.remove('d-none');
+        document.getElementById('extratoTotalReceitas').innerText = "R$ " + totalReceitasFiltradas.toFixed(2);
+        document.getElementById('extratoTotalDespesas').innerText = "R$ " + totalDespesasFiltradas.toFixed(2);
+        
+        var resLiquido = totalReceitasFiltradas - totalDespesasFiltradas;
+        document.getElementById('extratoResultadoLiquido').innerText = "R$ " + resLiquido.toFixed(2);
+        
+        var cardRes = document.getElementById('cardResultadoExtrato');
+        if (resLiquido >= 0) { cardRes.className = "dash-card bg-lucro p-2"; } else { cardRes.className = "dash-card bg-despesa p-2"; }
+
+        var colRec = document.getElementById('colTotalReceitas');
+        var colDesp = document.getElementById('colTotalDespesas');
+        var colRes = document.getElementById('colResultadoLiquido');
+
+        if (filtrosAtivos.tipo === "Receita") {
+          colRec.className = "col-12";
+          colDesp.classList.add('d-none');
+          colRes.classList.add('d-none');
+        } else if (filtrosAtivos.tipo === "Despesa") {
+          colDesp.className = "col-12";
+          colRec.classList.add('d-none');
+          colRes.classList.add('d-none');
+        } else {
+          colRec.className = "col-4";
+          colDesp.className = "col-4";
+          colRes.className = "col-4";
+          colRec.classList.remove('d-none');
+          colDesp.classList.remove('d-none');
+          colRes.classList.remove('d-none');
+        }
+      }
 
       var htmlFila = "";
       var pendentes = state.lancamentos.filter(function(l) { return l.tipo === "Receita" && l.status === "Projetado" && l.descricao.indexOf("Faturamento:") === 0; }).sort((a, b) => new Date(a.data) - new Date(b.data));
@@ -802,7 +948,6 @@
       });
       document.getElementById('tbodyFilaFaturamento').innerHTML = htmlFila || "<tr><td colspan='4'>Nenhuma cobrança pendente.</td></tr>";
 
-      // Re-aplica filtro da aba A Faturar
       if (document.getElementById('filtroClienteFaturar')) filtrarClientesFaturar();
 
       var htmlRecsMaster = "";
@@ -1114,7 +1259,17 @@
           responsive: true, 
           maintainAspectRatio: false, 
           plugins: { legend: { display: false } }, 
-          scales: { y: { ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 9 }, maxRotation: 45 } } },
+          scales: { 
+            y: { 
+              ticks: { 
+                font: { size: 10 },
+                stepSize: 500 // 👈 ESCALA DO EIXO Y DE 500 EM 500
+              } 
+            }, 
+            x: { 
+              ticks: { font: { size: 9 }, maxRotation: 45 } 
+            } 
+          },
           onClick: function(evt, activeElements) {
             if (activeElements && activeElements.length > 0) {
               var index = activeElements[0].index;
