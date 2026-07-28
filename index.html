@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.5</title>
+  <title>Fluxo de Caixa Automatizado 5.6</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.5">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.6">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -86,7 +86,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.5</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.6</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -118,6 +118,60 @@
     </div>
   </div>
 
+  <!-- Modal de Simulação de Novo Lançamento (Não Efetivável) -->
+  <div class="modal fade" id="modalSimularNovo" tabindex="-1" aria-hidden="true" style="z-index: 2040;">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-warning text-dark py-2">
+          <h6 class="modal-title fw-bold">📊 Simular Novo Gasto ou Entradas</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <form onsubmit="simularNovoLancamentoCaixa(event)">
+          <div class="modal-body py-3 small">
+            <div class="alert alert-warning py-1 px-2 mb-2 style-xs" style="font-size: 11px;">
+              💡 <b>Atenção:</b> Esta simulação afeta apenas o gráfico e a projeção visual na tela. Nada será gravado no banco de dados.
+            </div>
+            <div class="mb-2">
+              <label class="form-label mb-1 fw-bold">Descrição da Simulação</label>
+              <input type="text" id="simDesc" class="form-control form-control-sm" placeholder="Ex: Compra de Notebook, Entrada de Projeto..." required>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label mb-1 fw-bold">Tipo</label>
+                <select id="simTipo" class="form-select form-select-sm" required>
+                  <option value="Despesa">🔴 Despesa (Saída)</option>
+                  <option value="Receita">🟢 Receita (Entrada)</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1 fw-bold">Valor (por parcela)</label>
+                <input type="number" step="0.01" id="simValor" class="form-control form-control-sm" placeholder="1000.00" required>
+              </div>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label mb-1 fw-bold">Data 1ª Parcela</label>
+                <input type="date" id="simData" class="form-control form-control-sm" required>
+              </div>
+              <div class="col-3">
+                <label class="form-label mb-1 fw-bold">Parcelas</label>
+                <input type="number" min="1" max="60" id="simParcelas" class="form-control form-control-sm text-center" value="1" required>
+              </div>
+              <div class="col-3">
+                <label class="form-label mb-1 fw-bold">Ciclo (dias)</label>
+                <input type="number" min="1" id="simIntervalo" class="form-control form-control-sm text-center" value="30" required title="30 para Mensal, 7 para Semanal">
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer py-2">
+            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-sm btn-warning fw-bold">📊 Inserir na Projeção</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div class="container-fluid px-3">
     <!-- Indicadores superiores -->
     <div class="row">
@@ -145,9 +199,10 @@
       <div class="tab-pane fade show active" id="fluxo" role="tabpanel">
         <div class="card mb-3"><div style="height: 350px;"><canvas id="chartFluxo"></canvas></div></div>
         <div class="card">
-          <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
             <h6 class="fw-bold mb-0">Fluxo de Caixa Diário</h6>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap">
+              <button class="btn btn-xs btn-outline-warning px-2 py-1 fw-bold" onclick="abrirModalSimularNovo()" style="font-size:11px;">➕ Simular Novo Gasto/Receita</button>
               <button class="btn btn-xs btn-warning px-2 py-1 d-none" id="btnLimparSimulacao" onclick="limparSimulacaoCaixa()" style="font-size:11px; font-weight: bold;">✕ Limpar Simulação</button>
               <button class="btn btn-xs btn-success px-2 py-1 d-none" id="btnEfetivarSimulacao" onclick="pedirConfirmacaoEfetivar()" style="font-size:11px; font-weight: bold;">🔒 Efetivar Mudanças</button>
               <button class="btn btn-xs btn-outline-secondary px-2 py-1" id="btnAlternarHistorico" onclick="alternarVisaoHistorico()" style="font-size:11px;">👁️ Ver Histórico Passado</button>
@@ -599,7 +654,7 @@
     var state = { lancamentos: [], regras: [], categorias: [], condicoes: [], recorrenciasConfig: [] };
     var lancamentosSimulados = null; 
     var listaAlteracoesSimuladas = {}; 
-    var chartInstance = null; var modalBS = null; var modalConfirmBS = null; var toastBS = null;
+    var chartInstance = null; var modalBS = null; var modalConfirmBS = null; var modalSimularNovoBS = null; var toastBS = null;
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
@@ -637,6 +692,7 @@
     window.addEventListener('load', function() { 
       modalBS = new bootstrap.Modal(document.getElementById('modalDetalhes'));
       modalConfirmBS = new bootstrap.Modal(document.getElementById('modalConfirmacao'));
+      modalSimularNovoBS = new bootstrap.Modal(document.getElementById('modalSimularNovo'));
       toastBS = new bootstrap.Toast(document.getElementById('liveToast'), { delay: 4000 });
       
       var d = new Date();
@@ -645,6 +701,7 @@
 
       var hojeStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       document.getElementById('lData').value = hojeStr;
+      document.getElementById('simData').value = hojeStr;
 
       atualizarLabelBarraMesDash();
       recarregarDadosGlobais(); 
@@ -670,6 +727,57 @@
           renderizarDashboardMensal();
         })
         .obterDadosIniciais();
+    }
+
+    function abrirModalSimularNovo() {
+      var d = new Date();
+      var hojeStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      document.getElementById('simData').value = hojeStr;
+      modalSimularNovoBS.show();
+    }
+
+    function simularNovoLancamentoCaixa(e) {
+      e.preventDefault();
+      var desc = document.getElementById('simDesc').value || "Simulação";
+      var valor = parseFloat(document.getElementById('simValor').value) || 0;
+      var tipo = document.getElementById('simTipo').value;
+      var dataInicial = document.getElementById('simData').value;
+      var numParcelas = parseInt(document.getElementById('simParcelas').value) || 1;
+      var intervaloDias = parseInt(document.getElementById('simIntervalo').value) || 30;
+
+      if (!dataInicial || valor <= 0) return;
+
+      if (!lancamentosSimulados) {
+        lancamentosSimulados = JSON.parse(JSON.stringify(state.lancamentos));
+      }
+
+      var parts = dataInicial.split('-');
+      var dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 12, 0, 0);
+
+      for (var i = 0; i < numParcelas; i++) {
+        var dtParcela = new Date(dt.getTime());
+        if (i > 0) {
+          dtParcela.setDate(dtParcela.getDate() + (i * intervaloDias));
+        }
+        var dtStr = `${dtParcela.getFullYear()}-${String(dtParcela.getMonth() + 1).padStart(2, '0')}-${String(dtParcela.getDate()).padStart(2, '0')}`;
+        
+        var descFinal = numParcelas > 1 ? `${desc} (${i+1}/${numParcelas}) [SIMULADO]` : `${desc} [SIMULADO]`;
+
+        lancamentosSimulados.push({
+          id: 'sim_' + Date.now() + '_' + i,
+          descricao: descFinal,
+          valor: valor,
+          data: dtStr,
+          tipo: tipo,
+          categoria: "Simulação",
+          status: "Projetado"
+        });
+      }
+
+      document.getElementById('btnLimparSimulacao').classList.remove('d-none');
+      modalSimularNovoBS.hide();
+      calcularFluxoEGráfico();
+      exibirAvisoNaTela(`Simulação de ${numParcelas}x de R$ ${valor.toFixed(2)} aplicada visualmente!`, "success");
     }
 
     function alternarModoFiltroDash(modo) {
@@ -1104,10 +1212,16 @@
         var dataOriginal = item.data;
         var dataAtualIpt = listaAlteracoesSimuladas[item.id] ? listaAlteracoesSimuladas[item.id] : item.data;
         var possuiRec = item.recorrenciaId && item.recorrenciaId !== "undefined" && item.recorrenciaId !== "null";
+        
+        var isSimulado = String(item.id).indexOf('sim_') === 0;
+        var colDataInput = isSimulado 
+          ? `<span class="badge bg-warning text-dark">Simulado</span>`
+          : `<input type="date" class="form-control form-control-sm p-1 py-0 input-simular-data" data-id="${item.id}" data-original="${dataOriginal}" value="${dataAtualIpt}">`;
+
         htmlModal += `<tr>
           <td class="ps-3 py-2"><strong>${possuiRec ? '🔁 ' : ''}${item.descricao}</strong><br><small class="text-muted">${item.categoria} (${item.status})</small></td>
           <td class="text-end pe-2 fw-bold ${tipoFiltro === 'Receita' ? 'text-success' : 'text-danger'}">R$ ${item.valor.toFixed(2)}</td>
-          <td class="pe-3"><input type="date" class="form-control form-control-sm p-1 py-0 input-simular-data" data-id="${item.id}" data-original="${dataOriginal}" value="${dataAtualIpt}"></td>
+          <td class="pe-3 text-center">${colDataInput}</td>
         </tr>`;
       });
       document.getElementById('tbodyModalDetalhes').innerHTML = htmlModal;
@@ -1269,7 +1383,6 @@
       }
       document.getElementById('tbodyProjecaoDiaria').innerHTML = htmlTabelaDiaria;
 
-      // CONFIGURAÇÃO DO GRÁFICO COM FORÇAMENTO DE PASSOS DE 500 EM 500 NO EIXO Y
       if (chartInstance) chartInstance.destroy();
       var ctx = document.getElementById('chartFluxo').getContext('2d');
       
