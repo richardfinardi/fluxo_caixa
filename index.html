@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado</title>
+  <title>Fluxo de Caixa Automatizado V5.4</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V3">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.4">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -86,7 +86,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.3</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.4</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -185,7 +185,7 @@
             </div>
           </div>
 
-          <!-- SELETOR NAVEGADOR DE MESES (ESTILO BARRA MODERNA) -->
+          <!-- SELETOR NAVEGADOR DE MESES -->
           <div id="boxFiltroMesDash" class="d-flex justify-content-center mb-3">
             <div class="bar-navegacao-mes">
               <button class="btn-nav-mes" onclick="navegarMesDash(-1)" title="Mês Anterior">‹</button>
@@ -198,7 +198,7 @@
             <input type="month" id="dashFiltroMes" class="d-none" onchange="renderizarDashboardMensal()">
           </div>
 
-          <!-- SELETOR POR INTERVALO DE DATAS (ENTRE DATAS) -->
+          <!-- SELETOR POR INTERVALO DE DATAS -->
           <div id="boxFiltroIntervaloDash" class="row g-2 mb-3 align-items-end d-none bg-light p-2 rounded border">
             <div class="col-sm-5 col-6">
               <span class="filtro-label">📅 Data Inicial</span>
@@ -424,21 +424,30 @@
                 </div>
               </div>
 
+              <!-- BARRA DE FILTROS COM CAMPO DE STATUS -->
               <div class="row g-2 p-2 bg-light rounded border mb-3">
                 <div class="col-sm-3">
                   <span class="filtro-label">🔍 Descrição / Termo</span>
                   <input type="text" id="filtroTexto" class="form-control form-control-sm" placeholder="Ex: JOY, Faturamento...">
                 </div>
-                <div class="col-sm-3">
+                <div class="col-sm-2.5">
                   <span class="filtro-label">🏷️ Categoria</span>
                   <select id="filtroCategoria" class="form-select form-select-sm"></select>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-sm-2">
                   <span class="filtro-label">💰 Tipo</span>
                   <select id="filtroTipo" class="form-select form-select-sm">
-                    <option value="todos">-- Todos os Tipos --</option>
+                    <option value="todos">-- Todos --</option>
                     <option value="Receita">Receitas</option>
                     <option value="Despesa">Despesas</option>
+                  </select>
+                </div>
+                <div class="col-sm-2.5">
+                  <span class="filtro-label">📌 Status</span>
+                  <select id="filtroStatus" class="form-select form-select-sm">
+                    <option value="todos">-- Todos --</option>
+                    <option value="consolidado">🔒 Somente Consolidados</option>
+                    <option value="projetado">⏳ Somente Projetados</option>
                   </select>
                 </div>
                 <div class="col-sm-1.5 col-6">
@@ -593,9 +602,8 @@
     var chartInstance = null; var modalBS = null; var modalConfirmBS = null; var toastBS = null;
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
-    var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", inicio: "", fim: "" };
+    var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
     
-    // VARIÁVEIS DE NAVEGAÇÃO DE MÊS DO DASHBOARD
     var mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     var dataPonteiroDash = new Date();
 
@@ -664,7 +672,6 @@
         .obterDadosIniciais();
     }
 
-    /* LÓGICA DO DASHBOARD (MÊS vs INTERVALO DE DATAS) */
     function alternarModoFiltroDash(modo) {
       if (modo === 'mes') {
         document.getElementById('boxFiltroMesDash').classList.remove('d-none');
@@ -812,9 +819,10 @@
       document.getElementById('filtroTexto').value = "";
       document.getElementById('filtroCategoria').value = "todas";
       document.getElementById('filtroTipo').value = "todos";
+      document.getElementById('filtroStatus').value = "todos";
       document.getElementById('filtroDataInicio').value = "";
       document.getElementById('filtroDataFim').value = "";
-      filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", inicio: "", fim: "" };
+      filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
       renderizarTabelas(false);
     }
 
@@ -866,6 +874,7 @@
         filtrosAtivos.texto = document.getElementById('filtroTexto').value.toLowerCase().trim();
         filtrosAtivos.categoria = document.getElementById('filtroCategoria').value;
         filtrosAtivos.tipo = document.getElementById('filtroTipo').value;
+        filtrosAtivos.status = document.getElementById('filtroStatus').value;
         filtrosAtivos.inicio = document.getElementById('filtroDataInicio').value;
         filtrosAtivos.fim = document.getElementById('filtroDataFim').value;
       }
@@ -889,6 +898,13 @@
 
         if (filtrosAtivos.categoria !== "todas" && l.categoria !== filtrosAtivos.categoria) return;
         if (filtrosAtivos.tipo !== "todos" && l.tipo !== filtrosAtivos.tipo) return;
+        
+        // FILTRO DE STATUS (CONSOLIDADO vs PROJETADO)
+        if (filtrosAtivos.status !== "todos") {
+          var lStatus = l.status ? l.status.toLowerCase().trim() : "projetado";
+          if (lStatus !== filtrosAtivos.status) return;
+        }
+
         if (filtrosAtivos.inicio !== "" && l.data < filtrosAtivos.inicio) return;
         if (filtrosAtivos.fim !== "" && l.data > filtrosAtivos.fim) return;
 
@@ -902,7 +918,12 @@
         var possuiRecorrencia = l.recorrenciaId && l.recorrenciaId !== "undefined" && l.recorrenciaId !== "null" && String(l.recorrenciaId).trim() !== "";
         var labelRecorrente = possuiRecorrencia ? " 🔁" : "";
         
-        htmlLanc += `<tr><td><small>${l.data.split('-').reverse().join('/')}</small> <span class="badge bg-light text-dark border">${l.categoria}</span><br><span>${l.descricao}${labelRecorrente}</span></td><td class="${corTipo} text-end">R$ ${l.valor.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicao(${l.id})">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="solicitarExclusaoLancamento(${l.id}, '${possuiRecorrencia ? l.recorrenciaId : ''}', '${l.data}')">🗑️</button></td></tr>`;
+        var isConsolidado = l.status && l.status.toLowerCase().trim() === "consolidado";
+        var badgeStatus = isConsolidado 
+          ? '<span class="badge bg-success text-white badge-data ms-1" style="font-size:9px;">🔒 Consolidado</span>' 
+          : '<span class="badge bg-light text-secondary border badge-data ms-1" style="font-size:9px;">⏳ Projetado</span>';
+
+        htmlLanc += `<tr><td><small>${l.data.split('-').reverse().join('/')}</small> <span class="badge bg-light text-dark border">${l.categoria}</span>${badgeStatus}<br><span>${l.descricao}${labelRecorrente}</span></td><td class="${corTipo} text-end">R$ ${l.valor.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicao(${l.id})">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="solicitarExclusaoLancamento(${l.id}, '${possuiRecorrencia ? l.recorrenciaId : ''}', '${l.data}')">🗑️</button></td></tr>`;
       });
       document.getElementById('tbodyLancamentos').innerHTML = htmlLanc || "<tr><td class='text-center text-muted py-3'>Nenhum lançamento encontrado.</td></tr>";
 
@@ -1263,7 +1284,7 @@
             y: { 
               ticks: { 
                 font: { size: 10 },
-                stepSize: 500 // 👈 ESCALA DO EIXO Y DE 500 EM 500
+                stepSize: 500
               } 
             }, 
             x: { 
