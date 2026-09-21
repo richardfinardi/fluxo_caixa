@@ -32,13 +32,16 @@ jobs:
       - name: Install clasp
         run: npm install -g @google/clasp@3.4.1
 
-      - name: Configurar autorização Google
+      - name: Configurar autorizacao Google
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
         run: |
-          test -n "$CLASPRC_JSON" || (echo "Secret CLASPRC_JSON não configurado" && exit 1)
+          test -n "$CLASPRC_JSON" || (echo "Secret CLASPRC_JSON nao configurado" && exit 1)
           printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
           chmod 600 "$HOME/.clasprc.json"
 
-      - name: Enviar para Apps Script
+      - name: Enviar codigo para Apps Script
         run: clasp push --force
+
+      - name: Atualizar Web App
+        run: clasp update-deployment AKfycbyPGpW6_YUbWEKYBvEPok8VISZxgCxBNqh2yTwqSM4MjjgpRycyuLusZ62PzDZVzZgHiw --description "Deploy automatico GitHub ${{ github.sha }}"
