@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.10.3";
+var VERSAO_SISTEMA = "5.10.4";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -66,7 +66,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.10.3: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.10.4: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -75,7 +75,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.10.3" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.10.4" }));
     return saida;
   } finally {
     if (lock) {
@@ -2644,12 +2644,12 @@ function obterStatusPluggyV5103_() {
       var proximaEstimada = false;
 
       // No conector MeuPluggy, o item proxy normalmente retorna
-      // nextAutoSyncAt = null. Nesse caso exibimos lastUpdatedAt + 24h
+      // nextAutoSyncAt = null. Nesse caso usamos lastUpdatedAt + 24h30
       // apenas como estimativa visual.
       if (!proxima && ultima) {
         var dt = new Date(ultima);
         if (!isNaN(dt.getTime())) {
-          proxima = new Date(dt.getTime() + 24 * 60 * 60 * 1000).toISOString();
+          proxima = new Date(dt.getTime() + (24 * 60 + 30) * 60 * 1000).toISOString();
           proximaEstimada = true;
         }
       }
@@ -2682,12 +2682,13 @@ function obterStatusPluggyV5103_() {
   var proximaEsperada = "";
 
   if (timestamps.length) {
-    // A informação "atualizado até" usa a conta MAIS ANTIGA,
-    // porque é o ponto seguro comum entre PF e PJ.
-    var minTs = Math.min.apply(null, timestamps);
-    referencia = new Date(minTs).toISOString();
-    idadeHoras = Math.max(0, (new Date().getTime() - minTs) / 3600000);
-    proximaEsperada = new Date(minTs + 24 * 60 * 60 * 1000).toISOString();
+    // V5.10.4:
+    // próxima provável = sincronização MAIS RECENTE entre PF/PJ
+    // + 24 horas + 30 minutos de margem.
+    var maxTs = Math.max.apply(null, timestamps);
+    referencia = new Date(maxTs).toISOString();
+    idadeHoras = Math.max(0, (new Date().getTime() - maxTs) / 3600000);
+    proximaEsperada = new Date(maxTs + (24 * 60 + 30) * 60 * 1000).toISOString();
   }
 
   return {
@@ -2695,7 +2696,7 @@ function obterStatusPluggyV5103_() {
     referenciaAtualizacao: referencia,
     idadeHoras: idadeHoras,
     proximaEsperadaAt: proximaEsperada,
-    stale24h: idadeHoras !== null ? idadeHoras >= 24 : false,
+    stale24h: idadeHoras !== null ? idadeHoras >= 24.5 : false,
     consultadoEm: new Date().toISOString()
   };
 }
