@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.10.1";
+var VERSAO_SISTEMA = "5.10.2";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -49,7 +49,8 @@ function doPost(e) {
       criarLancamentoBancoV510: true,
       ignorarMovimentoBancoV510: true,
       confirmarTransferenciaBancoV510: true,
-      conciliarMovimentosBancoLoteV5101: true
+      conciliarMovimentosBancoLoteV5101: true,
+      processarMovimentosBancoLoteV5102: true
     };
     if (!permitidas[nomeFuncao]) throw new Error("Função não permitida: " + nomeFuncao);
     if (typeof this[nomeFuncao] !== "function") throw new Error("Função não encontrada: " + nomeFuncao);
@@ -65,7 +66,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.10.1: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.10.2: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -74,7 +75,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.10.1" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.10.2" }));
     return saida;
   } finally {
     if (lock) {
@@ -1863,7 +1864,7 @@ function importarMovimentosBanco15Dias() {
 
 
 // =========================
-// V5.10.1 - CONCILIAÇÃO BANCÁRIA
+// V5.10.2 - CONCILIAÇÃO BANCÁRIA
 // =========================
 
 function normalizarTextoConciliacao_(texto) {
@@ -2511,6 +2512,65 @@ function conciliarMovimentosBancoLoteV5101(dados) {
 }
 
 
+
+function processarMovimentosBancoLoteV5102(dados) {
+  dados = dados || {};
+  var itens = Array.isArray(dados.itens) ? dados.itens : [];
+  if (!itens.length) throw new Error("Nenhum movimento confirmado para processar.");
+
+  var processados = [];
+  var falhas = [];
+
+  itens.forEach(function(item) {
+    try {
+      var acao = String(item.acao || "").trim().toUpperCase();
+      var mensagem = "";
+
+      if (acao === "CONCILIAR") {
+        mensagem = conciliarMovimentoBancoV510({
+          idPluggy: item.idPluggy,
+          idLancamento: item.idLancamento
+        });
+      } else if (acao === "TRANSFERENCIA") {
+        mensagem = confirmarTransferenciaBancoV510({
+          idPluggy: item.idPluggy,
+          idPar: item.idPar
+        });
+      } else if (acao === "CRIAR") {
+        mensagem = criarLancamentoBancoV510({
+          idPluggy: item.idPluggy,
+          descricao: item.descricao,
+          categoria: item.categoria,
+          lembrar: item.lembrar === true,
+          padraoBanco: item.padraoBanco
+        });
+      } else {
+        throw new Error("Ação não reconhecida: " + acao);
+      }
+
+      processados.push({
+        idPluggy: String(item.idPluggy || ""),
+        acao: acao,
+        mensagem: mensagem
+      });
+    } catch (e) {
+      falhas.push({
+        idPluggy: String(item.idPluggy || ""),
+        acao: String(item.acao || ""),
+        erro: e && e.message ? e.message : String(e)
+      });
+    }
+  });
+
+  return {
+    processados: processados.length,
+    erros: falhas.length,
+    detalhes: processados,
+    falhas: falhas
+  };
+}
+
+
 function obterConciliacaoBancoV59() {
   var movimentos = lerMovimentosBancoV59_();
   var regras = lerRegrasConciliacaoV59_();
@@ -2614,7 +2674,7 @@ function obterConciliacaoBancoV59() {
   });
 
   return {
-    versao: "5.10.1",
+    versao: "5.10.2",
     resumo: {
       total: movimentosExibicao.length,
       sugestoes: sugestoes,
