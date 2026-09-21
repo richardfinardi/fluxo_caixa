@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.10.2</title>
+  <title>Fluxo de Caixa Automatizado 5.10.3</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.10.2">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.10.3">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -112,6 +112,15 @@
 .banco-criar-v510 .form-check-label { font-size:10px; color:#6c757d; }
 .banco-confirmar-v5101 { display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 10px; background:#eefaf3; border:1px solid #cfe9d9; border-radius:8px; }
 .banco-confirmar-v5101 label { font-size:12px; font-weight:800; cursor:pointer; margin:0; }
+.pluggy-sync-v5103 { margin:10px 0 4px; padding:10px 12px; border-radius:10px; border:1px solid #dce2e8; font-size:11px; }
+.pluggy-sync-ok { background:#f2fbf5; border-color:#cfe9d8; }
+.pluggy-sync-atrasado { background:#fff8e8; border-color:#f1d38a; }
+.pluggy-sync-erro { background:#fff2f2; border-color:#edc6c6; }
+.pluggy-sync-titulo { font-weight:800; margin-bottom:4px; }
+.pluggy-sync-itens { display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+.pluggy-sync-sep { color:#9aa0a6; }
+.pluggy-sync-proxima { margin-top:4px; color:#495057; }
+.pluggy-sync-alerta { margin-top:5px; font-weight:700; color:#8a5a00; }
 @media (max-width:576px) { .banco-acoes-v510 .btn { flex:1 1 auto; min-height:38px; } }
 
     @media (max-width: 576px) {
@@ -219,7 +228,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.10.2</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.10.3</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -735,7 +744,7 @@
         </div>
       </div>
 
-<!-- TAB BANCO V5.10.2 -->
+<!-- TAB BANCO V5.10.3 -->
 <div class="tab-pane fade" id="banco" role="tabpanel">
   <div class="card">
     <div class="banco-v59-topo">
@@ -750,7 +759,11 @@
     </div>
 
     <div class="alert alert-info py-2 px-3 mt-3 mb-2" style="font-size:11px;">
-      ✅ <b>Modo ativo V5.10.2:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
+      ✅ <b>Modo ativo V5.10.3:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
+    </div>
+
+    <div id="pluggySyncV5103" class="pluggy-sync-v5103">
+      🔄 Consultando última sincronização Pluggy...
     </div>
 
     <div class="banco-v59-kpis">
@@ -1793,8 +1806,86 @@
     }
 
 // =========================
-// V5.10.2 - CONCILIAÇÃO BANCÁRIA
+// V5.10.3 - CONCILIAÇÃO BANCÁRIA
 // =========================
+
+function dataHoraPluggyV5103_(iso) {
+  if (!iso) return '—';
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function idadePluggyV5103_(iso) {
+  if (!iso) return '';
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  var min = Math.max(0, Math.floor((Date.now() - d.getTime()) / 60000));
+  if (min < 60) return 'há ' + min + ' min';
+  var h = Math.floor(min / 60);
+  var m = min % 60;
+  if (h < 24) return 'há ' + h + 'h' + (m ? ' ' + m + 'min' : '');
+  var dias = Math.floor(h / 24);
+  var resto = h % 24;
+  return 'há ' + dias + 'd' + (resto ? ' ' + resto + 'h' : '');
+}
+
+function renderizarStatusPluggyV5103_(statusPluggy) {
+  var box = document.getElementById('pluggySyncV5103');
+  if (!box) return;
+
+  var st = statusPluggy || {};
+  if (st.erro) {
+    box.className = 'pluggy-sync-v5103 pluggy-sync-erro';
+    box.innerHTML = '<b>⚠️ Pluggy:</b> ' + escapeHtmlBancoV59_(st.erro);
+    return;
+  }
+
+  var itens = st.itens || [];
+  if (!itens.length) {
+    box.className = 'pluggy-sync-v5103 pluggy-sync-erro';
+    box.innerHTML = '<b>⚠️ Pluggy:</b> sem informação de sincronização.';
+    return;
+  }
+
+  var stale = !!st.stale24h;
+  box.className = 'pluggy-sync-v5103 ' + (stale ? 'pluggy-sync-atrasado' : 'pluggy-sync-ok');
+
+  var detalhes = itens.map(function(i) {
+    if (i.erro) {
+      return '<span><b>' + escapeHtmlBancoV59_(i.conta) + ':</b> erro ao consultar</span>';
+    }
+
+    var statusExec = String(i.executionStatus || i.status || '').toUpperCase();
+    var icone = statusExec === 'SUCCESS' || statusExec === 'UPDATED' ? '🟢' : '🟡';
+
+    return '<span>' + icone + ' <b>' + escapeHtmlBancoV59_(i.conta) + ':</b> ' +
+      dataHoraPluggyV5103_(i.lastUpdatedAt) +
+      (i.lastUpdatedAt ? ' (' + idadePluggyV5103_(i.lastUpdatedAt) + ')' : '') +
+      '</span>';
+  }).join('<span class="pluggy-sync-sep">•</span>');
+
+  var proxima = st.proximaEsperadaAt
+    ? dataHoraPluggyV5103_(st.proximaEsperadaAt)
+    : '—';
+
+  var alerta = stale
+    ? '<div class="pluggy-sync-alerta">⚠️ Já passaram 24h da atualização mais antiga. Os movimentos mais recentes podem ainda não ter chegado ao Pluggy.</div>'
+    : '';
+
+  box.innerHTML =
+    '<div class="pluggy-sync-titulo">🔄 Sincronização Pluggy</div>' +
+    '<div class="pluggy-sync-itens">' + detalhes + '</div>' +
+    '<div class="pluggy-sync-proxima">Próxima atualização esperada: <b>' + proxima + '</b> <span class="text-muted">(aprox.)</span></div>' +
+    alerta;
+}
+
+
 function escapeHtmlBancoV59_(valor) {
   return String(valor === null || valor === undefined ? '' : valor)
     .replace(/&/g, '&amp;')
@@ -2215,6 +2306,8 @@ function renderizarBancoV59() {
     lista.innerHTML = '';
     return;
   }
+
+  renderizarStatusPluggyV5103_(dados.statusPluggy);
 
   document.getElementById('bancoKpiNovos').innerText = Number(dados.resumo && dados.resumo.total || 0);
   document.getElementById('bancoKpiSugestoes').innerText = Number(dados.resumo && dados.resumo.sugestoes || 0);

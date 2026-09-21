@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.10.2";
+var VERSAO_SISTEMA = "5.10.3";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -66,7 +66,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.10.2: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.10.3: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -75,7 +75,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.10.2" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.10.3" }));
     return saida;
   } finally {
     if (lock) {
@@ -1864,7 +1864,7 @@ function importarMovimentosBanco15Dias() {
 
 
 // =========================
-// V5.10.2 - CONCILIAÇÃO BANCÁRIA
+// V5.10.3 - CONCILIAÇÃO BANCÁRIA
 // =========================
 
 function normalizarTextoConciliacao_(texto) {
@@ -2571,6 +2571,136 @@ function processarMovimentosBancoLoteV5102(dados) {
 }
 
 
+
+function obterStatusPluggyV5103_() {
+  var props = PropertiesService.getScriptProperties();
+  var clientId = props.getProperty("PLUGGY_CLIENT_ID");
+  var clientSecret = props.getProperty("PLUGGY_CLIENT_SECRET");
+  var itens = [
+    { conta: "PF", itemId: props.getProperty("PLUGGY_ITEM_ID_PF") },
+    { conta: "PJ", itemId: props.getProperty("PLUGGY_ITEM_ID_PJ") }
+  ];
+
+  if (!clientId || !clientSecret) {
+    return {
+      erro: "Credenciais Pluggy não configuradas.",
+      itens: []
+    };
+  }
+
+  var authResp = UrlFetchApp.fetch("https://api.pluggy.ai/auth", {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({
+      clientId: clientId,
+      clientSecret: clientSecret
+    }),
+    muteHttpExceptions: true
+  });
+
+  if (authResp.getResponseCode() < 200 || authResp.getResponseCode() >= 300) {
+    return {
+      erro: "Falha ao consultar autenticação Pluggy.",
+      itens: []
+    };
+  }
+
+  var auth = JSON.parse(authResp.getContentText() || "{}");
+  var apiKey = auth.apiKey;
+  if (!apiKey) {
+    return {
+      erro: "Pluggy não devolveu apiKey.",
+      itens: []
+    };
+  }
+
+  var saida = [];
+
+  itens.forEach(function(item) {
+    if (!item.itemId) return;
+
+    try {
+      var resp = UrlFetchApp.fetch(
+        "https://api.pluggy.ai/items/" + encodeURIComponent(item.itemId),
+        {
+          method: "get",
+          headers: { "X-API-KEY": apiKey },
+          muteHttpExceptions: true
+        }
+      );
+
+      var code = resp.getResponseCode();
+      if (code < 200 || code >= 300) {
+        saida.push({
+          conta: item.conta,
+          erro: "HTTP " + code
+        });
+        return;
+      }
+
+      var dados = JSON.parse(resp.getContentText() || "{}");
+      var ultima = dados.lastUpdatedAt || dados.updatedAt || "";
+      var proxima = dados.nextAutoSyncAt || "";
+      var proximaEstimada = false;
+
+      // No conector MeuPluggy, o item proxy normalmente retorna
+      // nextAutoSyncAt = null. Nesse caso exibimos lastUpdatedAt + 24h
+      // apenas como estimativa visual.
+      if (!proxima && ultima) {
+        var dt = new Date(ultima);
+        if (!isNaN(dt.getTime())) {
+          proxima = new Date(dt.getTime() + 24 * 60 * 60 * 1000).toISOString();
+          proximaEstimada = true;
+        }
+      }
+
+      saida.push({
+        conta: item.conta,
+        status: String(dados.status || ""),
+        executionStatus: String(dados.executionStatus || ""),
+        lastUpdatedAt: ultima,
+        nextAutoSyncAt: proxima,
+        proximaEstimada: proximaEstimada
+      });
+    } catch (e) {
+      saida.push({
+        conta: item.conta,
+        erro: e && e.message ? e.message : String(e)
+      });
+    }
+  });
+
+  var timestamps = saida
+    .map(function(x) {
+      var t = x.lastUpdatedAt ? new Date(x.lastUpdatedAt).getTime() : NaN;
+      return isNaN(t) ? null : t;
+    })
+    .filter(function(t) { return t !== null; });
+
+  var referencia = "";
+  var idadeHoras = null;
+  var proximaEsperada = "";
+
+  if (timestamps.length) {
+    // A informação "atualizado até" usa a conta MAIS ANTIGA,
+    // porque é o ponto seguro comum entre PF e PJ.
+    var minTs = Math.min.apply(null, timestamps);
+    referencia = new Date(minTs).toISOString();
+    idadeHoras = Math.max(0, (new Date().getTime() - minTs) / 3600000);
+    proximaEsperada = new Date(minTs + 24 * 60 * 60 * 1000).toISOString();
+  }
+
+  return {
+    itens: saida,
+    referenciaAtualizacao: referencia,
+    idadeHoras: idadeHoras,
+    proximaEsperadaAt: proximaEsperada,
+    stale24h: idadeHoras !== null ? idadeHoras >= 24 : false,
+    consultadoEm: new Date().toISOString()
+  };
+}
+
+
 function obterConciliacaoBancoV59() {
   var movimentos = lerMovimentosBancoV59_();
   var regras = lerRegrasConciliacaoV59_();
@@ -2674,7 +2804,8 @@ function obterConciliacaoBancoV59() {
   });
 
   return {
-    versao: "5.10.2",
+    versao: "5.10.3",
+    statusPluggy: obterStatusPluggyV5103_(),
     resumo: {
       total: movimentosExibicao.length,
       sugestoes: sugestoes,
