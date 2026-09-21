@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.8.1</title>
+  <title>Fluxo de Caixa Automatizado 5.9</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.8.1">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.9">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -79,6 +79,32 @@
     }
 
     .toast-container { z-index: 2000; }
+
+/* V5.9 - Conciliação bancária */
+.banco-v59-topo { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+.banco-v59-kpis { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin:10px 0 12px; }
+.banco-v59-kpi { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:10px; text-align:center; }
+.banco-v59-kpi small { display:block; color:#6c757d; font-size:10px; font-weight:700; }
+.banco-v59-kpi strong { display:block; font-size:19px; margin-top:2px; }
+.banco-v59-filtros { display:flex; gap:6px; margin-bottom:10px; }
+.banco-v59-lista { display:grid; gap:10px; }
+.banco-mov-card { background:#fff; border:1px solid #e3e6ea; border-radius:12px; padding:12px; box-shadow:0 2px 5px rgba(0,0,0,.04); }
+.banco-mov-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.banco-mov-conta { font-size:11px; font-weight:800; }
+.banco-mov-data { font-size:11px; color:#6c757d; }
+.banco-mov-desc { font-size:14px; font-weight:700; line-height:1.25; margin-top:7px; word-break:break-word; }
+.banco-mov-meta { font-size:10px; color:#6c757d; margin-top:4px; }
+.banco-mov-valor { font-size:18px; font-weight:800; white-space:nowrap; text-align:right; }
+.banco-sugestao { margin-top:10px; border-radius:9px; padding:9px 10px; background:#f8f9fa; border-left:4px solid #6c757d; }
+.banco-sugestao.regra, .banco-sugestao.cliente, .banco-sugestao.match { border-left-color:#0d6efd; background:#f4f8ff; }
+.banco-sugestao.transferencia { border-left-color:#6f42c1; background:#f8f5ff; }
+.banco-sugestao.nova-despesa { border-left-color:#dc3545; background:#fff7f7; }
+.banco-sugestao.entrada { border-left-color:#198754; background:#f5fff9; }
+.banco-sugestao-titulo { font-weight:800; font-size:12px; }
+.banco-sugestao-detalhe { font-size:10px; color:#6c757d; margin-top:2px; }
+.banco-candidato { margin-top:7px; padding-top:7px; border-top:1px dashed #d7dce1; font-size:11px; }
+.banco-candidato-grid { display:grid; grid-template-columns:1fr auto; gap:3px 10px; margin-top:4px; }
+.banco-diferenca { font-weight:800; }
 
     @media (max-width: 576px) {
       body { font-size: 13px; padding-bottom: 24px; }
@@ -185,7 +211,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.8.1</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.9</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -286,6 +312,7 @@
     <ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist">
       <li class="nav-item"><button class="nav-link active" id="fluxo-tab" data-bs-toggle="tab" data-bs-target="#fluxo" type="button">📉 Fluxo</button></li>
       <li class="nav-item"><button class="nav-link" id="hoje-tab" data-bs-toggle="tab" data-bs-target="#hoje" type="button">✅ Hoje <span class="badge bg-danger ms-1 d-none" id="badgePendenciasHoje">0</span></button></li>
+      <li class="nav-item"><button class="nav-link" id="banco-tab" data-bs-toggle="tab" data-bs-target="#banco" type="button" onclick="carregarConciliacaoBancoV59()">🏦 Banco</button></li>
       <li class="nav-item"><button class="nav-link" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button" onclick="renderizarDashboardMensal()">📊 Dashboard</button></li>
       <li class="nav-item"><button class="nav-link" id="faturar-tab" data-bs-toggle="tab" data-bs-target="#faturar" type="button">🧾 A Faturar</button></li>
       <li class="nav-item"><button class="nav-link" id="recorrente-tab" data-bs-toggle="tab" data-bs-target="#recorrente" type="button">🔁 Fixas Recorrentes</button></li>
@@ -700,6 +727,38 @@
         </div>
       </div>
 
+<!-- TAB BANCO V5.9 -->
+<div class="tab-pane fade" id="banco" role="tabpanel">
+  <div class="card">
+    <div class="banco-v59-topo">
+      <div>
+        <h6 class="fw-bold mb-1">🏦 Conciliação Bancária</h6>
+        <div class="text-muted" style="font-size:11px;">PF + PJ • Nubank / Pluggy</div>
+      </div>
+      <button type="button" class="btn btn-sm btn-primary fw-bold" id="btnAtualizarBancoV59" onclick="atualizarBancoV59()">↻ Atualizar Banco</button>
+    </div>
+
+    <div class="alert alert-info py-2 px-3 mt-3 mb-2" style="font-size:11px;">
+      🧪 <b>Modo de teste V5.9:</b> as sugestões abaixo não criam, não liquidam e não alteram lançamentos.
+    </div>
+
+    <div class="banco-v59-kpis">
+      <div class="banco-v59-kpi"><small>NOVOS</small><strong id="bancoKpiNovos">0</strong></div>
+      <div class="banco-v59-kpi"><small>SUGESTÕES</small><strong id="bancoKpiSugestoes">0</strong></div>
+      <div class="banco-v59-kpi"><small>TRANSF. INTERNAS</small><strong id="bancoKpiTransferencias">0</strong></div>
+    </div>
+
+    <div class="banco-v59-filtros">
+      <button type="button" class="btn btn-sm btn-dark banco-filtro-btn" data-conta="TODOS" onclick="filtrarBancoV59('TODOS', this)">Todos</button>
+      <button type="button" class="btn btn-sm btn-outline-dark banco-filtro-btn" data-conta="PF" onclick="filtrarBancoV59('PF', this)">PF</button>
+      <button type="button" class="btn btn-sm btn-outline-dark banco-filtro-btn" data-conta="PJ" onclick="filtrarBancoV59('PJ', this)">PJ</button>
+    </div>
+
+    <div id="bancoStatusV59" class="text-muted small py-2">Abra esta aba para carregar os movimentos bancários.</div>
+    <div id="bancoListaV59" class="banco-v59-lista"></div>
+  </div>
+</div>
+
       <!-- TAB CATEGORIAS -->
       <div class="tab-pane fade" id="categorias" role="tabpanel">
         <div class="row">
@@ -800,7 +859,7 @@
               else payload.args = argumentos;
 
               // V5.8: em gravações, o backend já devolve o estado atualizado na mesma resposta.
-              payload.retornarDados = funcaoBackend !== 'obterDadosIniciais' && funcaoBackend !== 'enviarAlertasFaturamentoSite';
+              payload.retornarDados = funcaoBackend !== 'obterDadosIniciais' && funcaoBackend !== 'enviarAlertasFaturamentoSite' && funcaoBackend !== 'obterConciliacaoBancoV59';
 
               const resposta = await fetch(GOOGLE_API_URL, {
                 method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload)
@@ -844,7 +903,9 @@
           sincronizarCalendarBackend: function() { return this.executarGenerico('sincronizarCalendarBackend'); },
           faturamentoImediatoFila: function(id) { return this.executarGenerico('faturamentoImediatoFila', id); },
           liquidarLancamentoBackend: function(id) { return this.executarGenerico('liquidarLancamentoBackend', id); },
-          marcarEmAbertoBackend: function(id, novaData) { return this.executarGenerico('marcarEmAbertoBackend', { argsArray: [id, novaData || ''] }); }
+          marcarEmAbertoBackend: function(id, novaData) { return this.executarGenerico('marcarEmAbertoBackend', { argsArray: [id, novaData || ''] }); },
+          importarMovimentosBanco15Dias: function() { return this.executarGenerico('importarMovimentosBanco15Dias'); },
+          obterConciliacaoBancoV59: function() { return this.executarGenerico('obterConciliacaoBancoV59'); }
         }
       }
     };
@@ -857,6 +918,7 @@
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
+    var bancoV59 = { dados: null, filtro: 'TODOS' };
     
     var mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     var dataPonteiroDash = new Date();
@@ -1712,6 +1774,162 @@
         .withFailureHandler(function(err){ if(btn) btn.disabled = false; exibirAvisoNaTela("Erro na sincronização: " + err, "danger"); })
         .sincronizarCalendarBackend();
     }
+
+// =========================
+// V5.9 - CONCILIAÇÃO BANCÁRIA (SOMENTE SUGESTÕES)
+// =========================
+function escapeHtmlBancoV59_(valor) {
+  return String(valor === null || valor === undefined ? '' : valor)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function moedaBancoV59_(valor) {
+  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function dataBancoV59_(iso) {
+  var s = String(iso || '').substring(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
+  var p = s.split('-');
+  return p[2] + '/' + p[1] + '/' + p[0];
+}
+
+function filtrarBancoV59(conta, btn) {
+  bancoV59.filtro = conta || 'TODOS';
+  document.querySelectorAll('.banco-filtro-btn').forEach(function(b) {
+    var ativo = b.getAttribute('data-conta') === bancoV59.filtro;
+    b.className = ativo ? 'btn btn-sm btn-dark banco-filtro-btn' : 'btn btn-sm btn-outline-dark banco-filtro-btn';
+  });
+  renderizarBancoV59();
+}
+
+function classeSugestaoBancoV59_(tipo) {
+  if (tipo === 'TRANSFERENCIA_INTERNA') return 'transferencia';
+  if (tipo === 'REGRA') return 'regra';
+  if (tipo === 'CLIENTE') return 'cliente';
+  if (tipo === 'MATCH') return 'match';
+  if (tipo === 'NOVA_DESPESA') return 'nova-despesa';
+  return 'entrada';
+}
+
+function htmlCandidatoBancoV59_(mov, candidato) {
+  if (!candidato) return '';
+  var consolidado = String(candidato.status || '').toLowerCase().trim() === 'consolidado';
+  var diff = Number(candidato.diferenca || 0);
+  var diffClasse = Math.abs(diff) < 0.005 ? 'text-success' : (diff > 0 ? 'text-danger' : 'text-primary');
+
+  return `
+    <div class="banco-candidato">
+      ${consolidado ? '<div class="badge bg-warning text-dark mb-1">⚠️ Possível correspondência já consolidada</div>' : ''}
+      <div class="fw-bold">${escapeHtmlBancoV59_(candidato.descricao)}</div>
+      <div class="text-muted">${dataBancoV59_(candidato.data)} • ${escapeHtmlBancoV59_(candidato.categoria || 'Sem categoria')} • ${escapeHtmlBancoV59_(candidato.status || '')}</div>
+      <div class="banco-candidato-grid">
+        <span>Valor previsto</span><b>${moedaBancoV59_(candidato.valor)}</b>
+        <span>Valor bancário</span><b>${moedaBancoV59_(Math.abs(Number(mov.valor || 0)))}</b>
+        <span>Diferença</span><b class="banco-diferenca ${diffClasse}">${moedaBancoV59_(diff)}</b>
+      </div>
+    </div>`;
+}
+
+function renderizarBancoV59() {
+  var dados = bancoV59.dados;
+  var status = document.getElementById('bancoStatusV59');
+  var lista = document.getElementById('bancoListaV59');
+  if (!status || !lista) return;
+
+  if (!dados) {
+    status.innerText = 'Carregando movimentos bancários...';
+    lista.innerHTML = '';
+    return;
+  }
+
+  document.getElementById('bancoKpiNovos').innerText = Number(dados.resumo && dados.resumo.total || 0);
+  document.getElementById('bancoKpiSugestoes').innerText = Number(dados.resumo && dados.resumo.sugestoes || 0);
+  document.getElementById('bancoKpiTransferencias').innerText = Number(dados.resumo && dados.resumo.transferencias || 0);
+
+  var movimentos = (dados.movimentos || []).filter(function(m) {
+    return bancoV59.filtro === 'TODOS' || String(m.conta || '').toUpperCase() === bancoV59.filtro;
+  });
+
+  if (!movimentos.length) {
+    status.innerText = bancoV59.filtro === 'TODOS'
+      ? 'Nenhum movimento NOVO para analisar.'
+      : 'Nenhum movimento NOVO nesta conta.';
+    lista.innerHTML = '';
+    return;
+  }
+
+  status.innerText = movimentos.length + ' movimento(s) exibido(s).';
+
+  lista.innerHTML = movimentos.map(function(m) {
+    var natureza = String(m.natureza || '').toUpperCase();
+    var entrada = natureza === 'CREDIT';
+    var s = m.sugestao || {};
+    var classeSug = classeSugestaoBancoV59_(s.tipo);
+    var candidato = htmlCandidatoBancoV59_(m, s.candidato);
+    var detalheTransferencia = '';
+    if (s.tipo === 'TRANSFERENCIA_INTERNA' && s.par) {
+      detalheTransferencia = `<div class="banco-candidato"><b>Par:</b> ${escapeHtmlBancoV59_(s.par.conta)} • ${dataBancoV59_(s.par.data)} • ${moedaBancoV59_(Math.abs(Number(s.par.valor || 0)))}</div>`;
+    }
+
+    return `
+      <div class="banco-mov-card">
+        <div class="banco-mov-head">
+          <div>
+            <div class="banco-mov-conta"><span class="badge ${m.conta === 'PJ' ? 'bg-dark' : 'bg-secondary'}">${escapeHtmlBancoV59_(m.conta)}</span> ${entrada ? 'CREDIT' : 'DEBIT'}</div>
+            <div class="banco-mov-data">${dataBancoV59_(m.data)}</div>
+          </div>
+          <div class="banco-mov-valor ${entrada ? 'text-success' : 'text-danger'}">${moedaBancoV59_(m.valor)}</div>
+        </div>
+        <div class="banco-mov-desc">${escapeHtmlBancoV59_(m.descricao || m.descricaoOriginal || 'Sem descrição')}</div>
+        <div class="banco-mov-meta">Pluggy: ${escapeHtmlBancoV59_(m.categoriaPluggy || 'Sem categoria')}</div>
+
+        <div class="banco-sugestao ${classeSug}">
+          <div class="banco-sugestao-titulo">Sugestão do sistema</div>
+          <div class="fw-bold mt-1">${escapeHtmlBancoV59_(s.titulo || 'Sem sugestão')}</div>
+          ${s.detalhe ? `<div class="banco-sugestao-detalhe">${escapeHtmlBancoV59_(s.detalhe)}</div>` : ''}
+          ${detalheTransferencia}
+          ${candidato}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function carregarConciliacaoBancoV59() {
+  if (!document.getElementById('bancoListaV59')) return;
+  document.getElementById('bancoStatusV59').innerText = 'Carregando movimentos bancários...';
+  google.script.run
+    .withSuccessHandler(function(dados) {
+      bancoV59.dados = dados || { resumo: {}, movimentos: [] };
+      renderizarBancoV59();
+    })
+    .withFailureHandler(function(err) {
+      document.getElementById('bancoStatusV59').innerText = 'Erro ao carregar banco: ' + err;
+      exibirAvisoNaTela('Erro ao carregar conciliação: ' + err, 'danger');
+    })
+    .obterConciliacaoBancoV59();
+}
+
+function atualizarBancoV59() {
+  var btn = document.getElementById('btnAtualizarBancoV59');
+  if (btn) { btn.disabled = true; btn.innerText = '↻ Atualizando...'; }
+
+  google.script.run
+    .withSuccessHandler(function(msg) {
+      if (btn) { btn.disabled = false; btn.innerText = '↻ Atualizar Banco'; }
+      exibirAvisoNaTela(msg || 'Banco atualizado.', 'success');
+      carregarConciliacaoBancoV59();
+    })
+    .withFailureHandler(function(err) {
+      if (btn) { btn.disabled = false; btn.innerText = '↻ Atualizar Banco'; }
+      exibirAvisoNaTela('Erro ao atualizar banco: ' + err, 'danger');
+    })
+    .importarMovimentosBanco15Dias();
+}
 
     function calcularFluxoEGráfico() {
       var fonteDadosParaFluxo = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;

@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.8";
+var VERSAO_SISTEMA = "5.9";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -42,12 +42,14 @@ function doPost(e) {
       faturamentoImediatoFila: true,
       liquidarLancamentoBackend: true,
       marcarEmAbertoBackend: true,
-      enviarAlertasFaturamentoSite: true
+      enviarAlertasFaturamentoSite: true,
+      importarMovimentosBanco15Dias: true,
+      obterConciliacaoBancoV59: true
     };
     if (!permitidas[nomeFuncao]) throw new Error("Função não permitida: " + nomeFuncao);
     if (typeof this[nomeFuncao] !== "function") throw new Error("Função não encontrada: " + nomeFuncao);
 
-    var somenteLeitura = nomeFuncao === "obterDadosIniciais" || nomeFuncao === "enviarAlertasFaturamentoSite";
+    var somenteLeitura = nomeFuncao === "obterDadosIniciais" || nomeFuncao === "enviarAlertasFaturamentoSite" || nomeFuncao === "obterConciliacaoBancoV59";
     if (!somenteLeitura) {
       lock = LockService.getScriptLock();
       lock.waitLock(30000);
@@ -58,7 +60,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.8: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.9: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -67,7 +69,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.8" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.9" }));
     return saida;
   } finally {
     if (lock) {
@@ -1851,8 +1853,418 @@ function importarMovimentosBanco15Dias() {
   Logger.log('✅ IMPORTAÇÃO CONCLUÍDA');
   Logger.log('Novos movimentos: ' + novasLinhas.length);
   Logger.log('Período: ' + dateFrom + ' até ' + dateTo);
+  return 'Banco atualizado: ' + novasLinhas.length + ' novo(s) movimento(s).';
 }
 
+
+// =========================
+// V5.9 - CONCILIAÇÃO BANCÁRIA (MODO SOMENTE LEITURA)
+// =========================
+
+function normalizarTextoConciliacao_(texto) {
+  var s = String(texto || "").toUpperCase();
+  try {
+    s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  } catch (e) {}
+  return s.replace(/[^A-Z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function naturezaMovimentoBancoV59_(mov) {
+  var valor = Number(mov.valor || 0);
+  if (valor < 0) return "DEBIT";
+  if (valor > 0) return "CREDIT";
+  var tipo = normalizarTextoConciliacao_(mov.tipo);
+  return tipo.indexOf("DEBIT") !== -1 ? "DEBIT" : "CREDIT";
+}
+
+function diferencaDiasConciliacaoV59_(dataA, dataB) {
+  if (!dataA || !dataB) return 9999;
+  var a = new Date(String(dataA).substring(0, 10) + "T12:00:00");
+  var b = new Date(String(dataB).substring(0, 10) + "T12:00:00");
+  if (isNaN(a.getTime()) || isNaN(b.getTime())) return 9999;
+  return Math.abs(Math.round((a.getTime() - b.getTime()) / 86400000));
+}
+
+function lerMovimentosBancoV59_() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("MovimentosBanco");
+  if (!sheet || sheet.getLastRow() <= 1) return [];
+
+  var dados = sheet.getRange(2, 1, sheet.getLastRow() - 1, 13).getValues();
+  return dados.map(function(r) {
+    return {
+      idPluggy: String(r[0] || ""),
+      conta: String(r[1] || "").trim().toUpperCase(),
+      data: isoData_(r[2]),
+      descricao: String(r[3] || ""),
+      descricaoOriginal: String(r[4] || ""),
+      valor: Number(r[5] || 0),
+      tipo: String(r[6] || ""),
+      categoriaPluggy: String(r[7] || ""),
+      statusBanco: String(r[8] || ""),
+      accountId: String(r[9] || ""),
+      statusConciliacao: String(r[10] || "NOVO").trim().toUpperCase(),
+      idLancamento: String(r[11] || "")
+    };
+  }).filter(function(m) {
+    return m.statusConciliacao === "NOVO";
+  });
+}
+
+function lerRegrasConciliacaoV59_() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RegrasConciliacao");
+  if (!sheet || sheet.getLastRow() <= 1) return [];
+
+  var dados = sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).getValues();
+  return dados.map(function(r) {
+    return {
+      idRegra: String(r[0] || ""),
+      conta: String(r[1] || "").trim().toUpperCase(),
+      padraoBanco: String(r[2] || ""),
+      descricaoFluxo: String(r[3] || ""),
+      tipo: String(r[4] || ""),
+      categoria: String(r[5] || ""),
+      acao: String(r[6] || ""),
+      automatico: String(r[7] || ""),
+      ativo: String(r[8] || "")
+    };
+  }).filter(function(regra) {
+    var ativo = normalizarTextoConciliacao_(regra.ativo);
+    return ativo === "SIM" || ativo === "TRUE" || ativo === "1";
+  });
+}
+
+function lerLancamentosConciliacaoV59_() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Lancamentos");
+  if (!sheet || sheet.getLastRow() <= 1) return [];
+
+  var dados = sheet.getRange(2, 1, sheet.getLastRow() - 1, 12).getValues();
+  return dados.map(function(r) {
+    return {
+      data: isoData_(r[0]),
+      descricao: String(r[1] || ""),
+      valor: Math.abs(Number(r[2] || 0)),
+      tipo: String(r[3] || ""),
+      categoria: String(r[4] || ""),
+      status: String(r[5] || "Projetado"),
+      recorrenciaId: String(r[6] || ""),
+      idLancamento: String(r[7] || ""),
+      origem: String(r[8] || ""),
+      chaveOrigem: String(r[9] || "")
+    };
+  }).filter(function(l) {
+    return l.idLancamento || l.descricao;
+  });
+}
+
+function lerClientesConciliacaoV59_() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RegrasClientes");
+  if (!sheet || sheet.getLastRow() <= 1) return [];
+
+  var dados = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+  var vistos = {};
+  var clientes = [];
+  dados.forEach(function(r) {
+    var nome = String(r[0] || "").trim();
+    var norm = normalizarTextoConciliacao_(nome);
+    if (!nome || !norm || vistos[norm]) return;
+    vistos[norm] = true;
+    clientes.push({ nome: nome, norm: norm });
+  });
+  return clientes;
+}
+
+function textoBancoConciliacaoV59_(mov) {
+  return normalizarTextoConciliacao_(
+    [mov.descricao, mov.descricaoOriginal, mov.categoriaPluggy].join(" ")
+  );
+}
+
+function pareceTransferenciaBancoV59_(mov) {
+  var txt = textoBancoConciliacaoV59_(mov);
+  return (
+    txt.indexOf("TRANSFER") !== -1 ||
+    txt.indexOf("PIX") !== -1 ||
+    txt.indexOf("SAME PERSON") !== -1 ||
+    txt.indexOf("MESMA PESSOA") !== -1 ||
+    txt.indexOf("TED") !== -1
+  );
+}
+
+function detectarTransferenciasInternasV59_(movimentos) {
+  var paresPorId = {};
+  var usados = {};
+  var pares = 0;
+
+  for (var i = 0; i < movimentos.length; i++) {
+    var a = movimentos[i];
+    if (usados[a.idPluggy]) continue;
+
+    for (var j = i + 1; j < movimentos.length; j++) {
+      var b = movimentos[j];
+      if (usados[b.idPluggy]) continue;
+      if (!a.conta || !b.conta || a.conta === b.conta) continue;
+      if (a.valor === 0 || b.valor === 0 || (a.valor > 0) === (b.valor > 0)) continue;
+      if (Math.abs(Math.abs(a.valor) - Math.abs(b.valor)) > 0.01) continue;
+      if (diferencaDiasConciliacaoV59_(a.data, b.data) > 1) continue;
+      if (!pareceTransferenciaBancoV59_(a) || !pareceTransferenciaBancoV59_(b)) continue;
+
+      usados[a.idPluggy] = true;
+      usados[b.idPluggy] = true;
+      pares++;
+
+      paresPorId[a.idPluggy] = {
+        idPluggy: b.idPluggy,
+        conta: b.conta,
+        data: b.data,
+        valor: b.valor,
+        descricao: b.descricao
+      };
+      paresPorId[b.idPluggy] = {
+        idPluggy: a.idPluggy,
+        conta: a.conta,
+        data: a.data,
+        valor: a.valor,
+        descricao: a.descricao
+      };
+      break;
+    }
+  }
+
+  return { paresPorId: paresPorId, quantidadePares: pares };
+}
+
+function encontrarRegraConciliacaoV59_(mov, regras) {
+  var txt = textoBancoConciliacaoV59_(mov);
+  for (var i = 0; i < regras.length; i++) {
+    var regra = regras[i];
+    if (regra.conta && regra.conta !== "TODOS" && regra.conta !== mov.conta) continue;
+    var tipoRegra = normalizarTextoConciliacao_(regra.tipo);
+    var tipoMov = naturezaMovimentoBancoV59_(mov) === "DEBIT" ? "DESPESA" : "RECEITA";
+    if (tipoRegra && tipoRegra !== tipoMov) continue;
+    var padrao = normalizarTextoConciliacao_(regra.padraoBanco);
+    if (padrao && txt.indexOf(padrao) !== -1) return regra;
+  }
+  return null;
+}
+
+function encontrarClienteConciliacaoV59_(mov, clientes) {
+  if (mov.conta !== "PJ" || naturezaMovimentoBancoV59_(mov) !== "CREDIT") return null;
+  var txt = textoBancoConciliacaoV59_(mov);
+  for (var i = 0; i < clientes.length; i++) {
+    if (clientes[i].norm && txt.indexOf(clientes[i].norm) !== -1) return clientes[i];
+  }
+  return null;
+}
+
+function tokensRelevantesConciliacaoV59_(texto) {
+  var stop = {
+    PAGAMENTO:1, RECEBIDO:1, RECEBIDA:1, EFETUADO:1, EFETUADA:1,
+    ENVIADO:1, ENVIADA:1, TRANSFERENCIA:1, TRANSFER:1, PIX:1,
+    BOLETO:1, BRASIL:1, LTDA:1, EIRELI:1, ME:1, SA:1, VIA:1,
+    BANCO:1, NUBANK:1, CONTA:1, DEBITO:1, CREDITO:1
+  };
+  var norm = normalizarTextoConciliacao_(texto);
+  if (!norm) return [];
+  var partes = norm.split(" ");
+  var vistos = {};
+  var out = [];
+  partes.forEach(function(t) {
+    if (t.length < 4 || stop[t] || vistos[t]) return;
+    vistos[t] = true;
+    out.push(t);
+  });
+  return out;
+}
+
+function pontuarLancamentoConciliacaoV59_(mov, lanc, alvoDescricao) {
+  var tipoEsperado = naturezaMovimentoBancoV59_(mov) === "DEBIT" ? "DESPESA" : "RECEITA";
+  if (normalizarTextoConciliacao_(lanc.tipo) !== tipoEsperado) return null;
+
+  var descLanc = normalizarTextoConciliacao_(lanc.descricao);
+  var alvo = normalizarTextoConciliacao_(alvoDescricao);
+  var textoBanco = [mov.descricao, mov.descricaoOriginal].join(" ");
+  var sinalDescricao = false;
+  var score = 0;
+
+  if (alvo) {
+    if (descLanc && (descLanc.indexOf(alvo) !== -1 || alvo.indexOf(descLanc) !== -1)) {
+      score += 48;
+      sinalDescricao = true;
+    } else {
+      return null;
+    }
+  } else {
+    var tokensBanco = tokensRelevantesConciliacaoV59_(textoBanco);
+    var tokensLanc = tokensRelevantesConciliacaoV59_(lanc.descricao);
+    var mapa = {};
+    tokensLanc.forEach(function(t) { mapa[t] = true; });
+    var comuns = tokensBanco.filter(function(t) { return mapa[t]; });
+    if (comuns.length > 0) {
+      score += 24 + Math.min(16, comuns.length * 6);
+      sinalDescricao = true;
+    }
+  }
+
+  if (!sinalDescricao) return null;
+
+  var bancoAbs = Math.abs(Number(mov.valor || 0));
+  var diff = Math.abs(bancoAbs - Number(lanc.valor || 0));
+  var perc = Number(lanc.valor || 0) > 0 ? diff / Number(lanc.valor || 1) : 1;
+
+  if (diff <= 0.01) score += 32;
+  else if (diff <= 5) score += 26;
+  else if (perc <= 0.03) score += 22;
+  else if (perc <= 0.10) score += 15;
+  else if (perc <= 0.20) score += 8;
+
+  var dias = diferencaDiasConciliacaoV59_(mov.data, lanc.data);
+  if (dias === 0) score += 22;
+  else if (dias <= 3) score += 17;
+  else if (dias <= 7) score += 13;
+  else if (dias <= 15) score += 8;
+  else if (dias <= 45) score += 3;
+
+  var statusNorm = normalizarTextoConciliacao_(lanc.status);
+  if (statusNorm !== "CONSOLIDADO") score += 5;
+
+  return {
+    score: score,
+    dias: dias,
+    diferenca: Number((bancoAbs - Number(lanc.valor || 0)).toFixed(2)),
+    lancamento: lanc
+  };
+}
+
+function encontrarLancamentoConciliacaoV59_(mov, lancamentos, alvoDescricao) {
+  var melhor = null;
+  for (var i = 0; i < lancamentos.length; i++) {
+    var p = pontuarLancamentoConciliacaoV59_(mov, lancamentos[i], alvoDescricao || "");
+    if (!p) continue;
+    if (!melhor || p.score > melhor.score || (p.score === melhor.score && p.dias < melhor.dias)) {
+      melhor = p;
+    }
+  }
+
+  if (!melhor || melhor.score < 45) return null;
+
+  var l = melhor.lancamento;
+  return {
+    idLancamento: l.idLancamento,
+    descricao: l.descricao,
+    data: l.data,
+    valor: Number(l.valor || 0),
+    categoria: l.categoria || "",
+    status: l.status || "",
+    tipo: l.tipo || "",
+    diferenca: melhor.diferenca,
+    diasDistancia: melhor.dias,
+    score: melhor.score
+  };
+}
+
+function obterConciliacaoBancoV59() {
+  var movimentos = lerMovimentosBancoV59_();
+  var regras = lerRegrasConciliacaoV59_();
+  var lancamentos = lerLancamentosConciliacaoV59_();
+  var clientes = lerClientesConciliacaoV59_();
+  var transf = detectarTransferenciasInternasV59_(movimentos);
+
+  var sugestoes = 0;
+
+  movimentos.forEach(function(mov) {
+    mov.natureza = naturezaMovimentoBancoV59_(mov);
+    var par = transf.paresPorId[mov.idPluggy];
+
+    if (par) {
+      mov.sugestao = {
+        tipo: "TRANSFERENCIA_INTERNA",
+        titulo: "Transferência interna PF ↔ PJ",
+        detalhe: "Par encontrado na conta " + par.conta + " em " + par.data + ".",
+        par: par
+      };
+      return;
+    }
+
+    var regra = encontrarRegraConciliacaoV59_(mov, regras);
+    var cliente = encontrarClienteConciliacaoV59_(mov, clientes);
+    var candidato = null;
+
+    if (regra) {
+      candidato = encontrarLancamentoConciliacaoV59_(mov, lancamentos, regra.descricaoFluxo);
+      mov.sugestao = {
+        tipo: "REGRA",
+        titulo: "Regra encontrada: " + (regra.descricaoFluxo || regra.padraoBanco),
+        detalhe: candidato ? "Lançamento compatível encontrado." : "Regra ativa encontrada, mas sem lançamento compatível.",
+        regra: {
+          idRegra: regra.idRegra,
+          padraoBanco: regra.padraoBanco,
+          descricaoFluxo: regra.descricaoFluxo,
+          categoria: regra.categoria
+        },
+        candidato: candidato
+      };
+      sugestoes++;
+      return;
+    }
+
+    if (cliente) {
+      candidato = encontrarLancamentoConciliacaoV59_(mov, lancamentos, cliente.nome);
+      mov.sugestao = {
+        tipo: "CLIENTE",
+        titulo: "Cliente reconhecido: " + cliente.nome,
+        detalhe: candidato ? "Receita correspondente encontrada." : "Cliente reconhecido, mas sem lançamento compatível.",
+        candidato: candidato
+      };
+      sugestoes++;
+      return;
+    }
+
+    candidato = encontrarLancamentoConciliacaoV59_(mov, lancamentos, "");
+    if (candidato) {
+      mov.sugestao = {
+        tipo: "MATCH",
+        titulo: normalizarTextoConciliacao_(candidato.status) === "CONSOLIDADO"
+          ? "Possível correspondência já consolidada"
+          : "Possível lançamento correspondente",
+        detalhe: "Correspondência por descrição, valor e proximidade de data.",
+        candidato: candidato
+      };
+      sugestoes++;
+      return;
+    }
+
+    if (mov.natureza === "DEBIT") {
+      mov.sugestao = {
+        tipo: "NOVA_DESPESA",
+        titulo: "Nova despesa provável",
+        detalhe: mov.categoriaPluggy
+          ? "Categoria Pluggy sugerida: " + mov.categoriaPluggy
+          : "Sem categoria sugerida pela Pluggy."
+      };
+    } else {
+      mov.sugestao = {
+        tipo: "ENTRADA_NAO_IDENTIFICADA",
+        titulo: "Entrada não identificada",
+        detalhe: "Nenhuma regra, cliente ou lançamento correspondente foi encontrado."
+      };
+    }
+  });
+
+  movimentos.sort(function(a, b) {
+    if (a.data === b.data) return Math.abs(b.valor) - Math.abs(a.valor);
+    return a.data < b.data ? 1 : -1;
+  });
+
+  return {
+    versao: "5.9",
+    resumo: {
+      total: movimentos.length,
+      sugestoes: sugestoes,
+      transferencias: transf.quantidadePares
+    },
+    movimentos: movimentos
+  };
+}
 
 function prepararRegrasConciliacao() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
