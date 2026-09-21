@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.7.1</title>
+  <title>Fluxo de Caixa Automatizado 5.8</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.7.1">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.8">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -23,6 +23,14 @@
     .bg-receita { background: linear-gradient(135deg, #3498db, #2980b9); }
     .bg-despesa { background: linear-gradient(135deg, #e74c3c, #c0392b); }
     .bg-lucro { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+    .bg-aberto { background: linear-gradient(135deg, #f39c12, #d68910); }
+    .bg-projecao { background: linear-gradient(135deg, #7f8c8d, #5d6d7e); }
+    .cockpit-card { min-height: 86px; display: flex; flex-direction: column; justify-content: center; }
+    .cockpit-card small { opacity: .9; font-size: 10px; font-weight: 700; letter-spacing: .2px; }
+    .cockpit-card h5 { margin: 3px 0 0 0; }
+    .cockpit-card .subvalor { font-size: 9px; opacity: .9; margin-top: 2px; }
+    .linha-atrasada { background-color: #fff3f3 !important; }
+    .linha-hoje { background-color: #fff8e1 !important; }
     .status-negativo { background-color: #e74c3c !important; color: #ffffff !important; }
     .status-baixo { background-color: #ffe599 !important; color: #7f6000 !important; }
     .status-moderado { background-color: #f9cb9c !important; color: #7f4c00 !important; }
@@ -86,7 +94,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.7.1</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.8</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -173,16 +181,20 @@
   </div>
 
   <div class="container-fluid px-3">
-    <!-- Indicadores superiores -->
-    <div class="row">
-      <div class="col-4 px-1"><div class="stat-card" id="cardSaldoContainer"><h6>SALDO HOJE</h6><h5 id="cardSaldo">R$ 0,00</h5></div></div>
-      <div class="col-4 px-1"><div class="stat-card bg-receita"><h6>RECEITAS HOJE</h6><h5 id="cardReceita">R$ 0,00</h5></div></div>
-      <div class="col-4 px-1"><div class="stat-card bg-despesa"><h6>SAÍDAS HOJE</h6><h5 id="cardDespesa">R$ 0,00</h5></div></div>
+    <!-- COCKPIT FINANCEIRO -->
+    <div class="row g-2 mb-2">
+      <div class="col-6 col-md-4 col-xl-2"><div class="stat-card cockpit-card" id="cardSaldoContainer"><small>💰 SALDO REAL</small><h5 id="cardSaldo">R$ 0,00</h5><div class="subvalor">somente consolidado</div></div></div>
+      <div class="col-6 col-md-4 col-xl-2"><div class="stat-card cockpit-card bg-receita"><small>📥 A RECEBER HOJE / ATRASADO</small><h5 id="cardReceberPendente">R$ 0,00</h5><div class="subvalor" id="cardReceberQtd">0 pendência(s)</div></div></div>
+      <div class="col-6 col-md-4 col-xl-2"><div class="stat-card cockpit-card bg-despesa"><small>📤 A PAGAR HOJE / ATRASADO</small><h5 id="cardPagarPendente">R$ 0,00</h5><div class="subvalor" id="cardPagarQtd">0 pendência(s)</div></div></div>
+      <div class="col-6 col-md-4 col-xl-2"><div class="stat-card cockpit-card bg-receita"><small>📈 ENTRADAS PRÓX. 30 DIAS</small><h5 id="cardEntradas30">R$ 0,00</h5><div class="subvalor">projetado + em aberto</div></div></div>
+      <div class="col-6 col-md-4 col-xl-2"><div class="stat-card cockpit-card bg-aberto"><small>📉 SAÍDAS PRÓX. 30 DIAS</small><h5 id="cardSaidas30">R$ 0,00</h5><div class="subvalor">projetado + em aberto</div></div></div>
+      <div class="col-6 col-md-4 col-xl-2"><div class="stat-card cockpit-card" id="cardMenorSaldoContainer"><small>⚠️ MENOR SALDO PROJETADO</small><h5 id="cardMenorSaldo">R$ 0,00</h5><div class="subvalor" id="cardMenorSaldoData">—</div></div></div>
     </div>
 
     <!-- Abas -->
     <ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist">
       <li class="nav-item"><button class="nav-link active" id="fluxo-tab" data-bs-toggle="tab" data-bs-target="#fluxo" type="button">📉 Fluxo</button></li>
+      <li class="nav-item"><button class="nav-link" id="hoje-tab" data-bs-toggle="tab" data-bs-target="#hoje" type="button">✅ Hoje <span class="badge bg-danger ms-1 d-none" id="badgePendenciasHoje">0</span></button></li>
       <li class="nav-item"><button class="nav-link" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button" onclick="renderizarDashboardMensal()">📊 Dashboard</button></li>
       <li class="nav-item"><button class="nav-link" id="faturar-tab" data-bs-toggle="tab" data-bs-target="#faturar" type="button">🧾 A Faturar</button></li>
       <li class="nav-item"><button class="nav-link" id="recorrente-tab" data-bs-toggle="tab" data-bs-target="#recorrente" type="button">🔁 Fixas Recorrentes</button></li>
@@ -224,13 +236,50 @@
         </div>
       </div>
 
+      <!-- TAB HOJE / PENDÊNCIAS -->
+      <div class="tab-pane fade" id="hoje" role="tabpanel">
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <div class="card h-100">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0 text-success">📥 A Receber</h6>
+                <span class="badge bg-success" id="totalHojeReceber">R$ 0,00</span>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead class="table-light"><tr><th>Situação</th><th>Descrição</th><th class="text-end">Valor</th><th class="text-center">Ação</th></tr></thead>
+                  <tbody id="tbodyHojeReceber"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="card h-100">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0 text-danger">📤 A Pagar</h6>
+                <span class="badge bg-danger" id="totalHojePagar">R$ 0,00</span>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead class="table-light"><tr><th>Situação</th><th>Descrição</th><th class="text-end">Valor</th><th class="text-center">Ação</th></tr></thead>
+                  <tbody id="tbodyHojePagar"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="alert alert-light border small mt-2 mb-0">
+          <b>Como funciona:</b> tudo que venceu até hoje e ainda não está Consolidado fica aqui. Ao pagar/receber, vira <b>Consolidado</b>. Se ainda não aconteceu, mantenha <b>Em Aberto</b> ou escolha uma nova data.
+        </div>
+      </div>
+
       <!-- TAB DASHBOARD MENSAL E POR PERÍODO -->
       <div class="tab-pane fade" id="dashboard" role="tabpanel">
         <div class="card">
           
           <!-- CONTROLE DE MODO DE FILTRO -->
           <div class="d-flex justify-content-between align-items-center flex-wrap g-2 mb-3 border-bottom pb-2">
-            <div><h6 class="fw-bold mb-0">Análise Consolidada do Período</h6></div>
+            <div><h6 class="fw-bold mb-0">Análise Financeira do Período</h6></div>
             <div class="btn-group btn-group-sm" role="group">
               <input type="radio" class="btn-check" name="tipoFiltroDash" id="dashModoMes" autocomplete="off" checked onchange="alternarModoFiltroDash('mes')">
               <label class="btn btn-outline-primary" for="dashModoMes">📅 Por Mês</label>
@@ -275,9 +324,9 @@
           </div>
 
           <div class="row g-2 mb-3">
-            <div class="col-md-6">
+            <div class="col-md-4">
               <div class="border rounded p-2 bg-light h-100">
-                <div class="fw-bold small text-success mb-2">🔒 REALIZADO / CONSOLIDADO</div>
+                <div class="fw-bold small text-success mb-2">🔒 CONSOLIDADO</div>
                 <div class="row text-center g-1">
                   <div class="col-4"><small class="text-muted d-block">Entradas</small><b id="dashRealReceitas">R$ 0,00</b></div>
                   <div class="col-4"><small class="text-muted d-block">Saídas</small><b id="dashRealDespesas">R$ 0,00</b></div>
@@ -285,7 +334,17 @@
                 </div>
               </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
+              <div class="border rounded p-2 h-100" style="background:#fff8e1;">
+                <div class="fw-bold small text-warning-emphasis mb-2">🟠 EM ABERTO</div>
+                <div class="row text-center g-1">
+                  <div class="col-4"><small class="text-muted d-block">Entradas</small><b id="dashAbertoReceitas">R$ 0,00</b></div>
+                  <div class="col-4"><small class="text-muted d-block">Saídas</small><b id="dashAbertoDespesas">R$ 0,00</b></div>
+                  <div class="col-4"><small class="text-muted d-block">Resultado</small><b id="dashAbertoResultado">R$ 0,00</b></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
               <div class="border rounded p-2 bg-light h-100">
                 <div class="fw-bold small text-secondary mb-2">⏳ PROJETADO</div>
                 <div class="row text-center g-1">
@@ -368,7 +427,8 @@
                   </div>
                 </div>
 
-                <div class="mb-3"><label class="form-label small">Tipo</label><select id="recTipo" class="form-select form-select-sm" required><option value="Despesa">Despesa Fixa</option><option value="Receita">Receita Fixa</option></select></div>
+                <div class="mb-2"><label class="form-label small">Tipo</label><select id="recTipo" class="form-select form-select-sm" required><option value="Despesa">Despesa Fixa</option><option value="Receita">Receita Fixa</option></select></div>
+                <div class="alert alert-light border py-1 px-2 mb-2" style="font-size:10px;">⏳ Parcelas recorrentes futuras sempre nascem como <b>Projetado</b>.</div>
                 <button type="submit" class="btn btn-sm btn-primary w-100" id="btnSalvarRecorrencia">Agendar Recorrência</button>
               </form>
             </div>
@@ -464,7 +524,8 @@
                   <div class="col-6 mb-2"><label class="form-label small">Data</label><input type="date" id="lData" class="form-control form-control-sm" required></div>
                 </div>
                 <div class="mb-2"><label class="form-label small">Categoria</label><select id="lCategoria" class="form-select form-select-sm" required></select></div>
-                <div class="mb-3"><label class="form-label small">Tipo</label><select id="lTipo" class="form-select form-select-sm" required><option value="Despesa">Despesa</option><option value="Receita">Receita Extra</option></select></div>
+                <div class="mb-2"><label class="form-label small">Tipo</label><select id="lTipo" class="form-select form-select-sm" required><option value="Despesa">Despesa</option><option value="Receita">Receita Extra</option></select></div>
+                <div class="alert alert-light border py-1 px-2 mb-2" style="font-size:10px;">📌 Lançamento com data de hoje/passado entra <b>Consolidado</b>. Data futura entra <b>Projetado</b>.</div>
                 <div class="d-flex gap-2"><button type="submit" class="btn btn-sm btn-danger flex-grow-1" id="btnLancamento">Gravar</button><button type="button" class="btn btn-sm btn-secondary d-none" id="btnCancelarEdicao" onclick="cancelarEdicao()">X</button></div>
               </form>
             </div>
@@ -521,6 +582,7 @@
                   <select id="filtroStatus" class="form-select form-select-sm">
                     <option value="todos">-- Todos --</option>
                     <option value="consolidado">🔒 Somente Consolidados</option>
+                    <option value="em aberto">🟠 Somente Em Aberto</option>
                     <option value="projetado">⏳ Somente Projetados</option>
                   </select>
                 </div>
@@ -570,6 +632,29 @@
     </div>
   </div>
 
+  <div class="modal fade" id="modalPendencia" tabindex="-1" aria-hidden="true" style="z-index: 2045;">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header bg-warning-subtle py-2">
+          <h6 class="modal-title fw-bold">🟠 Ainda não liquidado</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body small">
+          <input type="hidden" id="pendenciaId">
+          <div class="fw-bold mb-1" id="pendenciaDescricao"></div>
+          <div class="text-muted mb-3" id="pendenciaInfo"></div>
+          <label class="form-label small fw-bold mb-1">Nova data (opcional)</label>
+          <input type="date" id="pendenciaNovaData" class="form-control form-control-sm">
+          <div class="form-text" style="font-size:10px;">Deixe sem nova data para continuar vencido e aparecer novamente amanhã.</div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="manterPendenciaSemAdiar()">Manter vencido</button>
+          <button type="button" class="btn btn-sm btn-warning fw-bold" onclick="adiarPendencia()">Adiar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal fade" id="modalDetalhes" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content">
@@ -612,7 +697,6 @@
           withSuccessHandler: function(handler) { this.successHandler = handler; return this; },
           withFailureHandler: function(handler) { this.failureHandler = handler; return this; },
           executarGenerico: async function(funcaoBackend, argumentos = null) {
-            // V5.7: captura os callbacks ANTES do await. Assim chamadas simultâneas não roubam a resposta umas das outras.
             const onSuccess = this.successHandler;
             const onFailure = this.failureHandler;
             this.successHandler = null;
@@ -624,6 +708,9 @@
               if (argumentos !== null && typeof argumentos === 'object' && argumentos.argsArray) payload.args = argumentos.argsArray;
               else payload.args = argumentos;
 
+              // V5.8: em gravações, o backend já devolve o estado atualizado na mesma resposta.
+              payload.retornarDados = funcaoBackend !== 'obterDadosIniciais' && funcaoBackend !== 'enviarAlertasFaturamentoSite';
+
               const resposta = await fetch(GOOGLE_API_URL, {
                 method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload)
               });
@@ -632,10 +719,17 @@
               try { resultado = JSON.parse(textoResposta); } catch(e) { resultado = textoResposta; }
               if (resultado && resultado.erro) throw new Error(resultado.erro);
 
+              let retornoHandler = resultado;
+              if (resultado && resultado.dados) {
+                aplicarDadosGlobais(resultado.dados);
+                pularProximoRecarregamento = true;
+                retornoHandler = resultado.mensagem;
+              }
+
               document.getElementById('status-conexao').innerText = "🟢 Conectado";
               document.getElementById('status-conexao').className = "badge bg-success";
-              if (onSuccess) onSuccess(resultado);
-              return resultado;
+              if (onSuccess) onSuccess(retornoHandler);
+              return retornoHandler;
             } catch (err) {
               console.error("Erro na requisição:", err);
               document.getElementById('status-conexao').innerText = "🔴 Erro de Conexão";
@@ -657,7 +751,9 @@
           salvarCategoria: function(dados) { return this.executarGenerico('salvarCategoria', dados); },
           salvarCondicaoPagamento: function(dados) { return this.executarGenerico('salvarCondicaoPagamento', dados); },
           sincronizarCalendarBackend: function() { return this.executarGenerico('sincronizarCalendarBackend'); },
-          faturamentoImediatoFila: function(id) { return this.executarGenerico('faturamentoImediatoFila', id); }
+          faturamentoImediatoFila: function(id) { return this.executarGenerico('faturamentoImediatoFila', id); },
+          liquidarLancamentoBackend: function(id) { return this.executarGenerico('liquidarLancamentoBackend', id); },
+          marcarEmAbertoBackend: function(id, novaData) { return this.executarGenerico('marcarEmAbertoBackend', { argsArray: [id, novaData || ''] }); }
         }
       }
     };
@@ -665,7 +761,8 @@
     var state = { lancamentos: [], regras: [], categorias: [], condicoes: [], recorrenciasConfig: [] };
     var lancamentosSimulados = null; 
     var listaAlteracoesSimuladas = {}; 
-    var chartInstance = null; var modalBS = null; var modalConfirmBS = null; var modalSimularNovoBS = null; var toastBS = null;
+    var chartInstance = null; var modalBS = null; var modalConfirmBS = null; var modalSimularNovoBS = null; var modalPendenciaBS = null; var toastBS = null;
+    var pularProximoRecarregamento = false;
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
@@ -678,6 +775,29 @@
       if (valorSaldo >= 0 && valorSaldo < 1000) return 'status-baixo';
       if (valorSaldo >= 1000 && valorSaldo < 1500) return 'status-moderado';
       return 'status-seguro';
+    }
+
+    function normalizarStatus(status) {
+      var s = String(status || 'Projetado').toLowerCase().trim();
+      if (s === 'consolidado') return 'consolidado';
+      if (s === 'em aberto' || s === 'em_aberto') return 'em aberto';
+      return 'projetado';
+    }
+
+    function hojeIsoJs() {
+      var d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function dataEfetivaFluxo(l, hojeStr) {
+      return normalizarStatus(l.status) === 'consolidado' ? l.data : (l.data < hojeStr ? hojeStr : l.data);
+    }
+
+    function badgeStatusHtml(status) {
+      var st = normalizarStatus(status);
+      if (st === 'consolidado') return '<span class="badge bg-success text-white badge-data ms-1" style="font-size:9px;">🔒 Consolidado</span>';
+      if (st === 'em aberto') return '<span class="badge bg-warning text-dark badge-data ms-1" style="font-size:9px;">🟠 Em Aberto</span>';
+      return '<span class="badge bg-light text-secondary border badge-data ms-1" style="font-size:9px;">⏳ Projetado</span>';
     }
 
     function exibirAvisoNaTela(mensagem, tipo = 'success') {
@@ -704,6 +824,7 @@
       modalBS = new bootstrap.Modal(document.getElementById('modalDetalhes'));
       modalConfirmBS = new bootstrap.Modal(document.getElementById('modalConfirmacao'));
       modalSimularNovoBS = new bootstrap.Modal(document.getElementById('modalSimularNovo'));
+      modalPendenciaBS = new bootstrap.Modal(document.getElementById('modalPendencia'));
       toastBS = new bootstrap.Toast(document.getElementById('liveToast'), { delay: 4000 });
       
       var d = new Date();
@@ -718,29 +839,37 @@
       recarregarDadosGlobais(); 
     });
 
-    function recarregarDadosGlobais() {
-      google.script.run
-        .withSuccessHandler(function(dadosPlanilha) {
-          state.lancamentos = dadosPlanilha.lancamentos || [];
-          state.regras = dadosPlanilha.regras || [];
-          state.categorias = dadosPlanilha.categorias || [];
-          state.condicoes = dadosPlanilha.condicoes || [];
-          state.recorrenciasConfig = dadosPlanilha.recorrenciasConfig || [];
-          if (dadosPlanilha.versao) {
-            var marca = document.querySelector('.navbar-brand');
-            if (marca) marca.innerText = 'FLUXO DE CAIXA V' + dadosPlanilha.versao;
-          }
-          
-          lancamentosSimulados = null;
-          listaAlteracoesSimuladas = {};
-          document.getElementById('btnLimparSimulacao').classList.add('d-none');
-          document.getElementById('btnEfetivarSimulacao').classList.add('d-none');
+    function aplicarDadosGlobais(dadosPlanilha) {
+      state.lancamentos = dadosPlanilha.lancamentos || [];
+      state.regras = dadosPlanilha.regras || [];
+      state.categorias = dadosPlanilha.categorias || [];
+      state.condicoes = dadosPlanilha.condicoes || [];
+      state.recorrenciasConfig = dadosPlanilha.recorrenciasConfig || [];
+      if (dadosPlanilha.versao) {
+        var marca = document.querySelector('.navbar-brand');
+        if (marca) marca.innerText = 'FLUXO DE CAIXA V' + dadosPlanilha.versao;
+      }
 
-          renderizarTabelas(false);
-          alimentarSelects();
-          calcularFluxoEGráfico();
-          renderizarDashboardMensal();
-        })
+      lancamentosSimulados = null;
+      listaAlteracoesSimuladas = {};
+      document.getElementById('btnLimparSimulacao').classList.add('d-none');
+      document.getElementById('btnEfetivarSimulacao').classList.add('d-none');
+
+      renderizarTabelas(false);
+      alimentarSelects();
+      calcularFluxoEGráfico();
+      renderizarDashboardMensal();
+      renderizarPendenciasHoje();
+    }
+
+    function recarregarDadosGlobais(forcar = false) {
+      // Quando a gravação V5.8 já trouxe os dados atualizados, não faz uma segunda chamada ao Apps Script.
+      if (pularProximoRecarregamento && !forcar) {
+        pularProximoRecarregamento = false;
+        return;
+      }
+      google.script.run
+        .withSuccessHandler(function(dadosPlanilha) { aplicarDadosGlobais(dadosPlanilha); })
         .obterDadosIniciais();
     }
 
@@ -828,7 +957,9 @@
     function renderizarDashboardMensal() {
       var modoIntervalo = document.getElementById('dashModoIntervalo').checked;
       var totalReceitas = 0, totalDespesas = 0, mapaCategorias = {};
-      var realReceitas = 0, realDespesas = 0, projReceitas = 0, projDespesas = 0;
+      var realReceitas = 0, realDespesas = 0;
+      var abertoReceitas = 0, abertoDespesas = 0;
+      var projReceitas = 0, projDespesas = 0;
       var mesAlvoStr = document.getElementById('dashFiltroMes').value;
       var dtInicio = document.getElementById('dashDataInicio').value;
       var dtFim = document.getElementById('dashDataFim').value;
@@ -839,13 +970,17 @@
           : (mesAlvoStr && l.data.substring(0, 7) === mesAlvoStr);
         if (!dentro) return;
 
-        var consolidado = String(l.status || '').toLowerCase().trim() === 'consolidado';
+        var st = normalizarStatus(l.status);
         if (l.tipo === "Receita") {
           totalReceitas += l.valor;
-          if (consolidado) realReceitas += l.valor; else projReceitas += l.valor;
+          if (st === 'consolidado') realReceitas += l.valor;
+          else if (st === 'em aberto') abertoReceitas += l.valor;
+          else projReceitas += l.valor;
         } else {
           totalDespesas += l.valor;
-          if (consolidado) realDespesas += l.valor; else projDespesas += l.valor;
+          if (st === 'consolidado') realDespesas += l.valor;
+          else if (st === 'em aberto') abertoDespesas += l.valor;
+          else projDespesas += l.valor;
           var cat = l.categoria || "Sem Categoria";
           mapaCategorias[cat] = (mapaCategorias[cat] || 0) + l.valor;
         }
@@ -862,6 +997,9 @@
       document.getElementById('dashRealReceitas').innerText = "R$ " + realReceitas.toFixed(2);
       document.getElementById('dashRealDespesas').innerText = "R$ " + realDespesas.toFixed(2);
       document.getElementById('dashRealResultado').innerText = "R$ " + (realReceitas - realDespesas).toFixed(2);
+      document.getElementById('dashAbertoReceitas').innerText = "R$ " + abertoReceitas.toFixed(2);
+      document.getElementById('dashAbertoDespesas').innerText = "R$ " + abertoDespesas.toFixed(2);
+      document.getElementById('dashAbertoResultado').innerText = "R$ " + (abertoReceitas - abertoDespesas).toFixed(2);
       document.getElementById('dashProjReceitas').innerText = "R$ " + projReceitas.toFixed(2);
       document.getElementById('dashProjDespesas').innerText = "R$ " + projDespesas.toFixed(2);
       document.getElementById('dashProjResultado').innerText = "R$ " + (projReceitas - projDespesas).toFixed(2);
@@ -1054,11 +1192,8 @@
         var possuiRecorrencia = l.recorrenciaId && l.recorrenciaId !== "undefined" && l.recorrenciaId !== "null" && String(l.recorrenciaId).trim() !== "";
         var labelRecorrente = possuiRecorrencia ? " 🔁" : "";
         
-        var isConsolidado = l.status && l.status.toLowerCase().trim() === "consolidado";
-        var badgeStatus = isConsolidado 
-          ? '<span class="badge bg-success text-white badge-data ms-1" style="font-size:9px;">🔒 Consolidado</span>' 
-          : '<span class="badge bg-light text-secondary border badge-data ms-1" style="font-size:9px;">⏳ Projetado</span>';
-        if (l.overrideManual) badgeStatus += '<span class="badge bg-warning-subtle text-warning-emphasis border badge-data ms-1" style="font-size:9px;">✋ Ajustado</span>';
+        var badgeStatus = badgeStatusHtml(l.status);
+        if (l.overrideManual && String(l.overrideManual).toUpperCase() !== 'LIQUIDADO') badgeStatus += '<span class="badge bg-warning-subtle text-warning-emphasis border badge-data ms-1" style="font-size:9px;">✋ Ajustado</span>';
 
         htmlLanc += `<tr><td><small>${l.data.split('-').reverse().join('/')}</small> <span class="badge bg-light text-dark border">${l.categoria}</span>${badgeStatus}<br><span>${l.descricao}${labelRecorrente}</span></td><td class="${corTipo} text-end">R$ ${l.valor.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicao(${l.id})">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="solicitarExclusaoLancamento(${l.id}, '${possuiRecorrencia ? l.recorrenciaId : ''}', '${l.data}')">🗑️</button></td></tr>`;
       });
@@ -1099,11 +1234,13 @@
       }
 
       var htmlFila = "";
-      var pendentes = state.lancamentos.filter(function(l) { return l.tipo === "Receita" && l.status === "Projetado" && l.descricao.indexOf("Faturamento:") === 0; }).sort((a, b) => new Date(a.data) - new Date(b.data));
+      var pendentes = state.lancamentos.filter(function(l) {
+        return l.tipo === "Receita" && normalizarStatus(l.status) === "projetado" && (l.origem === "CALENDAR" || l.descricao.indexOf("Faturamento:") === 0);
+      }).sort((a, b) => new Date(a.data) - new Date(b.data));
       pendentes.forEach(function(item) {
-        htmlFila += `<tr><td>${item.data.split('-').reverse().join('/')}</td><td><b>${item.descricao.replace("Faturamento: ", "")}</b></td><td class="text-success fw-bold">R$ ${item.valor.toFixed(2)}</td><td class="text-center"><button type="button" class="btn btn-sm btn-success py-1 px-2" onclick="marcarComoConsolidadoDaFila(${item.id})">🔒 Emitir Nota</button></td></tr>`;
+        htmlFila += `<tr><td>${item.data.split('-').reverse().join('/')}</td><td><b>${item.descricao.replace("Faturamento: ", "")}</b></td><td class="text-success fw-bold">R$ ${item.valor.toFixed(2)}</td><td class="text-center"><button type="button" class="btn btn-sm btn-warning py-1 px-2 fw-bold" onclick="marcarComoFaturadoDaFila(${item.id})">✅ Marcar Faturado</button></td></tr>`;
       });
-      document.getElementById('tbodyFilaFaturamento').innerHTML = htmlFila || "<tr><td colspan='4'>Nenhuma cobrança pendente.</td></tr>";
+      document.getElementById('tbodyFilaFaturamento').innerHTML = htmlFila || "<tr><td colspan='4' class='text-center text-muted'>Nenhuma cobrança aguardando faturamento.</td></tr>";
 
       if (document.getElementById('filtroClienteFaturar')) filtrarClientesFaturar();
 
@@ -1129,6 +1266,7 @@
         htmlCondsTable += `<tr><td><small>${c.nome}</small></td><td>${c.periodo}</td><td>${c.diaCorte}</td><td>${c.mesDeslocamento}</td><td>${c.diaPagamento}</td><td><button type="button" class="btn btn-xs text-danger border-0" onclick="pedirConfirmacaoDeletarSimples('CondicoesPagamento', ${c.id})">🗑️</button></td></tr>`;
       });
       document.getElementById('tbodyCondicoes').innerHTML = htmlCondsTable || "<tr><td colspan='6'>Nenhuma.</td></tr>";
+      renderizarPendenciasHoje();
     }
 
     function filtrarClientesFaturar() {
@@ -1145,6 +1283,96 @@
           linha.style.display = "none";
         }
       });
+    }
+
+    function renderizarPendenciasHoje() {
+      var hojeStr = hojeIsoJs();
+      var pendentes = state.lancamentos.filter(function(l) {
+        return normalizarStatus(l.status) !== 'consolidado' && l.data <= hojeStr;
+      }).sort(function(a,b) { return a.data.localeCompare(b.data) || a.descricao.localeCompare(b.descricao); });
+
+      var receber = pendentes.filter(function(l){ return l.tipo === 'Receita'; });
+      var pagar = pendentes.filter(function(l){ return l.tipo !== 'Receita'; });
+      var totalRec = receber.reduce(function(t,l){ return t + Number(l.valor || 0); }, 0);
+      var totalPag = pagar.reduce(function(t,l){ return t + Number(l.valor || 0); }, 0);
+
+      function linha(item) {
+        var dt = new Date(item.data + 'T12:00:00');
+        var hj = new Date(hojeStr + 'T12:00:00');
+        var dias = Math.max(0, Math.round((hj - dt) / 86400000));
+        var atrasado = item.data < hojeStr;
+        var situacao = atrasado
+          ? `<span class="badge bg-danger">🔴 ${dias}d atrasado</span>`
+          : '<span class="badge bg-warning text-dark">🟡 Hoje</span>';
+        var st = badgeStatusHtml(item.status);
+        var acaoTexto = item.tipo === 'Receita' ? 'Recebido' : 'Pago';
+        var acaoIcone = item.tipo === 'Receita' ? '📥' : '📤';
+        var classeLinha = atrasado ? 'linha-atrasada' : 'linha-hoje';
+        return `<tr class="${classeLinha}">
+          <td style="white-space:nowrap;">${situacao}<br><small class="text-muted">${item.data.split('-').reverse().join('/')}</small></td>
+          <td><b>${item.descricao}</b><br>${st}<span class="badge bg-light text-dark border ms-1">${item.categoria || 'Sem Categoria'}</span></td>
+          <td class="text-end fw-bold ${item.tipo === 'Receita' ? 'text-success' : 'text-danger'}">R$ ${Number(item.valor || 0).toFixed(2)}</td>
+          <td class="text-center" style="min-width:145px;">
+            <button type="button" class="btn btn-sm ${item.tipo === 'Receita' ? 'btn-success' : 'btn-danger'} py-1 px-2 mb-1" onclick="liquidarLancamentoHoje(${item.id})">${acaoIcone} ${acaoTexto}</button>
+            <button type="button" class="btn btn-sm btn-outline-warning py-1 px-2 mb-1" onclick="abrirModalPendencia(${item.id})">Não / Adiar</button>
+          </td>
+        </tr>`;
+      }
+
+      document.getElementById('tbodyHojeReceber').innerHTML = receber.length ? receber.map(linha).join('') : '<tr><td colspan="4" class="text-center text-muted py-4">✅ Nada para receber hoje.</td></tr>';
+      document.getElementById('tbodyHojePagar').innerHTML = pagar.length ? pagar.map(linha).join('') : '<tr><td colspan="4" class="text-center text-muted py-4">✅ Nada para pagar hoje.</td></tr>';
+      document.getElementById('totalHojeReceber').innerText = 'R$ ' + totalRec.toFixed(2);
+      document.getElementById('totalHojePagar').innerText = 'R$ ' + totalPag.toFixed(2);
+
+      var badge = document.getElementById('badgePendenciasHoje');
+      if (badge) {
+        badge.innerText = pendentes.length;
+        if (pendentes.length) badge.classList.remove('d-none'); else badge.classList.add('d-none');
+      }
+    }
+
+    function liquidarLancamentoHoje(id) {
+      var item = state.lancamentos.find(function(l){ return Number(l.id) === Number(id); });
+      if (!item) return;
+      var verbo = item.tipo === 'Receita' ? 'recebido' : 'pago';
+      exibirModalConfirmacao(`Confirmar que "${item.descricao}" foi ${verbo} hoje?`, function() {
+        google.script.run
+          .withSuccessHandler(function(msg){ exibirAvisoNaTela(msg || 'Liquidado!', 'success'); recarregarDadosGlobais(); })
+          .withFailureHandler(function(err){ exibirAvisoNaTela('Erro ao liquidar: ' + err, 'danger'); })
+          .liquidarLancamentoBackend(Number(id));
+      });
+    }
+
+    function abrirModalPendencia(id) {
+      var item = state.lancamentos.find(function(l){ return Number(l.id) === Number(id); });
+      if (!item) return;
+      document.getElementById('pendenciaId').value = item.id;
+      document.getElementById('pendenciaDescricao').innerText = item.descricao;
+      document.getElementById('pendenciaInfo').innerText = `${item.tipo} • R$ ${Number(item.valor || 0).toFixed(2)} • vencimento ${item.data.split('-').reverse().join('/')} • ${item.status}`;
+      document.getElementById('pendenciaNovaData').value = '';
+      document.getElementById('pendenciaNovaData').min = hojeIsoJs();
+      modalPendenciaBS.show();
+    }
+
+    function manterPendenciaSemAdiar() {
+      var id = Number(document.getElementById('pendenciaId').value);
+      if (!id) return;
+      google.script.run
+        .withSuccessHandler(function(msg){ modalPendenciaBS.hide(); exibirAvisoNaTela(msg || 'Mantido em aberto.', 'success'); recarregarDadosGlobais(); })
+        .withFailureHandler(function(err){ exibirAvisoNaTela('Erro: ' + err, 'danger'); })
+        .marcarEmAbertoBackend(id, '');
+    }
+
+    function adiarPendencia() {
+      var id = Number(document.getElementById('pendenciaId').value);
+      var novaData = document.getElementById('pendenciaNovaData').value;
+      if (!id) return;
+      if (!novaData) { exibirAvisoNaTela('Escolha a nova data ou use “Manter vencido”.', 'danger'); return; }
+      if (novaData <= hojeIsoJs()) { exibirAvisoNaTela('Para adiar, escolha uma data futura.', 'danger'); return; }
+      google.script.run
+        .withSuccessHandler(function(msg){ modalPendenciaBS.hide(); exibirAvisoNaTela(msg || 'Adiado.', 'success'); recarregarDadosGlobais(); })
+        .withFailureHandler(function(err){ exibirAvisoNaTela('Erro ao adiar: ' + err, 'danger'); })
+        .marcarEmAbertoBackend(id, novaData);
     }
 
     function alternarHistoricoExtrato() {
@@ -1204,11 +1432,11 @@
       calcularFluxoEGráfico();
     }
 
-    function marcarComoConsolidadoDaFila(linhaId) { 
-      google.script.run.withSuccessHandler(function() { 
-        exibirAvisoNaTela("Faturamento Consolidado com sucesso!", "success");
-        recarregarDadosGlobais(); 
-      }).faturamentoImediatoFila(linhaId); 
+    function marcarComoFaturadoDaFila(linhaId) {
+      google.script.run.withSuccessHandler(function(msg) {
+        exibirAvisoNaTela(msg || "Faturado! Agora está Em Aberto.", "success");
+        recarregarDadosGlobais();
+      }).withFailureHandler(function(err){ exibirAvisoNaTela("Erro ao faturar: " + err, "danger"); }).faturamentoImediatoFila(linhaId);
     }
 
     function abrirModoEdicaoCliente(id) {
@@ -1248,7 +1476,8 @@
 
     function verDetalhesDoDia(dataStr, tipoFiltro) {
       var bancoDeDadosOrigem = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;
-      var listaFiltrada = bancoDeDadosOrigem.filter(function(l) { return l.data.trim() === dataStr.trim() && l.tipo === tipoFiltro; });
+      var hojeStrFluxo = hojeIsoJs();
+      var listaFiltrada = bancoDeDadosOrigem.filter(function(l) { return dataEfetivaFluxo(l, hojeStrFluxo) === dataStr.trim() && l.tipo === tipoFiltro; });
       if (listaFiltrada.length === 0) return;
       
       var htmlModal = "";
@@ -1326,7 +1555,7 @@
 
       if (idEdit) {
         if (rId && rId !== "undefined" && rId !== "null" && String(rId).trim() !== "") {
-          var escolha = prompt("Esta conta faz parte de uma RECORRÊNCIA.\n\n1 - Mudar APENAS esta parcela\n2 - Mudar ESTA e TODAS as futuras (a V5.7 recalcula a série sem duplicar)");
+          var escolha = prompt("Esta conta faz parte de uma RECORRÊNCIA.\n\n1 - Mudar APENAS esta parcela\n2 - Mudar ESTA e TODAS as futuras (a V5.8 recalcula a série sem duplicar)");
           if (escolha === "1") google.script.run.withSuccessHandler(function(r){ sucesso(r || "Parcela modificada!"); }).withFailureHandler(falha).atualizarLancamentoAvancado(dados, "unico");
           else if (escolha === "2") google.script.run.withSuccessHandler(function(r){ sucesso(r || "Série modificada!"); }).withFailureHandler(falha).atualizarLancamentoAvancado(dados, "posteriores");
         } else {
@@ -1379,27 +1608,72 @@
     }
 
     function calcularFluxoEGráfico() {
-      var mapaDatas = {};
       var fonteDadosParaFluxo = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;
+      var dHoje = new Date();
+      var hojeStr = hojeIsoJs();
+      var limite30 = new Date(dHoje.getFullYear(), dHoje.getMonth(), dHoje.getDate() + 30, 12, 0, 0);
+      var limite30Str = `${limite30.getFullYear()}-${String(limite30.getMonth()+1).padStart(2,'0')}-${String(limite30.getDate()).padStart(2,'0')}`;
+      var limite90 = new Date(dHoje.getFullYear(), dHoje.getMonth(), dHoje.getDate() + 90, 12, 0, 0);
+      var limite90Str = `${limite90.getFullYear()}-${String(limite90.getMonth()+1).padStart(2,'0')}-${String(limite90.getDate()).padStart(2,'0')}`;
+
+      var mapaDatas = {};
+      var mapaPendentes = {};
+      var saldoRealHoje = 0;
+      var receberPendente = 0, pagarPendente = 0, qtdRec = 0, qtdPag = 0;
+      var entradas30 = 0, saidas30 = 0;
+
       fonteDadosParaFluxo.forEach(function(l) {
-        if (!mapaDatas[l.data]) mapaDatas[l.data] = { receita: 0, despesa: 0 };
-        if (l.tipo === "Receita") { mapaDatas[l.data].receita += l.valor; } else { mapaDatas[l.data].despesa += l.valor; }
+        var valor = Number(l.valor || 0);
+        var st = normalizarStatus(l.status);
+        var sinal = l.tipo === 'Receita' ? valor : -valor;
+        var dataFluxo = l.data;
+
+        if (st === 'consolidado') {
+          if (l.data <= hojeStr) saldoRealHoje += sinal;
+        } else {
+          if (l.data <= hojeStr) {
+            if (l.tipo === 'Receita') { receberPendente += valor; qtdRec++; }
+            else { pagarPendente += valor; qtdPag++; }
+          } else if (l.data <= limite30Str) {
+            if (l.tipo === 'Receita') entradas30 += valor; else saidas30 += valor;
+          }
+
+          dataFluxo = l.data < hojeStr ? hojeStr : l.data;
+          if (!mapaPendentes[dataFluxo]) mapaPendentes[dataFluxo] = { receita: 0, despesa: 0 };
+          if (l.tipo === 'Receita') mapaPendentes[dataFluxo].receita += valor;
+          else mapaPendentes[dataFluxo].despesa += valor;
+        }
+
+        if (!mapaDatas[dataFluxo]) mapaDatas[dataFluxo] = { receita: 0, despesa: 0 };
+        if (l.tipo === 'Receita') mapaDatas[dataFluxo].receita += valor;
+        else mapaDatas[dataFluxo].despesa += valor;
       });
 
-      var dHoje = new Date();
-      var hojeStr = `${dHoje.getFullYear()}-${String(dHoje.getMonth() + 1).padStart(2, '0')}-${String(dHoje.getDate()).padStart(2, '0')}`;
-      var dadosDeHoje = mapaDatas[hojeStr] || { receita: 0, despesa: 0 };
+      // Cockpit: saldo real é SOMENTE o que já foi consolidado.
+      document.getElementById('cardSaldo').innerText = 'R$ ' + saldoRealHoje.toFixed(2);
+      document.getElementById('cardSaldoContainer').className = 'stat-card cockpit-card ' + obterClasseStatusCaixa(saldoRealHoje);
+      document.getElementById('cardReceberPendente').innerText = 'R$ ' + receberPendente.toFixed(2);
+      document.getElementById('cardPagarPendente').innerText = 'R$ ' + pagarPendente.toFixed(2);
+      document.getElementById('cardReceberQtd').innerText = qtdRec + ' pendência(s)';
+      document.getElementById('cardPagarQtd').innerText = qtdPag + ' pendência(s)';
+      document.getElementById('cardEntradas30').innerText = 'R$ ' + entradas30.toFixed(2);
+      document.getElementById('cardSaidas30').innerText = 'R$ ' + saidas30.toFixed(2);
+
+      var saldoProjetado = saldoRealHoje;
+      var menorSaldo = saldoProjetado;
+      var dataMenorSaldo = hojeStr;
+      Object.keys(mapaPendentes).sort().forEach(function(dataIso) {
+        if (dataIso > limite90Str) return;
+        saldoProjetado += (mapaPendentes[dataIso].receita - mapaPendentes[dataIso].despesa);
+        if (saldoProjetado < menorSaldo) { menorSaldo = saldoProjetado; dataMenorSaldo = dataIso; }
+      });
+      document.getElementById('cardMenorSaldo').innerText = 'R$ ' + menorSaldo.toFixed(2);
+      document.getElementById('cardMenorSaldoData').innerText = dataMenorSaldo === hojeStr ? 'Hoje / pendências atuais' : dataMenorSaldo.split('-').reverse().join('/');
+      document.getElementById('cardMenorSaldoContainer').className = 'stat-card cockpit-card ' + obterClasseStatusCaixa(menorSaldo);
+
       var todasDatasDisponiveis = Object.keys(mapaDatas).sort();
-      var saldoHojeAcumulado = 0;
-      todasDatasDisponiveis.forEach(function(dStr) { if (dStr <= hojeStr) { saldoHojeAcumulado += (mapaDatas[dStr].receita - mapaDatas[dStr].despesa); } });
-
-      document.getElementById('cardReceita').innerText = "R$ " + dadosDeHoje.receita.toFixed(2);
-      document.getElementById('cardDespesa').innerText = "R$ " + dadosDeHoje.despesa.toFixed(2);
-      document.getElementById('cardSaldo').innerText = "R$ " + saldoHojeAcumulado.toFixed(2);
-      document.getElementById('cardSaldoContainer').className = "stat-card " + obterClasseStatusCaixa(saldoHojeAcumulado);
-
       var dataPonteiroInicial = new Date(dHoje.getFullYear(), dHoje.getMonth(), dHoje.getDate(), 12, 0, 0);
-      if (exibirHistoricoCompleto && todasDatasDisponiveis.length > 0) { 
+      if (exibirHistoricoCompleto && todasDatasDisponiveis.length > 0) {
         var p0 = todasDatasDisponiveis[0].split('-');
         dataPonteiroInicial = new Date(Number(p0[0]), Number(p0[1]) - 1, Number(p0[2]), 12, 0, 0);
       }
@@ -1409,11 +1683,13 @@
       var pU = ultimaDataDoBanco.split('-');
       var dataLimiteFuturaTabela = new Date(Number(pU[0]), Number(pU[1]) - 1, Number(pU[2]), 12, 0, 0);
       var seisMesesPraFrente = new Date(dHoje.getTime() + (180 * 24 * 60 * 60 * 1000));
-      if (dataLimiteFuturaTabela.getTime() < seisMesesPraFrente.getTime()) { dataLimiteFuturaTabela = new Date(seisMesesPraFrente.getFullYear(), seisMesesPraFrente.getMonth(), seisMesesPraFrente.getDate(), 12, 0, 0); }
+      if (dataLimiteFuturaTabela.getTime() < seisMesesPraFrente.getTime()) dataLimiteFuturaTabela = new Date(seisMesesPraFrente.getFullYear(), seisMesesPraFrente.getMonth(), seisMesesPraFrente.getDate(), 12, 0, 0);
 
-      var htmlTabelaDiaria = ""; var dadosEixoX = []; var dadosEixoY = []; var mapeamentoDatasGrafico = []; var saldoAcumuladoLinha = 0;
+      var htmlTabelaDiaria = '', dadosEixoX = [], dadosEixoY = [], mapeamentoDatasGrafico = [], saldoAcumuladoLinha = 0;
       var stringDataInicialIso = `${dataPonteiroInicial.getFullYear()}-${String(dataPonteiroInicial.getMonth() + 1).padStart(2, '0')}-${String(dataPonteiroInicial.getDate()).padStart(2, '0')}`;
-      todasDatasDisponiveis.forEach(function(dStr) { if (dStr < stringDataInicialIso) { saldoAcumuladoLinha += (mapaDatas[dStr].receita - mapaDatas[dStr].despesa); } });
+      todasDatasDisponiveis.forEach(function(dStr) {
+        if (dStr < stringDataInicialIso) saldoAcumuladoLinha += (mapaDatas[dStr].receita - mapaDatas[dStr].despesa);
+      });
 
       var ponteiroData = new Date(dataPonteiroInicial.getTime());
       while (ponteiroData.getTime() <= dataLimiteFuturaTabela.getTime()) {
@@ -1422,25 +1698,22 @@
         var despDoDia = mapaDatas[dataLoopStr] ? mapaDatas[dataLoopStr].despesa : 0;
         saldoAcumuladoLinha += (recDoDia - despDoDia);
         var dataFormatadaBR = `${String(ponteiroData.getDate()).padStart(2, '0')}/${String(ponteiroData.getMonth() + 1).padStart(2, '0')}`;
-        
-        if (ponteiroData.getTime() <= dataLimiteFuturaGrafico.getTime()) { 
-          dadosEixoX.push(dataFormatadaBR + "/" + ponteiroData.getFullYear()); 
-          dadosEixoY.push(saldoAcumuladoLinha); 
+
+        if (ponteiroData.getTime() <= dataLimiteFuturaGrafico.getTime()) {
+          dadosEixoX.push(dataFormatadaBR + '/' + ponteiroData.getFullYear());
+          dadosEixoY.push(saldoAcumuladoLinha);
           mapeamentoDatasGrafico.push(dataLoopStr);
         }
-        
-        var tdReceita = recDoDia > 0 ? `<button type="button" class="btn-detalhe text-success" onclick="verDetalhesDoDia('${dataLoopStr}', 'Receita')">+R$${recDoDia.toFixed(0)}</button>` : `<span class="text-muted">-</span>`;
-        var tdDespesa = despDoDia > 0 ? `<button type="button" class="btn-detalhe text-danger" onclick="verDetalhesDoDia('${dataLoopStr}', 'Despesa')">-R$${despDoDia.toFixed(0)}</button>` : `<span class="text-muted">-</span>`;
+
+        var tdReceita = recDoDia > 0 ? `<button type="button" class="btn-detalhe text-success" onclick="verDetalhesDoDia('${dataLoopStr}', 'Receita')">+R$${recDoDia.toFixed(0)}</button>` : '<span class="text-muted">-</span>';
+        var tdDespesa = despDoDia > 0 ? `<button type="button" class="btn-detalhe text-danger" onclick="verDetalhesDoDia('${dataLoopStr}', 'Despesa')">-R$${despDoDia.toFixed(0)}</button>` : '<span class="text-muted">-</span>';
         var classeCorLinha = obterClasseStatusCaixa(saldoAcumuladoLinha);
-        var indiceDiaSemana = ponteiroData.getDay(); var txtDiaSemana = dsT[indiceDiaSemana]; 
-        
-        var classeFdsCol = (indiceDiaSemana === 0 || indiceDiaSemana === 6) ? "col-fim-de-semana" : "";
-        
+        var indiceDiaSemana = ponteiroData.getDay();
+        var txtDiaSemana = dsT[indiceDiaSemana];
+        var classeFdsCol = (indiceDiaSemana === 0 || indiceDiaSemana === 6) ? 'col-fim-de-semana' : '';
+
         htmlTabelaDiaria += `<tr>
-          <td class="${classeFdsCol}">
-            <b>${dataFormatadaBR}</b>${dataLoopStr === hojeStr ? '<br><span class="badge bg-warning text-dark badge-data" style="padding:1px 2px;">Hoje</span>' : ''}
-            <br><span class="badge bg-secondary-subtle text-secondary-emphasis badge-data" style="font-weight:bold;">${txtDiaSemana}</span>
-          </td>
+          <td class="${classeFdsCol}"><b>${dataFormatadaBR}</b>${dataLoopStr === hojeStr ? '<br><span class="badge bg-warning text-dark badge-data" style="padding:1px 2px;">Hoje</span>' : ''}<br><span class="badge bg-secondary-subtle text-secondary-emphasis badge-data" style="font-weight:bold;">${txtDiaSemana}</span></td>
           <td class="${classeFdsCol}">${tdReceita}</td>
           <td class="${classeFdsCol}">${tdDespesa}</td>
           <td class="fw-bold ${classeCorLinha}">R$${saldoAcumuladoLinha.toFixed(0)}</td>
@@ -1451,7 +1724,6 @@
 
       if (chartInstance) chartInstance.destroy();
       var ctx = document.getElementById('chartFluxo').getContext('2d');
-      
       var valorMaximoBanco = Math.max(...dadosEixoY, 500);
       var valorMinimoBanco = Math.min(...dadosEixoY, 0);
       var maximoEscalaY = Math.ceil(valorMaximoBanco / 500) * 500 + 500;
@@ -1459,38 +1731,22 @@
 
       chartInstance = new Chart(ctx, {
         type: 'line',
-        data: { labels: dadosEixoX, datasets: [{ label: 'Saldo', data: dadosEixoY, borderColor: '#1abc9c', backgroundColor: 'rgba(26, 188, 156, 0.05)', borderWidth: 2, fill: true, tension: 0.1 }] },
-        options: { 
-          responsive: true, 
-          maintainAspectRatio: false, 
-          plugins: { legend: { display: false } }, 
-          scales: { 
-            y: { 
-              min: minimoEscalaY,
-              max: maximoEscalaY,
-              ticks: { 
-                font: { size: 10 },
-                stepSize: 500,
-                autoSkip: false
-              } 
-            }, 
-            x: { 
-              ticks: { font: { size: 9 }, maxRotation: 45 } 
-            } 
+        data: { labels: dadosEixoX, datasets: [{ label: 'Saldo projetado', data: dadosEixoY, borderColor: '#1abc9c', backgroundColor: 'rgba(26, 188, 156, 0.05)', borderWidth: 2, fill: true, tension: 0.1 }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { min: minimoEscalaY, max: maximoEscalaY, ticks: { font: { size: 10 }, stepSize: 500, autoSkip: false } },
+            x: { ticks: { font: { size: 9 }, maxRotation: 45 } }
           },
           onClick: function(evt, activeElements) {
             if (activeElements && activeElements.length > 0) {
               var index = activeElements[0].index;
               var dataIsoClicada = mapeamentoDatasGrafico[index];
               var dadosDia = mapaDatas[dataIsoClicada] || { receita: 0, despesa: 0 };
-              
-              if (dadosDia.receita > 0) {
-                verDetalhesDoDia(dataIsoClicada, 'Receita');
-              } else if (dadosDia.despesa > 0) {
-                verDetalhesDoDia(dataIsoClicada, 'Despesa');
-              } else {
-                verDetalhesDoDia(dataIsoClicada, 'Despesa');
-              }
+              if (dadosDia.receita > 0) verDetalhesDoDia(dataIsoClicada, 'Receita');
+              else verDetalhesDoDia(dataIsoClicada, 'Despesa');
             }
           }
         }
