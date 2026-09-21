@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.6</title>
+  <title>Fluxo de Caixa Automatizado 5.7</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.6">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.7">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -86,7 +86,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.6</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.7</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -269,9 +269,32 @@
           </div>
           
           <div class="row g-2 mb-3">
-            <div class="col-4"><div class="dash-card bg-receita"><h6>Faturamento Total</h6><h5 id="dashReceitas">R$ 0,00</h5></div></div>
+            <div class="col-4"><div class="dash-card bg-receita"><h6>Receitas Totais</h6><h5 id="dashReceitas">R$ 0,00</h5></div></div>
             <div class="col-4"><div class="dash-card bg-despesa"><h6>Gastos Totais</h6><h5 id="dashDespesas">R$ 0,00</h5></div></div>
-            <div class="col-4"><div class="dash-card bg-lucro" id="dashResultadoContainer"><h6>Resultado Líquido</h6><h5 id="dashResultado">R$ 0,00</h5></div></div>
+            <div class="col-4"><div class="dash-card bg-lucro" id="dashResultadoContainer"><h6>Resultado Total</h6><h5 id="dashResultado">R$ 0,00</h5></div></div>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <div class="border rounded p-2 bg-light h-100">
+                <div class="fw-bold small text-success mb-2">🔒 REALIZADO / CONSOLIDADO</div>
+                <div class="row text-center g-1">
+                  <div class="col-4"><small class="text-muted d-block">Entradas</small><b id="dashRealReceitas">R$ 0,00</b></div>
+                  <div class="col-4"><small class="text-muted d-block">Saídas</small><b id="dashRealDespesas">R$ 0,00</b></div>
+                  <div class="col-4"><small class="text-muted d-block">Resultado</small><b id="dashRealResultado">R$ 0,00</b></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="border rounded p-2 bg-light h-100">
+                <div class="fw-bold small text-secondary mb-2">⏳ PROJETADO</div>
+                <div class="row text-center g-1">
+                  <div class="col-4"><small class="text-muted d-block">Entradas</small><b id="dashProjReceitas">R$ 0,00</b></div>
+                  <div class="col-4"><small class="text-muted d-block">Saídas</small><b id="dashProjDespesas">R$ 0,00</b></div>
+                  <div class="col-4"><small class="text-muted d-block">Resultado</small><b id="dashProjResultado">R$ 0,00</b></div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="border rounded p-3 bg-white mt-2">
@@ -346,7 +369,7 @@
                 </div>
 
                 <div class="mb-3"><label class="form-label small">Tipo</label><select id="recTipo" class="form-select form-select-sm" required><option value="Despesa">Despesa Fixa</option><option value="Receita">Receita Fixa</option></select></div>
-                <button type="submit" class="btn btn-sm btn-primary w-100">Agendar Recorrência</button>
+                <button type="submit" class="btn btn-sm btn-primary w-100" id="btnSalvarRecorrencia">Agendar Recorrência</button>
               </form>
             </div>
           </div>
@@ -397,35 +420,31 @@
       <script>
         function enviarDadosClienteNovos(event) {
           event.preventDefault();
-
           const id = document.getElementById('editClienteId').value;
-          const cliente = document.getElementById('regraCliente').value;
-          const valorVisita = document.getElementById('regraValor').value;
-          const condicaoNome = document.getElementById('regraCondicaoNome').value;
-          const novoValor = document.getElementById('regraNovoValor').value;
-          const dataVigor = document.getElementById('regraDataVigor').value;
-          const porHora = document.getElementById('regraPorHora').checked ? "SIM" : "NÃO";
-
-          const dados = { id: id, cliente: cliente, valorVisita: valorVisita, condicaoNome: condicaoNome, novoValor: novoValor, dataVigor: dataVigor, porHora: porHora };
+          const dados = {
+            id: id,
+            cliente: document.getElementById('regraCliente').value,
+            valorVisita: document.getElementById('regraValor').value,
+            condicaoNome: document.getElementById('regraCondicaoNome').value,
+            novoValor: document.getElementById('regraNovoValor').value,
+            dataVigor: document.getElementById('regraDataVigor').value,
+            porHora: document.getElementById('regraPorHora').checked ? "SIM" : "NÃO"
+          };
           const funcaoPlanilha = id ? "atualizarClienteBackend" : "salvarRegra";
+          const btn = document.getElementById('btnClienteSubmit');
+          if (btn) btn.disabled = true;
 
-          function finalizarSucesso(resposta) {
-            alert(resposta || "Processado com sucesso!");
-            document.getElementById('formRegra').reset();
-            document.getElementById('editClienteId').value = "";
-            document.getElementById('regraPorHora').checked = false;
-            if (typeof carregarDados === "function") carregarDados();
-            if (typeof listarRegras === "function") listarRegras();
-          }
-
-          if (typeof google !== "undefined" && google.script && google.script.run) {
-            google.script.run.withSuccessHandler(finalizarSucesso)[funcaoPlanilha](dados);
-          } else if (typeof executarNoBackend === "function") {
-            executarNoBackend(funcaoPlanilha, dados);
-            finalizarSucesso("Enviado com sucesso!");
-          } else {
-            alert("Conexão com o banco de dados não encontrada.");
-          }
+          google.script.run
+            .withSuccessHandler(function(resposta) {
+              if (btn) btn.disabled = false;
+              cancelarClienteEdicao();
+              exibirAvisoNaTela(resposta || "Cliente salvo com sucesso!", "success");
+              recarregarDadosGlobais();
+            })
+            .withFailureHandler(function(erro) {
+              if (btn) btn.disabled = false;
+              exibirAvisoNaTela("Erro ao salvar cliente: " + erro, "danger");
+            })[funcaoPlanilha](dados);
         }
       </script>
 
@@ -589,64 +608,56 @@
       script: {
         run: {
           successHandler: null,
-          withSuccessHandler: function(handler) {
-            this.successHandler = handler;
-            return this;
-          },
+          failureHandler: null,
+          withSuccessHandler: function(handler) { this.successHandler = handler; return this; },
+          withFailureHandler: function(handler) { this.failureHandler = handler; return this; },
           executarGenerico: async function(funcaoBackend, argumentos = null) {
+            // V5.7: captura os callbacks ANTES do await. Assim chamadas simultâneas não roubam a resposta umas das outras.
+            const onSuccess = this.successHandler;
+            const onFailure = this.failureHandler;
+            this.successHandler = null;
+            this.failureHandler = null;
             try {
               document.getElementById('status-conexao').innerText = "🔄 Sincronizando...";
               document.getElementById('status-conexao').className = "badge bg-warning";
-              
               var payload = { funcao: funcaoBackend };
-              if (argumentos !== null && typeof argumentos === 'object' && argumentos.argsArray) {
-                payload.args = argumentos.argsArray;
-              } else {
-                payload.args = argumentos;
-              }
+              if (argumentos !== null && typeof argumentos === 'object' && argumentos.argsArray) payload.args = argumentos.argsArray;
+              else payload.args = argumentos;
 
               const resposta = await fetch(GOOGLE_API_URL, {
-                method: 'POST',
-                redirect: 'follow',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify(payload)
+                method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload)
               });
-              
               const textoResposta = await resposta.text();
               let resultado = null;
               try { resultado = JSON.parse(textoResposta); } catch(e) { resultado = textoResposta; }
+              if (resultado && resultado.erro) throw new Error(resultado.erro);
 
-              if (resultado && resultado.erro) {
-                console.error("Erro retornado do Google:", resultado.erro);
-                document.getElementById('status-conexao').innerText = "🔴 Erro no Script";
-                document.getElementById('status-conexao').className = "badge bg-danger";
-                return;
-              }
-              
               document.getElementById('status-conexao').innerText = "🟢 Conectado";
               document.getElementById('status-conexao').className = "badge bg-success";
-              
-              if (this.successHandler) this.successHandler(resultado);
+              if (onSuccess) onSuccess(resultado);
+              return resultado;
             } catch (err) {
-              console.error("Erro crítico na requisição:", err);
+              console.error("Erro na requisição:", err);
               document.getElementById('status-conexao').innerText = "🔴 Erro de Conexão";
               document.getElementById('status-conexao').className = "badge bg-danger";
+              if (onFailure) onFailure(err.message || String(err));
+              return null;
             }
           },
-          obterDadosIniciais: function() { this.executarGenerico('obterDadosIniciais'); },
-          atualizarDatasLoteBackend: function(vetor) { this.executarGenerico('atualizarDatasLoteBackend', { argsArray: [vetor] }); },
-          excluirLinha: function(nomeAba, id) { this.executarGenerico('excluirLinha', { argsArray: [nomeAba, Number(id)] }); },
-          excluirLancamentoAvancado: function(id, tipo, recId, data) { this.executarGenerico('excluirLancamentoAvancado', {argsArray: [id, tipo, recId, data]}); },
-          atualizarClienteBackend: function(dados) { this.executarGenerico('atualizarClienteBackend', dados); },
-          salvarRegra: function(dados) { this.executarGenerico('salvarRegra', dados); },
-          atualizarLancamentoAvancado: function(dados, tipo) { this.executarGenerico('atualizarLancamentoAvancado', { argsArray: [dados, tipo] }); },
-          atualizarLancamentoBackend: function(dados) { this.executarGenerico('atualizarLancamentoBackend', { argsArray: [dados] }); },
-          salvarLancamentoManual: function(dados) { this.executarGenerico('salvarLancamentoManual', dados); },
-          salvarContasRecorrentesMaster: function(dados) { this.executarGenerico('salvarContasRecorrentesMaster', dados); },
-          salvarCategoria: function(dados) { this.executarGenerico('salvarCategoria', dados); },
-          salvarCondicaoPagamento: function(dados) { this.executarGenerico('salvarCondicaoPagamento', dados); },
-          sincronizarCalendarBackend: function() { this.executarGenerico('sincronizarCalendarBackend'); },
-          faturamentoImediatoFila: function(id) { this.executarGenerico('faturamentoImediatoFila', id); }
+          obterDadosIniciais: function() { return this.executarGenerico('obterDadosIniciais'); },
+          atualizarDatasLoteBackend: function(vetor) { return this.executarGenerico('atualizarDatasLoteBackend', { argsArray: [vetor] }); },
+          excluirLinha: function(nomeAba, id) { return this.executarGenerico('excluirLinha', { argsArray: [nomeAba, Number(id)] }); },
+          excluirLancamentoAvancado: function(id, tipo, recId, data) { return this.executarGenerico('excluirLancamentoAvancado', {argsArray: [id, tipo, recId, data]}); },
+          atualizarClienteBackend: function(dados) { return this.executarGenerico('atualizarClienteBackend', dados); },
+          salvarRegra: function(dados) { return this.executarGenerico('salvarRegra', dados); },
+          atualizarLancamentoAvancado: function(dados, tipo) { return this.executarGenerico('atualizarLancamentoAvancado', { argsArray: [dados, tipo] }); },
+          atualizarLancamentoBackend: function(dados) { return this.executarGenerico('atualizarLancamentoBackend', { argsArray: [dados] }); },
+          salvarLancamentoManual: function(dados) { return this.executarGenerico('salvarLancamentoManual', dados); },
+          salvarContasRecorrentesMaster: function(dados) { return this.executarGenerico('salvarContasRecorrentesMaster', dados); },
+          salvarCategoria: function(dados) { return this.executarGenerico('salvarCategoria', dados); },
+          salvarCondicaoPagamento: function(dados) { return this.executarGenerico('salvarCondicaoPagamento', dados); },
+          sincronizarCalendarBackend: function() { return this.executarGenerico('sincronizarCalendarBackend'); },
+          faturamentoImediatoFila: function(id) { return this.executarGenerico('faturamentoImediatoFila', id); }
         }
       }
     };
@@ -715,6 +726,10 @@
           state.categorias = dadosPlanilha.categorias || [];
           state.condicoes = dadosPlanilha.condicoes || [];
           state.recorrenciasConfig = dadosPlanilha.recorrenciasConfig || [];
+          if (dadosPlanilha.versao) {
+            var marca = document.querySelector('.navbar-brand');
+            if (marca) marca.innerText = 'FLUXO DE CAIXA V' + dadosPlanilha.versao;
+          }
           
           lancamentosSimulados = null;
           listaAlteracoesSimuladas = {};
@@ -812,48 +827,54 @@
 
     function renderizarDashboardMensal() {
       var modoIntervalo = document.getElementById('dashModoIntervalo').checked;
-      var totalReceitas = 0; var totalDespesas = 0; var mapaCategorias = {};
+      var totalReceitas = 0, totalDespesas = 0, mapaCategorias = {};
+      var realReceitas = 0, realDespesas = 0, projReceitas = 0, projDespesas = 0;
+      var mesAlvoStr = document.getElementById('dashFiltroMes').value;
+      var dtInicio = document.getElementById('dashDataInicio').value;
+      var dtFim = document.getElementById('dashDataFim').value;
 
-      if (modoIntervalo) {
-        var dtInicio = document.getElementById('dashDataInicio').value;
-        var dtFim = document.getElementById('dashDataFim').value;
-        
-        state.lancamentos.forEach(function(l) {
-          if ((!dtInicio || l.data >= dtInicio) && (!dtFim || l.data <= dtFim)) {
-            if (l.tipo === "Receita") { totalReceitas += l.valor; } 
-            else { totalDespesas += l.valor; var cat = l.categoria || "Sem Categoria"; mapaCategorias[cat] = (mapaCategorias[cat] || 0) + l.valor; }
-          }
-        });
-      } else {
-        var mesAlvoStr = document.getElementById('dashFiltroMes').value; 
-        if (!mesAlvoStr) return;
-        state.lancamentos.forEach(function(l) {
-          var lMes = l.data.substring(0, 7);
-          if (lMes === mesAlvoStr) {
-            if (l.tipo === "Receita") { totalReceitas += l.valor; } 
-            else { totalDespesas += l.valor; var cat = l.categoria || "Sem Categoria"; mapaCategorias[cat] = (mapaCategorias[cat] || 0) + l.valor; }
-          }
-        });
-      }
+      state.lancamentos.forEach(function(l) {
+        var dentro = modoIntervalo
+          ? ((!dtInicio || l.data >= dtInicio) && (!dtFim || l.data <= dtFim))
+          : (mesAlvoStr && l.data.substring(0, 7) === mesAlvoStr);
+        if (!dentro) return;
+
+        var consolidado = String(l.status || '').toLowerCase().trim() === 'consolidado';
+        if (l.tipo === "Receita") {
+          totalReceitas += l.valor;
+          if (consolidado) realReceitas += l.valor; else projReceitas += l.valor;
+        } else {
+          totalDespesas += l.valor;
+          if (consolidado) realDespesas += l.valor; else projDespesas += l.valor;
+          var cat = l.categoria || "Sem Categoria";
+          mapaCategorias[cat] = (mapaCategorias[cat] || 0) + l.valor;
+        }
+      });
+      if (!modoIntervalo && !mesAlvoStr) return;
 
       var resultadoLiquido = totalReceitas - totalDespesas;
       document.getElementById('dashReceitas').innerText = "R$ " + totalReceitas.toFixed(2);
       document.getElementById('dashDespesas').innerText = "R$ " + totalDespesas.toFixed(2);
       document.getElementById('dashResultado').innerText = "R$ " + resultadoLiquido.toFixed(2);
       var cardResult = document.getElementById('dashResultadoContainer');
-      if (resultadoLiquido >= 0) { cardResult.className = "dash-card bg-lucro"; } else { cardResult.className = "dash-card bg-despesa"; }
-      
+      cardResult.className = resultadoLiquido >= 0 ? "dash-card bg-lucro" : "dash-card bg-despesa";
+
+      document.getElementById('dashRealReceitas').innerText = "R$ " + realReceitas.toFixed(2);
+      document.getElementById('dashRealDespesas').innerText = "R$ " + realDespesas.toFixed(2);
+      document.getElementById('dashRealResultado').innerText = "R$ " + (realReceitas - realDespesas).toFixed(2);
+      document.getElementById('dashProjReceitas').innerText = "R$ " + projReceitas.toFixed(2);
+      document.getElementById('dashProjDespesas').innerText = "R$ " + projDespesas.toFixed(2);
+      document.getElementById('dashProjResultado').innerText = "R$ " + (projReceitas - projDespesas).toFixed(2);
+
       var listaCategorias = [];
-      for (var cNome in mapaCategorias) { listaCategorias.push({ nome: cNome, valor: mapaCategorias[cNome] }); }
+      for (var cNome in mapaCategorias) listaCategorias.push({ nome: cNome, valor: mapaCategorias[cNome] });
       listaCategorias.sort((a, b) => b.valor - a.valor);
       var htmlDashTable = "";
-      if (listaCategorias.length === 0) { htmlDashTable = "<tr><td colspan='3' class='text-center text-muted py-3'>Nenhuma despesa registrada para o período selecionado.</td></tr>"; } 
-      else {
-        listaCategorias.forEach(function(catItem) {
-          var part = totalDespesas > 0 ? (catItem.valor / totalDespesas) * 100 : 0;
-          htmlDashTable += `<tr><td class="ps-2 py-2 fw-bold text-dark">${catItem.nome}</td><td class="text-end pe-3 text-danger font-monospace fw-bold">R$ ${catItem.valor.toFixed(2)}</td><td class="text-center"><span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill">${part.toFixed(1)}%</span></td></tr>`;
-        });
-      }
+      if (!listaCategorias.length) htmlDashTable = "<tr><td colspan='3' class='text-center text-muted py-3'>Nenhuma despesa registrada para o período selecionado.</td></tr>";
+      else listaCategorias.forEach(function(catItem) {
+        var part = totalDespesas > 0 ? (catItem.valor / totalDespesas) * 100 : 0;
+        htmlDashTable += `<tr><td class="ps-2 py-2 fw-bold text-dark">${catItem.nome}</td><td class="text-end pe-3 text-danger font-monospace fw-bold">R$ ${catItem.valor.toFixed(2)}</td><td class="text-center"><span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill">${part.toFixed(1)}%</span></td></tr>`;
+      });
       document.getElementById('tbodyDashCategorias').innerHTML = htmlDashTable;
     }
 
@@ -911,14 +932,19 @@
 
     function efetivarDatasSimuladasNoSheets() {
       var vetorEnvio = [];
-      for (var id in listaAlteracoesSimuladas) { 
-        vetorEnvio.push({ id: Number(id), novaData: listaAlteracoesSimuladas[id] }); 
-      }
-      
+      for (var id in listaAlteracoesSimuladas) vetorEnvio.push({ id: Number(id), novaData: listaAlteracoesSimuladas[id] });
+      if (!vetorEnvio.length) { exibirAvisoNaTela("Nenhuma alteração para efetivar.", "danger"); return; }
+      var btn = document.getElementById('btnEfetivarSimulacao');
+      if (btn) { btn.disabled = true; btn.innerText = '🔄 Salvando...'; }
       google.script.run
-        .withSuccessHandler(function(resposta) { 
-          exibirAvisoNaTela(resposta || "Datas alteradas!", "success"); 
-          recarregarDadosGlobais(); 
+        .withSuccessHandler(function(resposta) {
+          if (btn) { btn.disabled = false; btn.innerText = '🔒 Efetivar Mudanças'; }
+          exibirAvisoNaTela(resposta || "Datas alteradas!", "success");
+          recarregarDadosGlobais();
+        })
+        .withFailureHandler(function(erro) {
+          if (btn) { btn.disabled = false; btn.innerText = '🔒 Efetivar Mudanças'; }
+          exibirAvisoNaTela("Erro ao efetivar: " + erro, "danger");
         })
         .executarGenerico('atualizarDatasLoteBackend', { argsArray: [vetorEnvio] });
     }
@@ -947,7 +973,9 @@
     function ajustarLabelDiaAlvo() {
       var freq = document.getElementById('recFrequencia').value;
       var label = document.getElementById('labelDiaAlvo');
-      if(freq === "Mensal") label.innerText = "Dia do Mês (1 a 31)"; else label.innerText = "Dia da Semana (1=Seg, 7=Dom)";
+      var input = document.getElementById('recDiaAlvo');
+      if(freq === "Mensal") { label.innerText = "Dia do Mês (1 a 31)"; input.min = 1; input.max = 31; }
+      else { label.innerText = "Dia da Semana (1=Seg, 7=Dom)"; input.min = 1; input.max = 7; }
     }
 
     function alimentarSelects() {
@@ -974,7 +1002,8 @@
       var htmlRegras = "";
       state.regras.forEach(function(r) {
         var textoReajuste = r.novoValor ? `<br><small class="text-muted">📈 R$ ${r.novoValor} de reajuste</small>` : "";
-        htmlRegras += `<tr><td><b>${r.cliente}</b><br><small class="text-success">${r.condicaoNome}</small>${textoReajuste}</td><td class="text-end">R$ ${r.valorVisita.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicaoCliente(${r.id}, '${r.cliente}', ${r.valorVisita}, '${r.condicaoNome}', '${r.novoValor}', '${r.dataVigor}')">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="pedirConfirmacaoDeletarSimples('RegrasClientes', ${r.id})">🗑️</button></td></tr>`;
+        var badgeHora = r.porHora ? '<span class="badge bg-info-subtle text-info-emphasis ms-1">⏰/h</span>' : '';
+        htmlRegras += `<tr><td><b>${r.cliente}</b>${badgeHora}<br><small class="text-success">${r.condicaoNome}</small>${textoReajuste}</td><td class="text-end">R$ ${r.valorVisita.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicaoCliente(${r.id})">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="pedirConfirmacaoDeletarSimples('RegrasClientes', ${r.id})">🗑️</button></td></tr>`;
       });
       document.getElementById('tbodyRegras').innerHTML = htmlRegras || "<tr><td>Nenhum cliente cadastrado.</td></tr>";
 
@@ -1029,6 +1058,7 @@
         var badgeStatus = isConsolidado 
           ? '<span class="badge bg-success text-white badge-data ms-1" style="font-size:9px;">🔒 Consolidado</span>' 
           : '<span class="badge bg-light text-secondary border badge-data ms-1" style="font-size:9px;">⏳ Projetado</span>';
+        if (l.overrideManual) badgeStatus += '<span class="badge bg-warning-subtle text-warning-emphasis border badge-data ms-1" style="font-size:9px;">✋ Ajustado</span>';
 
         htmlLanc += `<tr><td><small>${l.data.split('-').reverse().join('/')}</small> <span class="badge bg-light text-dark border">${l.categoria}</span>${badgeStatus}<br><span>${l.descricao}${labelRecorrente}</span></td><td class="${corTipo} text-end">R$ ${l.valor.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicao(${l.id})">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="solicitarExclusaoLancamento(${l.id}, '${possuiRecorrencia ? l.recorrenciaId : ''}', '${l.data}')">🗑️</button></td></tr>`;
       });
@@ -1131,13 +1161,14 @@
     }
 
     function pedirConfirmacaoContratoRecorrente(idSerie) {
-      exibirModalConfirmacao("Deseja apagar esse contrato fixo e remover as cobranças futuras?", function() {
-        google.script.run.withSuccessHandler(function() { 
-          google.script.run.withSuccessHandler(function() { 
-            exibirAvisoNaTela("Recorrência removida!", "success");
-            recarregarDadosGlobais(); 
-          }).excluirLancamentoAvancado("0", "posteriores", idSerie, "2000-01-01");
-        });
+      exibirModalConfirmacao("Deseja apagar esse contrato fixo e remover todas as cobranças futuras?", function() {
+        google.script.run
+          .withSuccessHandler(function(resposta) {
+            exibirAvisoNaTela(resposta || "Recorrência removida!", "success");
+            recarregarDadosGlobais();
+          })
+          .withFailureHandler(function(erro) { exibirAvisoNaTela("Erro ao remover recorrência: " + erro, "danger"); })
+          .excluirLancamentoAvancado("0", "posteriores", idSerie, "2000-01-01");
       });
     }
 
@@ -1176,10 +1207,19 @@
       }).faturamentoImediatoFila(linhaId); 
     }
 
-    function abrirModoEdicaoCliente(id, cliente, valor, condicaoNome, novoValor, dataVigor) {
-      document.getElementById('editClienteId').value = id; document.getElementById('regraCliente').value = cliente; document.getElementById('regraValor').value = valor; document.getElementById('regraCondicaoNome').value = condicaoNome;
-      document.getElementById('regraNovoValor').value = novoValor === "undefined" ? "" : novoValor; document.getElementById('regraDataVigor').value = dataVigor === "undefined" ? "" : dataVigor;
-      document.getElementById('formClienteTitulo').innerText = "✏️ Editando Cliente"; document.getElementById('btnClienteSubmit').innerText = "Atualizar Cliente"; document.getElementById('btnCancelarClienteEdicao').classList.remove('d-none');
+    function abrirModoEdicaoCliente(id) {
+      var item = state.regras.find(function(r) { return Number(r.id) === Number(id); });
+      if (!item) return;
+      document.getElementById('editClienteId').value = item.id;
+      document.getElementById('regraCliente').value = item.cliente || "";
+      document.getElementById('regraValor').value = item.valorVisita || 0;
+      document.getElementById('regraCondicaoNome').value = item.condicaoNome || "";
+      document.getElementById('regraNovoValor').value = item.novoValor || "";
+      document.getElementById('regraDataVigor').value = item.dataVigor || "";
+      document.getElementById('regraPorHora').checked = !!item.porHora;
+      document.getElementById('formClienteTitulo').innerText = "✏️ Editando Cliente";
+      document.getElementById('btnClienteSubmit').innerText = "Atualizar Cliente";
+      document.getElementById('btnCancelarClienteEdicao').classList.remove('d-none');
     }
 
     function cancelarClienteEdicao() { document.getElementById('editClienteId').value = ""; document.getElementById('formRegra').reset(); document.getElementById('formClienteTitulo').innerText = "🤝 Gerenciar Cliente"; document.getElementById('btnClienteSubmit').innerText = "Salvar Vínculo"; document.getElementById('btnCancelarClienteEdicao').classList.add('d-none'); }
@@ -1269,48 +1309,70 @@
     }
     
     function processarLancamentoForm(e) {
-      e.preventDefault(); 
-      var idEdit = document.getElementById('editLancamentoId').value; 
-      var rId = document.getElementById('editLancamentoRecorrenciaId').value; 
+      e.preventDefault();
+      var idEdit = document.getElementById('editLancamentoId').value;
+      var rId = document.getElementById('editLancamentoRecorrenciaId').value;
       var dtOriginal = document.getElementById('editLancamentoDataOriginal').value;
-      
-      var dados = { 
-        id: idEdit, 
-        descricao: document.getElementById('lDesc').value, 
-        valor: document.getElementById('lValor').value, 
-        data: document.getElementById('lData').value, 
-        tipo: document.getElementById('lTipo').value, 
-        categoria: document.getElementById('lCategoria').value, 
-        recorrenciaId: rId, 
-        dataOriginalCorte: dtOriginal 
+      var dados = {
+        id: idEdit, descricao: document.getElementById('lDesc').value, valor: document.getElementById('lValor').value, data: document.getElementById('lData').value,
+        tipo: document.getElementById('lTipo').value, categoria: document.getElementById('lCategoria').value, recorrenciaId: rId, dataOriginalCorte: dtOriginal
       };
-      
-      if (idEdit) { 
+      function sucesso(msg) { cancelarEdicao(); exibirAvisoNaTela(msg, "success"); recarregarDadosGlobais(); }
+      function falha(err) { exibirAvisoNaTela("Erro ao atualizar: " + err, "danger"); }
+
+      if (idEdit) {
         if (rId && rId !== "undefined" && rId !== "null" && String(rId).trim() !== "") {
-          var escolha = prompt("Esta conta faz parte de uma RECORRÊNCIA.\n\n1 - Mudar APENAS esta parcela\n2 - Mudar ESTA e TODAS as futuras");
-          if (escolha === "1") {
-            google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Parcela modificada!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoAvancado(dados, "unico");
-          } else if (escolha === "2") {
-            google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Série modificada!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoAvancado(dados, "posteriores");
-          }
-        } else { 
-          google.script.run.withSuccessHandler(function() { cancelarEdicao(); exibirAvisoNaTela("Lançamento atualizado!", "success"); recarregarDadosGlobais(); }).atualizarLancamentoBackend(dados); 
+          var escolha = prompt("Esta conta faz parte de uma RECORRÊNCIA.\n\n1 - Mudar APENAS esta parcela\n2 - Mudar ESTA e TODAS as futuras (a V5.7 recalcula a série sem duplicar)");
+          if (escolha === "1") google.script.run.withSuccessHandler(function(r){ sucesso(r || "Parcela modificada!"); }).withFailureHandler(falha).atualizarLancamentoAvancado(dados, "unico");
+          else if (escolha === "2") google.script.run.withSuccessHandler(function(r){ sucesso(r || "Série modificada!"); }).withFailureHandler(falha).atualizarLancamentoAvancado(dados, "posteriores");
+        } else {
+          google.script.run.withSuccessHandler(function(r){ sucesso(r || "Lançamento atualizado!"); }).withFailureHandler(falha).atualizarLancamentoBackend(dados);
         }
-      } else { 
-        google.script.run.withSuccessHandler(function() { document.getElementById('formLancamento').reset(); exibirAvisoNaTela("Lançamento realizado!", "success"); recarregarDadosGlobais(); }).salvarLancamentoManual(dados); 
+      } else {
+        google.script.run.withSuccessHandler(function(r){ document.getElementById('formLancamento').reset(); exibirAvisoNaTela(r || "Lançamento realizado!", "success"); recarregarDadosGlobais(); }).withFailureHandler(falha).salvarLancamentoManual(dados);
       }
     }
 
     function salvarContasFixasRecorrentes(e) {
-      e.preventDefault(); var tTermino = document.querySelector('input[name="tipoTermino"]:checked').value; var vTermino = "";
-      if(tTermino === 'data') vTermino = document.getElementById('recTerminoData').value; else if(tTermino === 'ocorrencias') vTermino = document.getElementById('recTerminoOcorrencias').value;
-      var dados = { descricao: document.getElementById('recDesc').value, valor: document.getElementById('recValor').value, dataInicio: document.getElementById('recDataInicio').value, categoria: document.getElementById('recCategoria').value, frequencia: document.getElementById('recFrequencia').value, diaAlvo: document.getElementById('recDiaAlvo').value, tipo: document.getElementById('recTipo').value, tipoTermino: tTermino, valorTermino: vTermino };
-      google.script.run.withSuccessHandler(function(){ document.getElementById('formRecorrencia').reset(); alternarCamposTermino(); exibirAvisoNaTela("Conta Recorrente configurada!", "success"); recarregarDadosGlobais(); }).salvarContasRecorrentesMaster(dados);
+      e.preventDefault();
+      var tTermino = document.querySelector('input[name="tipoTermino"]:checked').value;
+      var vTermino = "";
+      if(tTermino === 'data') vTermino = document.getElementById('recTerminoData').value;
+      else if(tTermino === 'ocorrencias') vTermino = document.getElementById('recTerminoOcorrencias').value;
+      var freq = document.getElementById('recFrequencia').value;
+      var dia = Number(document.getElementById('recDiaAlvo').value);
+      if ((freq === 'Mensal' && (dia < 1 || dia > 31)) || (freq === 'Semanal' && (dia < 1 || dia > 7))) {
+        exibirAvisoNaTela(freq === 'Mensal' ? 'Dia do mês deve ser de 1 a 31.' : 'Dia da semana deve ser de 1 a 7.', 'danger');
+        return;
+      }
+      var dados = {
+        descricao: document.getElementById('recDesc').value, valor: document.getElementById('recValor').value, dataInicio: document.getElementById('recDataInicio').value,
+        categoria: document.getElementById('recCategoria').value, frequencia: freq, diaAlvo: dia, tipo: document.getElementById('recTipo').value,
+        tipoTermino: tTermino, valorTermino: vTermino
+      };
+      var btn = document.getElementById('btnSalvarRecorrencia');
+      if (btn) { btn.disabled = true; btn.innerText = 'Salvando...'; }
+      google.script.run
+        .withSuccessHandler(function(resposta){
+          if (btn) { btn.disabled = false; btn.innerText = 'Agendar Recorrência'; }
+          document.getElementById('formRecorrencia').reset(); alternarCamposTermino(); ajustarLabelDiaAlvo();
+          exibirAvisoNaTela(resposta || "Conta recorrente configurada!", "success"); recarregarDadosGlobais();
+        })
+        .withFailureHandler(function(erro){
+          if (btn) { btn.disabled = false; btn.innerText = 'Agendar Recorrência'; }
+          exibirAvisoNaTela('Erro ao salvar recorrência: ' + erro, 'danger');
+        })
+        .salvarContasRecorrentesMaster(dados);
     }
 
     function salvarNovaCategoria(e) { e.preventDefault(); google.script.run.withSuccessHandler(function() { document.getElementById('formCategoria').reset(); exibirAvisoNaTela("Categoria salva!", "success"); recarregarDadosGlobais(); }).salvarCategoria({ nome: document.getElementById('catNome').value }); }
     function salvarNovaCondition(e) { e.preventDefault(); var dados = { nome: document.getElementById('condNome').value, periodo: document.getElementById('condPeriodo').value, diaCorte: document.getElementById('condCorte').value, mesDeslocamento: document.getElementById('condDeslocamento').value, diaPagamento: document.getElementById('condPagamento').value }; google.script.run.withSuccessHandler(function() { document.getElementById('formCondicao').reset(); exibirAvisoNaTela("Condição cadastrada!", "success"); recarregarDadosGlobais(); }).salvarCondicaoPagamento(dados); }
-    function sincronizarAgendaReal() { var btn = document.getElementById('btnSincronizar'); if(btn) btn.disabled = true; google.script.run.withSuccessHandler(function(resp) { exibirAvisoNaTela(resp, "success"); if(btn) btn.disabled = false; recarregarDadosGlobais(); }).sincronizarCalendarBackend(); }
+    function sincronizarAgendaReal() {
+      var btn = document.getElementById('btnSincronizar'); if(btn) btn.disabled = true;
+      google.script.run.withSuccessHandler(function(resp) { exibirAvisoNaTela(resp, "success"); if(btn) btn.disabled = false; recarregarDadosGlobais(); })
+        .withFailureHandler(function(err){ if(btn) btn.disabled = false; exibirAvisoNaTela("Erro na sincronização: " + err, "danger"); })
+        .sincronizarCalendarBackend();
+    }
 
     function calcularFluxoEGráfico() {
       var mapaDatas = {};
