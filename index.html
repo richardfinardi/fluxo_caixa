@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.10</title>
+  <title>Fluxo de Caixa Automatizado 5.10.1</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.10">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.10.1">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -110,6 +110,8 @@
 .banco-criar-v510 { margin-top:10px; padding-top:9px; border-top:1px solid #e4e7eb; }
 .banco-criar-v510 .form-label { font-size:10px; font-weight:700; color:#6c757d; }
 .banco-criar-v510 .form-check-label { font-size:10px; color:#6c757d; }
+.banco-confirmar-v5101 { display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 10px; background:#eefaf3; border:1px solid #cfe9d9; border-radius:8px; }
+.banco-confirmar-v5101 label { font-size:12px; font-weight:800; cursor:pointer; margin:0; }
 @media (max-width:576px) { .banco-acoes-v510 .btn { flex:1 1 auto; min-height:38px; } }
 
     @media (max-width: 576px) {
@@ -217,7 +219,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.10</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.10.1</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -733,7 +735,7 @@
         </div>
       </div>
 
-<!-- TAB BANCO V5.10 -->
+<!-- TAB BANCO V5.10.1 -->
 <div class="tab-pane fade" id="banco" role="tabpanel">
   <div class="card">
     <div class="banco-v59-topo">
@@ -741,11 +743,14 @@
         <h6 class="fw-bold mb-1">🏦 Conciliação Bancária</h6>
         <div class="text-muted" style="font-size:11px;">PF + PJ • Nubank / Pluggy</div>
       </div>
-      <button type="button" class="btn btn-sm btn-primary fw-bold" id="btnAtualizarBancoV59" onclick="atualizarBancoV59()">↻ Atualizar Banco</button>
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-sm btn-success fw-bold" id="btnConciliarConfirmadosV5101" onclick="conciliarConfirmadosBancoV5101()" disabled>✅ Conciliar confirmados (0)</button>
+        <button type="button" class="btn btn-sm btn-primary fw-bold" id="btnAtualizarBancoV59" onclick="atualizarBancoV59()">↻ Atualizar Banco</button>
+      </div>
     </div>
 
     <div class="alert alert-info py-2 px-3 mt-3 mb-2" style="font-size:11px;">
-      ✅ <b>Modo ativo V5.10:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
+      ✅ <b>Modo ativo V5.10.1:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
     </div>
 
     <div class="banco-v59-kpis">
@@ -915,7 +920,8 @@
           conciliarMovimentoBancoV510: function(dados) { return this.executarGenerico('conciliarMovimentoBancoV510', dados); },
           criarLancamentoBancoV510: function(dados) { return this.executarGenerico('criarLancamentoBancoV510', dados); },
           ignorarMovimentoBancoV510: function(id) { return this.executarGenerico('ignorarMovimentoBancoV510', id); },
-          confirmarTransferenciaBancoV510: function(dados) { return this.executarGenerico('confirmarTransferenciaBancoV510', dados); }
+          confirmarTransferenciaBancoV510: function(dados) { return this.executarGenerico('confirmarTransferenciaBancoV510', dados); },
+          conciliarMovimentosBancoLoteV5101: function(dados) { return this.executarGenerico('conciliarMovimentosBancoLoteV5101', dados); }
         }
       }
     };
@@ -928,7 +934,7 @@
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
-    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS' };
+    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS', confirmados: {} };
     
     var mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     var dataPonteiroDash = new Date();
@@ -1786,7 +1792,7 @@
     }
 
 // =========================
-// V5.9.1 - CONCILIAÇÃO BANCÁRIA (SOMENTE SUGESTÕES)
+// V5.10.1 - CONCILIAÇÃO BANCÁRIA
 // =========================
 function escapeHtmlBancoV59_(valor) {
   return String(valor === null || valor === undefined ? '' : valor)
@@ -1894,6 +1900,70 @@ function opcoesCategoriaBancoV510_(selecionada) {
   return html;
 }
 
+
+function atualizarBotaoConfirmadosBancoV5101_() {
+  var btn = document.getElementById('btnConciliarConfirmadosV5101');
+  if (!btn) return;
+  var qtd = Object.keys(bancoV59.confirmados || {}).length;
+  btn.disabled = qtd === 0;
+  btn.innerText = '✅ Conciliar confirmados (' + qtd + ')';
+}
+
+function alternarConfirmadoBancoV5101(idPluggy, idLancamento, marcado) {
+  bancoV59.confirmados = bancoV59.confirmados || {};
+  if (marcado) {
+    bancoV59.confirmados[String(idPluggy)] = {
+      idPluggy: String(idPluggy),
+      idLancamento: String(idLancamento)
+    };
+  } else {
+    delete bancoV59.confirmados[String(idPluggy)];
+  }
+  atualizarBotaoConfirmadosBancoV5101_();
+}
+
+function conciliarConfirmadosBancoV5101() {
+  var itens = Object.keys(bancoV59.confirmados || {}).map(function(k) {
+    return bancoV59.confirmados[k];
+  });
+
+  if (!itens.length) {
+    exibirAvisoNaTela('Marque pelo menos uma sugestão como Confirmado.', 'warning');
+    return;
+  }
+
+  exibirModalConfirmacao(
+    'Conciliar os ' + itens.length + ' movimento(s) confirmados de uma vez?',
+    function() {
+      var btn = document.getElementById('btnConciliarConfirmadosV5101');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = '⏳ Conciliando...';
+      }
+
+      google.script.run
+        .withSuccessHandler(function(resp) {
+          resp = resp || {};
+          bancoV59.confirmados = {};
+          var msg = Number(resp.processados || 0) + ' conciliado(s)';
+          if (Number(resp.erros || 0) > 0) {
+            msg += ' • ' + Number(resp.erros || 0) + ' com erro';
+            exibirAvisoNaTela(msg, 'warning');
+          } else {
+            exibirAvisoNaTela(msg + ' com sucesso.', 'success');
+          }
+          carregarConciliacaoBancoV59();
+        })
+        .withFailureHandler(function(err) {
+          atualizarBotaoConfirmadosBancoV5101_();
+          exibirAvisoNaTela('Erro na conciliação em lote: ' + err, 'danger');
+        })
+        .conciliarMovimentosBancoLoteV5101({ itens: itens });
+    }
+  );
+}
+
+
 function htmlAcoesBancoV510_(mov, sugestao) {
   var s = sugestao || {};
   var id = String(mov.idPluggy || '');
@@ -1908,10 +1978,14 @@ function htmlAcoesBancoV510_(mov, sugestao) {
   }
 
   if (s.candidato) {
-    var consolidado = String(s.candidato.status || '').toLowerCase().trim() === 'consolidado';
+    var checked = bancoV59.confirmados && bancoV59.confirmados[id] ? ' checked' : '';
     return `
+      <div class="banco-confirmar-v5101">
+        <input class="form-check-input mt-0" type="checkbox" id="bconfirm_${sid}"${checked}
+          onchange="alternarConfirmadoBancoV5101('${id}','${s.candidato.idLancamento}',this.checked)">
+        <label for="bconfirm_${sid}">Confirmado</label>
+      </div>
       <div class="banco-acoes-v510">
-        <button type="button" class="btn btn-sm btn-success fw-bold" onclick="conciliarBancoV510('${id}','${s.candidato.idLancamento}',${consolidado ? 'true' : 'false'})">${consolidado ? '🔗 Vincular' : '✅ Conciliar agora'}</button>
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="ignorarBancoV510('${id}')">Ignorar</button>
       </div>`;
   }
@@ -2039,6 +2113,7 @@ function renderizarBancoV59() {
   document.getElementById('bancoKpiNovos').innerText = Number(dados.resumo && dados.resumo.total || 0);
   document.getElementById('bancoKpiSugestoes').innerText = Number(dados.resumo && dados.resumo.sugestoes || 0);
   document.getElementById('bancoKpiTransferencias').innerText = Number(dados.resumo && dados.resumo.transferencias || 0);
+  atualizarBotaoConfirmadosBancoV5101_();
 
   document.querySelectorAll('.banco-kpi-btn').forEach(function(k) {
     k.classList.toggle('ativo', k.getAttribute('data-visao') === (bancoV59.visao || 'TODOS'));
@@ -2107,6 +2182,8 @@ function carregarConciliacaoBancoV59() {
   google.script.run
     .withSuccessHandler(function(dados) {
       bancoV59.dados = dados || { resumo: {}, movimentos: [] };
+      bancoV59.confirmados = {};
+      atualizarBotaoConfirmadosBancoV5101_();
       renderizarBancoV59();
     })
     .withFailureHandler(function(err) {
