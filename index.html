@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.9</title>
+  <title>Fluxo de Caixa Automatizado 5.9.1</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.9">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.9.1">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -80,10 +80,11 @@
 
     .toast-container { z-index: 2000; }
 
-/* V5.9 - Conciliação bancária */
+/* V5.9.1 - Conciliação bancária */
 .banco-v59-topo { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
 .banco-v59-kpis { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin:10px 0 12px; }
-.banco-v59-kpi { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:10px; text-align:center; }
+.banco-v59-kpi { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:10px; text-align:center; cursor:pointer; transition:.15s ease; }
+.banco-v59-kpi.ativo { border-color:#212529; box-shadow:0 0 0 2px rgba(33,37,41,.08); background:#f8f9fa; }
 .banco-v59-kpi small { display:block; color:#6c757d; font-size:10px; font-weight:700; }
 .banco-v59-kpi strong { display:block; font-size:19px; margin-top:2px; }
 .banco-v59-filtros { display:flex; gap:6px; margin-bottom:10px; }
@@ -211,7 +212,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.9</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.9.1</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -739,13 +740,13 @@
     </div>
 
     <div class="alert alert-info py-2 px-3 mt-3 mb-2" style="font-size:11px;">
-      🧪 <b>Modo de teste V5.9:</b> as sugestões abaixo não criam, não liquidam e não alteram lançamentos.
+      🧪 <b>Modo de teste V5.9.1:</b> as sugestões abaixo não criam, não liquidam e não alteram lançamentos.
     </div>
 
     <div class="banco-v59-kpis">
-      <div class="banco-v59-kpi"><small>NOVOS</small><strong id="bancoKpiNovos">0</strong></div>
-      <div class="banco-v59-kpi"><small>SUGESTÕES</small><strong id="bancoKpiSugestoes">0</strong></div>
-      <div class="banco-v59-kpi"><small>TRANSF. INTERNAS</small><strong id="bancoKpiTransferencias">0</strong></div>
+      <div class="banco-v59-kpi banco-kpi-btn ativo" data-visao="TODOS" onclick="filtrarVisaoBancoV591('TODOS')"><small>NOVOS</small><strong id="bancoKpiNovos">0</strong></div>
+      <div class="banco-v59-kpi banco-kpi-btn" data-visao="SUGESTOES" onclick="filtrarVisaoBancoV591('SUGESTOES')"><small>SUGESTÕES</small><strong id="bancoKpiSugestoes">0</strong></div>
+      <div class="banco-v59-kpi banco-kpi-btn" data-visao="TRANSFERENCIAS" onclick="filtrarVisaoBancoV591('TRANSFERENCIAS')"><small>TRANSF. INTERNAS</small><strong id="bancoKpiTransferencias">0</strong></div>
     </div>
 
     <div class="banco-v59-filtros">
@@ -918,7 +919,7 @@
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
-    var bancoV59 = { dados: null, filtro: 'TODOS' };
+    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS' };
     
     var mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     var dataPonteiroDash = new Date();
@@ -1776,7 +1777,7 @@
     }
 
 // =========================
-// V5.9 - CONCILIAÇÃO BANCÁRIA (SOMENTE SUGESTÕES)
+// V5.9.1 - CONCILIAÇÃO BANCÁRIA (SOMENTE SUGESTÕES)
 // =========================
 function escapeHtmlBancoV59_(valor) {
   return String(valor === null || valor === undefined ? '' : valor)
@@ -1807,6 +1808,14 @@ function filtrarBancoV59(conta, btn) {
   renderizarBancoV59();
 }
 
+function filtrarVisaoBancoV591(modo) {
+  bancoV59.visao = modo || 'TODOS';
+  document.querySelectorAll('.banco-kpi-btn').forEach(function(k) {
+    k.classList.toggle('ativo', k.getAttribute('data-visao') === bancoV59.visao);
+  });
+  renderizarBancoV59();
+}
+
 function classeSugestaoBancoV59_(tipo) {
   if (tipo === 'TRANSFERENCIA_INTERNA') return 'transferencia';
   if (tipo === 'REGRA') return 'regra';
@@ -1827,6 +1836,7 @@ function htmlCandidatoBancoV59_(mov, candidato) {
       ${consolidado ? '<div class="badge bg-warning text-dark mb-1">⚠️ Possível correspondência já consolidada</div>' : ''}
       <div class="fw-bold">${escapeHtmlBancoV59_(candidato.descricao)}</div>
       <div class="text-muted">${dataBancoV59_(candidato.data)} • ${escapeHtmlBancoV59_(candidato.categoria || 'Sem categoria')} • ${escapeHtmlBancoV59_(candidato.status || '')}</div>
+      ${candidato.criterio ? `<div class="text-muted" style="font-size:10px;">Critério: ${escapeHtmlBancoV59_(candidato.criterio)}</div>` : ''}
       <div class="banco-candidato-grid">
         <span>Valor previsto</span><b>${moedaBancoV59_(candidato.valor)}</b>
         <span>Valor bancário</span><b>${moedaBancoV59_(Math.abs(Number(mov.valor || 0)))}</b>
@@ -1851,8 +1861,20 @@ function renderizarBancoV59() {
   document.getElementById('bancoKpiSugestoes').innerText = Number(dados.resumo && dados.resumo.sugestoes || 0);
   document.getElementById('bancoKpiTransferencias').innerText = Number(dados.resumo && dados.resumo.transferencias || 0);
 
+  document.querySelectorAll('.banco-kpi-btn').forEach(function(k) {
+    k.classList.toggle('ativo', k.getAttribute('data-visao') === (bancoV59.visao || 'TODOS'));
+  });
+
   var movimentos = (dados.movimentos || []).filter(function(m) {
-    return bancoV59.filtro === 'TODOS' || String(m.conta || '').toUpperCase() === bancoV59.filtro;
+    if (bancoV59.filtro !== 'TODOS' && String(m.conta || '').toUpperCase() !== bancoV59.filtro) return false;
+
+    var tipoSug = String((m.sugestao && m.sugestao.tipo) || '');
+    if (bancoV59.visao === 'TRANSFERENCIAS') return tipoSug === 'TRANSFERENCIA_INTERNA';
+    if (bancoV59.visao === 'SUGESTOES') {
+      return (tipoSug === 'REGRA' || tipoSug === 'CLIENTE' || tipoSug === 'MATCH') &&
+             !!(m.sugestao && m.sugestao.candidato);
+    }
+    return true;
   });
 
   if (!movimentos.length) {

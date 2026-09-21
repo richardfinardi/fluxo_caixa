@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.9";
+var VERSAO_SISTEMA = "5.9.1";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -60,7 +60,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.9: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.9.1: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -69,7 +69,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.9" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.9.1" }));
     return saida;
   } finally {
     if (lock) {
@@ -1858,7 +1858,7 @@ function importarMovimentosBanco15Dias() {
 
 
 // =========================
-// V5.9 - CONCILIAÇÃO BANCÁRIA (MODO SOMENTE LEITURA)
+// V5.9.1 - CONCILIAÇÃO BANCÁRIA (MODO SOMENTE LEITURA)
 // =========================
 
 function normalizarTextoConciliacao_(texto) {
@@ -2083,13 +2083,25 @@ function pontuarLancamentoConciliacaoV59_(mov, lanc, alvoDescricao) {
   var descLanc = normalizarTextoConciliacao_(lanc.descricao);
   var alvo = normalizarTextoConciliacao_(alvoDescricao);
   var textoBanco = [mov.descricao, mov.descricaoOriginal].join(" ");
+  var bancoAbs = Math.abs(Number(mov.valor || 0));
+  var valorLanc = Number(lanc.valor || 0);
+  var diff = Math.abs(bancoAbs - valorLanc);
+  var perc = valorLanc > 0 ? diff / valorLanc : 1;
+  var dias = diferencaDiasConciliacaoV59_(mov.data, lanc.data);
+  var statusNorm = normalizarTextoConciliacao_(lanc.status);
+  var consolidado = statusNorm === "CONSOLIDADO";
+  var lancFuturo = String(lanc.data || "") > String(mov.data || "");
   var sinalDescricao = false;
+  var matchExatoDataValor = !consolidado && dias === 0 && diff <= 0.01;
   var score = 0;
+  var criterio = "";
 
+  // Quando existe regra/alias (ex.: MILA -> GAUDI), a descrição-alvo é obrigatória.
   if (alvo) {
     if (descLanc && (descLanc.indexOf(alvo) !== -1 || alvo.indexOf(descLanc) !== -1)) {
-      score += 48;
       sinalDescricao = true;
+      score += 60;
+      criterio = "Regra/alias + valor + data";
     } else {
       return null;
     }
@@ -2099,55 +2111,96 @@ function pontuarLancamentoConciliacaoV59_(mov, lanc, alvoDescricao) {
     var mapa = {};
     tokensLanc.forEach(function(t) { mapa[t] = true; });
     var comuns = tokensBanco.filter(function(t) { return mapa[t]; });
+
     if (comuns.length > 0) {
-      score += 24 + Math.min(16, comuns.length * 6);
       sinalDescricao = true;
+      score += 30 + Math.min(18, comuns.length * 6);
+      criterio = "Descrição + valor + data";
     }
+
+    // Regra forte para casos como MINISTÉRIO DA FAZENDA x INSS:
+    // mesmo tipo + lançamento ainda aberto + MESMA DATA + MESMO VALOR.
+    if (!sinalDescricao && matchExatoDataValor) {
+      score += 80;
+      criterio = "Valor e data exatos";
+    }
+
+    if (!sinalDescricao && !matchExatoDataValor) return null;
   }
 
-  if (!sinalDescricao) return null;
+  // Guard rails contra falsos positivos históricos.
+  if (consolidado) {
+    // Um movimento atual só pode apontar para algo já consolidado se for praticamente
+    // o mesmo evento: descrição compatível, data muito próxima e valor muito próximo.
+    if (!sinalDescricao || dias > 3) return null;
+    if (diff > Math.max(2, valorLanc * 0.05)) return null;
+  } else if (alvo) {
+    // Regra/alias pode localizar conta vencida, mas não deve pular para parcela futura distante.
+    if (lancFuturo && dias > 7) return null;
+    if (!lancFuturo && dias > 120) return null;
+  } else if (sinalDescricao) {
+    // Match genérico por nome só vale perto da data bancária.
+    if (dias > 10) return null;
+  } else {
+    // Sem descrição, só aceitamos a combinação inequívoca de data + valor exatos.
+    if (!matchExatoDataValor) return null;
+  }
 
-  var bancoAbs = Math.abs(Number(mov.valor || 0));
-  var diff = Math.abs(bancoAbs - Number(lanc.valor || 0));
-  var perc = Number(lanc.valor || 0) > 0 ? diff / Number(lanc.valor || 1) : 1;
-
-  if (diff <= 0.01) score += 32;
-  else if (diff <= 5) score += 26;
+  if (diff <= 0.01) score += 36;
+  else if (diff <= 5) score += 28;
   else if (perc <= 0.03) score += 22;
-  else if (perc <= 0.10) score += 15;
-  else if (perc <= 0.20) score += 8;
+  else if (perc <= 0.10) score += 14;
+  else if (perc <= 0.20) score += 6;
+  else if (!alvo) return null;
 
-  var dias = diferencaDiasConciliacaoV59_(mov.data, lanc.data);
-  if (dias === 0) score += 22;
-  else if (dias <= 3) score += 17;
-  else if (dias <= 7) score += 13;
-  else if (dias <= 15) score += 8;
-  else if (dias <= 45) score += 3;
+  if (dias === 0) score += 30;
+  else if (dias <= 2) score += 20;
+  else if (dias <= 5) score += 12;
+  else if (dias <= 10) score += 6;
 
-  var statusNorm = normalizarTextoConciliacao_(lanc.status);
-  if (statusNorm !== "CONSOLIDADO") score += 5;
+  if (!consolidado) {
+    score += 12;
+    if (!lancFuturo) score += 5; // prioriza conta vencida/em aberto antes de futura
+  }
 
   return {
     score: score,
     dias: dias,
-    diferenca: Number((bancoAbs - Number(lanc.valor || 0)).toFixed(2)),
+    diferenca: Number((bancoAbs - valorLanc).toFixed(2)),
+    criterio: criterio,
     lancamento: lanc
   };
 }
 
 function encontrarLancamentoConciliacaoV59_(mov, lancamentos, alvoDescricao) {
-  var melhor = null;
+  var candidatos = [];
+
   for (var i = 0; i < lancamentos.length; i++) {
     var p = pontuarLancamentoConciliacaoV59_(mov, lancamentos[i], alvoDescricao || "");
-    if (!p) continue;
-    if (!melhor || p.score > melhor.score || (p.score === melhor.score && p.dias < melhor.dias)) {
-      melhor = p;
-    }
+    if (p) candidatos.push(p);
   }
 
-  if (!melhor || melhor.score < 45) return null;
+  candidatos.sort(function(a, b) {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.dias - b.dias;
+  });
 
+  if (!candidatos.length || candidatos[0].score < 60) return null;
+
+  // Se o match veio APENAS de valor+data e houver empate real, não chutamos.
+  if (
+    candidatos.length > 1 &&
+    candidatos[0].criterio === "Valor e data exatos" &&
+    candidatos[1].criterio === "Valor e data exatos" &&
+    candidatos[0].score === candidatos[1].score &&
+    candidatos[0].dias === candidatos[1].dias
+  ) {
+    return null;
+  }
+
+  var melhor = candidatos[0];
   var l = melhor.lancamento;
+
   return {
     idLancamento: l.idLancamento,
     descricao: l.descricao,
@@ -2158,7 +2211,8 @@ function encontrarLancamentoConciliacaoV59_(mov, lancamentos, alvoDescricao) {
     tipo: l.tipo || "",
     diferenca: melhor.diferenca,
     diasDistancia: melhor.dias,
-    score: melhor.score
+    score: melhor.score,
+    criterio: melhor.criterio
   };
 }
 
@@ -2203,7 +2257,7 @@ function obterConciliacaoBancoV59() {
         },
         candidato: candidato
       };
-      sugestoes++;
+      if (candidato) sugestoes++;
       return;
     }
 
@@ -2215,7 +2269,7 @@ function obterConciliacaoBancoV59() {
         detalhe: candidato ? "Receita correspondente encontrada." : "Cliente reconhecido, mas sem lançamento compatível.",
         candidato: candidato
       };
-      sugestoes++;
+      if (candidato) sugestoes++;
       return;
     }
 
@@ -2256,7 +2310,7 @@ function obterConciliacaoBancoV59() {
   });
 
   return {
-    versao: "5.9",
+    versao: "5.9.1",
     resumo: {
       total: movimentos.length,
       sugestoes: sugestoes,
