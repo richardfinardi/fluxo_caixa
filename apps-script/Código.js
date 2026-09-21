@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.10.4";
+var VERSAO_SISTEMA = "5.11";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -50,12 +50,16 @@ function doPost(e) {
       ignorarMovimentoBancoV510: true,
       confirmarTransferenciaBancoV510: true,
       conciliarMovimentosBancoLoteV5101: true,
-      processarMovimentosBancoLoteV5102: true
+      processarMovimentosBancoLoteV5102: true,
+      obterConfigPushV511: true,
+      ativarMonitorPluggyV511: true,
+      desativarMonitorPluggyV511: true,
+      testarPushOneSignalV511: true
     };
     if (!permitidas[nomeFuncao]) throw new Error("Função não permitida: " + nomeFuncao);
     if (typeof this[nomeFuncao] !== "function") throw new Error("Função não encontrada: " + nomeFuncao);
 
-    var somenteLeitura = nomeFuncao === "obterDadosIniciais" || nomeFuncao === "enviarAlertasFaturamentoSite" || nomeFuncao === "obterConciliacaoBancoV59";
+    var somenteLeitura = nomeFuncao === "obterDadosIniciais" || nomeFuncao === "enviarAlertasFaturamentoSite" || nomeFuncao === "obterConciliacaoBancoV59" || nomeFuncao === "obterConfigPushV511";
     if (!somenteLeitura) {
       lock = LockService.getScriptLock();
       lock.waitLock(30000);
@@ -66,7 +70,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.10.4: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.11: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -75,7 +79,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.10.4" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.11" }));
     return saida;
   } finally {
     if (lock) {
@@ -2702,6 +2706,269 @@ function obterStatusPluggyV5103_() {
 }
 
 
+
+// =========================
+// V5.11 - MONITOR AUTOMÁTICO PLUGGY + PUSH
+// =========================
+
+function obterStatusMonitorPluggyV511_() {
+  var props = PropertiesService.getScriptProperties();
+  var triggers = ScriptApp.getProjectTriggers();
+  var ativo = triggers.some(function(t) {
+    return t.getHandlerFunction() === "monitorarPluggyAutomaticamenteV511";
+  });
+
+  return {
+    ativo: ativo,
+    ultimaExecucao: props.getProperty("MONITOR_PLUGGY_ULTIMA_EXECUCAO") || "",
+    ultimaSyncDetectada: props.getProperty("MONITOR_PLUGGY_ULTIMA_SYNC") || "",
+    ultimosNovos: Number(props.getProperty("MONITOR_PLUGGY_ULTIMOS_NOVOS") || 0),
+    ultimoErro: props.getProperty("MONITOR_PLUGGY_ULTIMO_ERRO") || ""
+  };
+}
+
+function obterConfigPushV511() {
+  var props = PropertiesService.getScriptProperties();
+  var appId = String(props.getProperty("ONESIGNAL_APP_ID") || "").trim();
+  var restKey = String(props.getProperty("ONESIGNAL_REST_API_KEY") || "").trim();
+  var externalId = String(props.getProperty("ONESIGNAL_EXTERNAL_ID") || "fluxo-caixa-owner").trim();
+
+  return {
+    configurado: !!(appId && restKey),
+    appId: appId,
+    externalId: externalId,
+    monitor: obterStatusMonitorPluggyV511_()
+  };
+}
+
+function enviarPushOneSignalV511_(titulo, corpo, dados) {
+  var props = PropertiesService.getScriptProperties();
+  var appId = String(props.getProperty("ONESIGNAL_APP_ID") || "").trim();
+  var restKey = String(props.getProperty("ONESIGNAL_REST_API_KEY") || "").trim();
+  var externalId = String(props.getProperty("ONESIGNAL_EXTERNAL_ID") || "fluxo-caixa-owner").trim();
+
+  if (!appId || !restKey || !externalId) {
+    return { enviado: false, motivo: "OneSignal não configurado." };
+  }
+
+  var payload = {
+    app_id: appId,
+    target_channel: "push",
+    include_aliases: {
+      external_id: [externalId]
+    },
+    headings: {
+      en: String(titulo || "Fluxo de Caixa"),
+      pt: String(titulo || "Fluxo de Caixa")
+    },
+    contents: {
+      en: String(corpo || ""),
+      pt: String(corpo || "")
+    },
+    data: dados || {},
+    idempotency_key: Utilities.getUuid()
+  };
+
+  var resp = UrlFetchApp.fetch("https://api.onesignal.com/notifications", {
+    method: "post",
+    contentType: "application/json",
+    headers: {
+      Authorization: "Key " + restKey
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+
+  var code = resp.getResponseCode();
+  var texto = resp.getContentText() || "";
+  var json = {};
+
+  try {
+    json = JSON.parse(texto);
+  } catch (e) {}
+
+  if (code < 200 || code >= 300 || !json.id) {
+    return {
+      enviado: false,
+      http: code,
+      erro: json.errors || texto || "OneSignal não criou a notificação."
+    };
+  }
+
+  return {
+    enviado: true,
+    id: json.id
+  };
+}
+
+function testarPushOneSignalV511() {
+  var r = enviarPushOneSignalV511_(
+    "🏦 Fluxo de Caixa",
+    "Notificações ativadas. O monitor do Pluggy está pronto.",
+    { tipo: "TESTE_PUSH" }
+  );
+
+  if (!r.enviado) {
+    throw new Error("Push não enviado: " + JSON.stringify(r.erro || r.motivo || r));
+  }
+
+  return "Notificação de teste enviada.";
+}
+
+function quantidadeNovosDaMensagemImportacaoV511_(msg) {
+  var m = String(msg || "").match(/(\d+)\s+novo/i);
+  return m ? Number(m[1] || 0) : 0;
+}
+
+function ativarMonitorPluggyV511() {
+  var triggers = ScriptApp.getProjectTriggers();
+
+  triggers.forEach(function(t) {
+    if (t.getHandlerFunction() === "monitorarPluggyAutomaticamenteV511") {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+
+  ScriptApp
+    .newTrigger("monitorarPluggyAutomaticamenteV511")
+    .timeBased()
+    .everyMinutes(30)
+    .create();
+
+  var props = PropertiesService.getScriptProperties();
+  var status = obterStatusPluggyV5103_();
+
+  if (status && status.referenciaAtualizacao) {
+    props.setProperty("MONITOR_PLUGGY_ULTIMA_SYNC", String(status.referenciaAtualizacao));
+  }
+
+  props.setProperty("MONITOR_PLUGGY_ULTIMA_EXECUCAO", new Date().toISOString());
+  props.setProperty("MONITOR_PLUGGY_ULTIMO_ERRO", "");
+
+  // Faz uma importação imediatamente ao ativar, mas não dispara push inicial.
+  var msg = importarMovimentosBanco15Dias();
+  var novos = quantidadeNovosDaMensagemImportacaoV511_(msg);
+  props.setProperty("MONITOR_PLUGGY_ULTIMOS_NOVOS", String(novos));
+
+  return "Monitor automático ativado: verificação a cada 30 minutos. " + msg;
+}
+
+function desativarMonitorPluggyV511() {
+  var triggers = ScriptApp.getProjectTriggers();
+  var removidos = 0;
+
+  triggers.forEach(function(t) {
+    if (t.getHandlerFunction() === "monitorarPluggyAutomaticamenteV511") {
+      ScriptApp.deleteTrigger(t);
+      removidos++;
+    }
+  });
+
+  return removidos
+    ? "Monitor automático desativado."
+    : "O monitor automático já estava desativado.";
+}
+
+function monitorarPluggyAutomaticamenteV511() {
+  var lock = LockService.getScriptLock();
+
+  if (!lock.tryLock(10000)) {
+    return "Monitor ignorado: outra execução está em andamento.";
+  }
+
+  var props = PropertiesService.getScriptProperties();
+
+  try {
+    var agoraIso = new Date().toISOString();
+    props.setProperty("MONITOR_PLUGGY_ULTIMA_EXECUCAO", agoraIso);
+
+    var status = obterStatusPluggyV5103_();
+
+    if (!status || status.erro) {
+      var erroStatus = status && status.erro ? String(status.erro) : "Status Pluggy indisponível.";
+      props.setProperty("MONITOR_PLUGGY_ULTIMO_ERRO", erroStatus);
+      return "Monitor: " + erroStatus;
+    }
+
+    var syncAtual = String(status.referenciaAtualizacao || "");
+    var syncAnterior = String(props.getProperty("MONITOR_PLUGGY_ULTIMA_SYNC") || "");
+    var mudouSync = false;
+
+    if (syncAtual) {
+      if (!syncAnterior) {
+        mudouSync = true;
+      } else {
+        var atualTs = new Date(syncAtual).getTime();
+        var anteriorTs = new Date(syncAnterior).getTime();
+        mudouSync =
+          !isNaN(atualTs) &&
+          !isNaN(anteriorTs) &&
+          atualTs > anteriorTs;
+      }
+    }
+
+    if (mudouSync) {
+      var msg = importarMovimentosBanco15Dias();
+      var novos = quantidadeNovosDaMensagemImportacaoV511_(msg);
+
+      props.setProperty("MONITOR_PLUGGY_ULTIMA_SYNC", syncAtual);
+      props.setProperty("MONITOR_PLUGGY_ULTIMOS_NOVOS", String(novos));
+      props.setProperty("MONITOR_PLUGGY_ULTIMO_ERRO", "");
+      props.deleteProperty("MONITOR_PLUGGY_ULTIMO_ALERTA_ATRASO");
+
+      if (novos > 0) {
+        var texto = novos === 1
+          ? "1 novo movimento disponível para conciliação."
+          : novos + " novos movimentos disponíveis para conciliação.";
+
+        enviarPushOneSignalV511_(
+          "🏦 Banco atualizado",
+          texto,
+          {
+            tipo: "NOVOS_MOVIMENTOS",
+            quantidade: novos,
+            sync: syncAtual
+          }
+        );
+      }
+
+      return "Monitor: sincronização nova detectada. " + msg;
+    }
+
+    // Se passou da janela provável (mais recente + 24h30), avisa apenas uma vez
+    // para aquela janela esperada.
+    if (status.stale24h && status.proximaEsperadaAt) {
+      var chaveAtraso = String(status.proximaEsperadaAt);
+      var jaAvisado = String(props.getProperty("MONITOR_PLUGGY_ULTIMO_ALERTA_ATRASO") || "");
+
+      if (jaAvisado !== chaveAtraso) {
+        enviarPushOneSignalV511_(
+          "⚠️ Pluggy ainda não atualizou",
+          "A sincronização passou da janela provável de 24h30. Abra o app para conferir.",
+          {
+            tipo: "PLUGGY_ATRASADO",
+            previsto: chaveAtraso
+          }
+        );
+
+        props.setProperty("MONITOR_PLUGGY_ULTIMO_ALERTA_ATRASO", chaveAtraso);
+      }
+    }
+
+    props.setProperty("MONITOR_PLUGGY_ULTIMO_ERRO", "");
+    return "Monitor: nenhuma nova sincronização.";
+  } catch (e) {
+    var msgErro = e && e.message ? e.message : String(e);
+    props.setProperty("MONITOR_PLUGGY_ULTIMO_ERRO", msgErro);
+    throw e;
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (eLock) {}
+  }
+}
+
+
 function obterConciliacaoBancoV59() {
   var movimentos = lerMovimentosBancoV59_();
   var regras = lerRegrasConciliacaoV59_();
@@ -2805,7 +3072,7 @@ function obterConciliacaoBancoV59() {
   });
 
   return {
-    versao: "5.10.3",
+    versao: "5.11",
     statusPluggy: obterStatusPluggyV5103_(),
     resumo: {
       total: movimentosExibicao.length,
