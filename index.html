@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.11.1</title>
+  <title>Fluxo de Caixa Automatizado 5.11.2</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.11.1">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.11.2">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -232,7 +232,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.11.1</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.11.2</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -763,7 +763,7 @@
     </div>
 
     <div class="alert alert-info py-2 px-3 mt-3 mb-2" style="font-size:11px;">
-      ✅ <b>Modo ativo V5.11.1:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
+      ✅ <b>Modo ativo V5.11.2:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
     </div>
 
     <div id="pluggySyncV5103" class="pluggy-sync-v5103">
@@ -955,7 +955,8 @@
           obterConfigPushV511: function() { return this.executarGenerico('obterConfigPushV511'); },
           ativarMonitorPluggyV511: function() { return this.executarGenerico('ativarMonitorPluggyV511'); },
           desativarMonitorPluggyV511: function() { return this.executarGenerico('desativarMonitorPluggyV511'); },
-          testarPushOneSignalV511: function(subscriptionId) { return this.executarGenerico('testarPushOneSignalV511', subscriptionId); }
+          testarPushOneSignalV511: function(subscriptionId) { return this.executarGenerico('testarPushOneSignalV511', subscriptionId || ''); },
+          registrarSubscriptionV5112: function(subscriptionId) { return this.executarGenerico('registrarSubscriptionV5112', subscriptionId); }
         }
       }
     };
@@ -1826,7 +1827,7 @@
     }
 
 // =========================
-// V5.11.1 - CONCILIAÇÃO BANCÁRIA
+// V5.11.2 - CONCILIAÇÃO BANCÁRIA
 // =========================
 
 
@@ -1889,6 +1890,28 @@ function renderizarAutomacaoV511_(cfg) {
   }
 }
 
+function registrarSubscriptionAtualV5112_(subId) {
+  var id = String(subId || '').trim();
+  if (!id) return Promise.resolve(false);
+
+  bancoV59.subscriptionId = id;
+  if (bancoV59.pushCfg) bancoV59.pushCfg.subscriptionRegistrada = true;
+
+  return new Promise(function(resolve) {
+    google.script.run
+      .withSuccessHandler(function() { resolve(true); })
+      .withFailureHandler(function() { resolve(false); })
+      .registrarSubscriptionV5112(id);
+  });
+}
+
+function estadoPermissaoBrowserV5112_() {
+  try {
+    if (typeof Notification !== 'undefined') return Notification.permission || 'default';
+  } catch (e) {}
+  return 'default';
+}
+
 function atualizarEstadoPushV5111_() {
   var OneSignal = bancoV59.oneSignal;
   var status = document.getElementById('statusPushV5111');
@@ -1897,25 +1920,39 @@ function atualizarEstadoPushV5111_() {
 
   if (!OneSignal || !status || !btnPush || !btnTeste) return;
 
-  var permissao = !!(OneSignal.Notifications && OneSignal.Notifications.permission);
+  var permissaoSdk = !!(OneSignal.Notifications && OneSignal.Notifications.permission);
+  var permissaoBrowser = estadoPermissaoBrowserV5112_();
   var sub = OneSignal.User && OneSignal.User.PushSubscription
     ? OneSignal.User.PushSubscription
     : null;
   var optedIn = !!(sub && sub.optedIn);
   var subId = sub && sub.id ? String(sub.id) : '';
 
-  bancoV59.subscriptionId = subId;
-  var ativa = permissao && optedIn && !!subId;
+  if (subId) {
+    bancoV59.subscriptionId = subId;
+    if (bancoV59.pushCfg) bancoV59.pushCfg.subscriptionRegistrada = true;
+  }
 
-  status.innerHTML = '<b>🔔 Notificações:</b> ' +
-    (ativa
-      ? '<span class="text-success fw-bold">ATIVAS</span>'
-      : '<span class="text-warning fw-bold">DESATIVADAS</span>');
+  var registrada = !!(bancoV59.pushCfg && bancoV59.pushCfg.subscriptionRegistrada);
+  var ativaAgora = permissaoSdk && optedIn && !!subId;
+  var ativaPersistida = permissaoBrowser === 'granted' && registrada;
 
-  if (ativa) {
+  if (ativaAgora) {
+    status.innerHTML = '<b>🔔 Notificações:</b> <span class="text-success fw-bold">ATIVAS</span>';
     btnPush.style.display = 'none';
     btnTeste.disabled = false;
+  } else if (ativaPersistida) {
+    status.innerHTML = '<b>🔔 Notificações:</b> <span class="text-success fw-bold">ATIVAS</span> <span class="text-muted">(reconectando...)</span>';
+    btnPush.style.display = 'none';
+    btnTeste.disabled = false;
+  } else if (permissaoBrowser === 'denied') {
+    status.innerHTML = '<b>🔔 Notificações:</b> <span class="text-danger fw-bold">BLOQUEADAS NO ANDROID</span>';
+    btnPush.style.display = '';
+    btnPush.disabled = true;
+    btnPush.innerText = '🔔 Permissão bloqueada';
+    btnTeste.disabled = true;
   } else {
+    status.innerHTML = '<b>🔔 Notificações:</b> <span class="text-warning fw-bold">DESATIVADAS</span>';
     btnPush.style.display = '';
     btnPush.disabled = false;
     btnPush.innerText = '🔔 Ativar notificações';
@@ -1940,7 +1977,7 @@ function aguardarSubscriptionIdV5111_(OneSignal) {
       }
 
       tentativas++;
-      if (tentativas >= 24) {
+      if (tentativas >= 80) {
         resolve('');
         return;
       }
@@ -2021,8 +2058,21 @@ function inicializarOneSignalV511_(cfg) {
         });
       }
 
-      await aguardarSubscriptionIdV5111_(OneSignal);
+      var subAtual = await aguardarSubscriptionIdV5111_(OneSignal);
+      if (subAtual) {
+        await registrarSubscriptionAtualV5112_(subAtual);
+      }
       atualizarEstadoPushV5111_();
+
+      setTimeout(async function() {
+        try {
+          var subTardia = await aguardarSubscriptionIdV5111_(OneSignal);
+          if (subTardia) {
+            await registrarSubscriptionAtualV5112_(subTardia);
+          }
+          atualizarEstadoPushV5111_();
+        } catch (_) {}
+      }, 1500);
     } catch (e) {
       console.error('OneSignal:', e);
       var status = document.getElementById('statusPushV5111');
@@ -2058,7 +2108,8 @@ function ativarNotificacoesV511() {
       if (OneSignal.Notifications.permission) {
         await OneSignal.User.PushSubscription.optIn();
         await OneSignal.login((bancoV59.pushCfg && bancoV59.pushCfg.externalId) || 'fluxo-caixa-owner');
-        await aguardarSubscriptionIdV5111_(OneSignal);
+        var subNova = await aguardarSubscriptionIdV5111_(OneSignal);
+        if (subNova) await registrarSubscriptionAtualV5112_(subNova);
       }
 
       atualizarEstadoPushV5111_();
@@ -2130,8 +2181,16 @@ function testarPushV511() {
       var subId = await aguardarSubscriptionIdV5111_(OneSignal);
       atualizarEstadoPushV5111_();
 
-      if (!subId || !OneSignal.User.PushSubscription.optedIn) {
-        exibirAvisoNaTela('A subscription do S24 não está ativa.', 'warning');
+      if (subId) {
+        await registrarSubscriptionAtualV5112_(subId);
+      }
+
+      var podeTestar =
+        !!subId ||
+        !!(bancoV59.pushCfg && bancoV59.pushCfg.subscriptionRegistrada);
+
+      if (!podeTestar) {
+        exibirAvisoNaTela('Ainda não há uma subscription registrada para o S24.', 'warning');
         return;
       }
 

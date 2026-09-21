@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.11.1";
+var VERSAO_SISTEMA = "5.11.2";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -54,7 +54,8 @@ function doPost(e) {
       obterConfigPushV511: true,
       ativarMonitorPluggyV511: true,
       desativarMonitorPluggyV511: true,
-      testarPushOneSignalV511: true
+      testarPushOneSignalV511: true,
+      registrarSubscriptionV5112: true
     };
     if (!permitidas[nomeFuncao]) throw new Error("Função não permitida: " + nomeFuncao);
     if (typeof this[nomeFuncao] !== "function") throw new Error("Função não encontrada: " + nomeFuncao);
@@ -70,7 +71,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.11.1: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.11.2: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -79,7 +80,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.11.1" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.11.2" }));
     return saida;
   } finally {
     if (lock) {
@@ -2727,16 +2728,29 @@ function obterStatusMonitorPluggyV511_() {
   };
 }
 
+function registrarSubscriptionV5112(subscriptionId) {
+  var subId = String(subscriptionId || "").trim();
+  if (!subId) throw new Error("Subscription ID não informado.");
+
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty("ONESIGNAL_SUBSCRIPTION_ID", subId);
+  props.setProperty("ONESIGNAL_SUBSCRIPTION_ATUALIZADA_EM", new Date().toISOString());
+
+  return "Subscription do aparelho registrada.";
+}
+
 function obterConfigPushV511() {
   var props = PropertiesService.getScriptProperties();
   var appId = String(props.getProperty("ONESIGNAL_APP_ID") || "").trim();
   var restKey = String(props.getProperty("ONESIGNAL_REST_API_KEY") || "").trim();
   var externalId = String(props.getProperty("ONESIGNAL_EXTERNAL_ID") || "fluxo-caixa-owner").trim();
+  var subscriptionSalva = String(props.getProperty("ONESIGNAL_SUBSCRIPTION_ID") || "").trim();
 
   return {
     configurado: !!(appId && restKey),
     appId: appId,
     externalId: externalId,
+    subscriptionRegistrada: !!subscriptionSalva,
     monitor: obterStatusMonitorPluggyV511_()
   };
 }
@@ -2747,6 +2761,7 @@ function enviarPushOneSignalV511_(titulo, corpo, dados, subscriptionId) {
   var restKey = String(props.getProperty("ONESIGNAL_REST_API_KEY") || "").trim();
   var externalId = String(props.getProperty("ONESIGNAL_EXTERNAL_ID") || "fluxo-caixa-owner").trim();
   var subId = String(subscriptionId || "").trim();
+  if (!subId) subId = String(props.getProperty("ONESIGNAL_SUBSCRIPTION_ID") || "").trim();
 
   if (!appId || !restKey) {
     return { enviado: false, motivo: "OneSignal não configurado." };
@@ -2822,7 +2837,10 @@ function enviarPushOneSignalV511_(titulo, corpo, dados, subscriptionId) {
 function testarPushOneSignalV511(subscriptionId) {
   var subId = String(subscriptionId || "").trim();
   if (!subId) {
-    throw new Error("Subscription do aparelho ainda não está pronta. Aguarde alguns segundos e tente novamente.");
+    subId = String(PropertiesService.getScriptProperties().getProperty("ONESIGNAL_SUBSCRIPTION_ID") || "").trim();
+  }
+  if (!subId) {
+    throw new Error("Nenhuma subscription do aparelho foi registrada ainda.");
   }
 
   var r = enviarPushOneSignalV511_(
