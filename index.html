@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.9.1</title>
+  <title>Fluxo de Caixa Automatizado 5.10</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.9.1">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.10">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -106,6 +106,11 @@
 .banco-candidato { margin-top:7px; padding-top:7px; border-top:1px dashed #d7dce1; font-size:11px; }
 .banco-candidato-grid { display:grid; grid-template-columns:1fr auto; gap:3px 10px; margin-top:4px; }
 .banco-diferenca { font-weight:800; }
+.banco-acoes-v510 { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; }
+.banco-criar-v510 { margin-top:10px; padding-top:9px; border-top:1px solid #e4e7eb; }
+.banco-criar-v510 .form-label { font-size:10px; font-weight:700; color:#6c757d; }
+.banco-criar-v510 .form-check-label { font-size:10px; color:#6c757d; }
+@media (max-width:576px) { .banco-acoes-v510 .btn { flex:1 1 auto; min-height:38px; } }
 
     @media (max-width: 576px) {
       body { font-size: 13px; padding-bottom: 24px; }
@@ -212,7 +217,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.9.1</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.10</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -728,7 +733,7 @@
         </div>
       </div>
 
-<!-- TAB BANCO V5.9 -->
+<!-- TAB BANCO V5.10 -->
 <div class="tab-pane fade" id="banco" role="tabpanel">
   <div class="card">
     <div class="banco-v59-topo">
@@ -740,7 +745,7 @@
     </div>
 
     <div class="alert alert-info py-2 px-3 mt-3 mb-2" style="font-size:11px;">
-      🧪 <b>Modo de teste V5.9.1:</b> as sugestões abaixo não criam, não liquidam e não alteram lançamentos.
+      ✅ <b>Modo ativo V5.10:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
     </div>
 
     <div class="banco-v59-kpis">
@@ -906,7 +911,11 @@
           liquidarLancamentoBackend: function(id) { return this.executarGenerico('liquidarLancamentoBackend', id); },
           marcarEmAbertoBackend: function(id, novaData) { return this.executarGenerico('marcarEmAbertoBackend', { argsArray: [id, novaData || ''] }); },
           importarMovimentosBanco15Dias: function() { return this.executarGenerico('importarMovimentosBanco15Dias'); },
-          obterConciliacaoBancoV59: function() { return this.executarGenerico('obterConciliacaoBancoV59'); }
+          obterConciliacaoBancoV59: function() { return this.executarGenerico('obterConciliacaoBancoV59'); },
+          conciliarMovimentoBancoV510: function(dados) { return this.executarGenerico('conciliarMovimentoBancoV510', dados); },
+          criarLancamentoBancoV510: function(dados) { return this.executarGenerico('criarLancamentoBancoV510', dados); },
+          ignorarMovimentoBancoV510: function(id) { return this.executarGenerico('ignorarMovimentoBancoV510', id); },
+          confirmarTransferenciaBancoV510: function(dados) { return this.executarGenerico('confirmarTransferenciaBancoV510', dados); }
         }
       }
     };
@@ -1825,6 +1834,176 @@ function classeSugestaoBancoV59_(tipo) {
   return 'entrada';
 }
 
+
+function idCampoBancoV510_(idPluggy) {
+  return String(idPluggy || '').replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+function descricaoSugeridaBancoV510_(mov, sugestao) {
+  if (sugestao && sugestao.regra && sugestao.regra.descricaoFluxo) {
+    return sugestao.regra.descricaoFluxo;
+  }
+  if (sugestao && sugestao.tipo === 'CLIENTE' && sugestao.titulo) {
+    return String(sugestao.titulo).replace(/^Cliente reconhecido:\s*/i, '').trim();
+  }
+
+  var texto = String(mov.descricao || mov.descricaoOriginal || '').trim();
+  var partes = texto.split('|').map(function(p){ return p.trim(); }).filter(Boolean);
+  if (partes.length > 1) return partes[partes.length - 1].replace(/\|\s*\d.*$/, '').trim();
+  return texto || (mov.natureza === 'CREDIT' ? 'Entrada bancária' : 'Despesa bancária');
+}
+
+function padraoBancoV510_(mov) {
+  var texto = String(mov.descricao || mov.descricaoOriginal || '').trim();
+  var partes = texto.split('|').map(function(p){ return p.trim(); }).filter(Boolean);
+  var padrao = partes.length > 1 ? partes[partes.length - 1] : texto;
+  padrao = padrao.replace(/\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g, '').trim();
+  return padrao || texto;
+}
+
+function categoriasBancoV510_() {
+  var mapa = {};
+  var lista = [];
+
+  (state.categorias || []).forEach(function(c) {
+    var nome = String(c.nome || '').trim();
+    if (nome && !mapa[nome.toLowerCase()]) {
+      mapa[nome.toLowerCase()] = true;
+      lista.push(nome);
+    }
+  });
+
+  (state.lancamentos || []).forEach(function(l) {
+    var nome = String(l.categoria || '').trim();
+    if (nome && !mapa[nome.toLowerCase()]) {
+      mapa[nome.toLowerCase()] = true;
+      lista.push(nome);
+    }
+  });
+
+  return lista.sort(function(a,b){ return a.localeCompare(b, 'pt-BR'); });
+}
+
+function opcoesCategoriaBancoV510_(selecionada) {
+  var sel = String(selecionada || '').trim();
+  var html = '<option value="">Escolha a categoria...</option>';
+  categoriasBancoV510_().forEach(function(nome) {
+    html += '<option value="' + escapeHtmlBancoV59_(nome) + '"' +
+      (nome === sel ? ' selected' : '') + '>' + escapeHtmlBancoV59_(nome) + '</option>';
+  });
+  return html;
+}
+
+function htmlAcoesBancoV510_(mov, sugestao) {
+  var s = sugestao || {};
+  var id = String(mov.idPluggy || '');
+  var sid = idCampoBancoV510_(id);
+
+  if (s.tipo === 'TRANSFERENCIA_INTERNA' && s.par) {
+    return `
+      <div class="banco-acoes-v510">
+        <button type="button" class="btn btn-sm btn-primary fw-bold" onclick="confirmarTransferenciaBancoV510('${id}','${s.par.idPluggy}')">↔ Confirmar transferência</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="ignorarBancoV510('${id}')">Ignorar</button>
+      </div>`;
+  }
+
+  if (s.candidato) {
+    var consolidado = String(s.candidato.status || '').toLowerCase().trim() === 'consolidado';
+    return `
+      <div class="banco-acoes-v510">
+        <button type="button" class="btn btn-sm btn-success fw-bold" onclick="conciliarBancoV510('${id}','${s.candidato.idLancamento}',${consolidado ? 'true' : 'false'})">${consolidado ? '🔗 Vincular' : '✅ Conciliar agora'}</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="ignorarBancoV510('${id}')">Ignorar</button>
+      </div>`;
+  }
+
+  var desc = descricaoSugeridaBancoV510_(mov, s);
+  var categoriaRegra = s.regra && s.regra.categoria ? s.regra.categoria : '';
+  var textoBotao = String(mov.natureza || '').toUpperCase() === 'CREDIT' ? '➕ Criar receita' : '➕ Criar despesa';
+
+  return `
+    <div class="banco-criar-v510">
+      <div class="row g-2">
+        <div class="col-12 col-md-7">
+          <label class="form-label mb-1">Descrição no fluxo</label>
+          <input type="text" class="form-control form-control-sm" id="bdesc_${sid}" value="${escapeHtmlBancoV59_(desc)}">
+        </div>
+        <div class="col-12 col-md-5">
+          <label class="form-label mb-1">Categoria</label>
+          <select class="form-select form-select-sm" id="bcat_${sid}">${opcoesCategoriaBancoV510_(categoriaRegra)}</select>
+        </div>
+      </div>
+      <div class="form-check mt-2">
+        <input class="form-check-input" type="checkbox" id="blembrar_${sid}">
+        <label class="form-check-label" for="blembrar_${sid}">Lembrar este nome para as próximas vezes</label>
+      </div>
+      <div class="banco-acoes-v510">
+        <button type="button" class="btn btn-sm btn-success fw-bold" onclick="criarLancamentoBancoV510('${id}')">${textoBotao}</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="ignorarBancoV510('${id}')">Ignorar</button>
+      </div>
+    </div>`;
+}
+
+function aposAcaoBancoV510_(msg) {
+  exibirAvisoNaTela(msg || 'Movimento tratado.', 'success');
+  carregarConciliacaoBancoV59();
+}
+
+function conciliarBancoV510(idPluggy, idLancamento, jaConsolidado) {
+  var verbo = jaConsolidado ? 'vincular este movimento ao lançamento já consolidado' : 'conciliar este movimento e consolidar o lançamento';
+  exibirModalConfirmacao('Confirma ' + verbo + '?', function() {
+    google.script.run
+      .withSuccessHandler(aposAcaoBancoV510_)
+      .withFailureHandler(function(err){ exibirAvisoNaTela('Erro: ' + err, 'danger'); })
+      .conciliarMovimentoBancoV510({ idPluggy: idPluggy, idLancamento: idLancamento });
+  });
+}
+
+function criarLancamentoBancoV510(idPluggy) {
+  var mov = (bancoV59.dados && bancoV59.dados.movimentos || []).find(function(m){ return String(m.idPluggy) === String(idPluggy); });
+  if (!mov) return;
+
+  var sid = idCampoBancoV510_(idPluggy);
+  var desc = String(document.getElementById('bdesc_' + sid).value || '').trim();
+  var categoria = String(document.getElementById('bcat_' + sid).value || '').trim();
+  var lembrar = !!document.getElementById('blembrar_' + sid).checked;
+
+  if (!desc) { exibirAvisoNaTela('Informe a descrição.', 'danger'); return; }
+  if (!categoria) { exibirAvisoNaTela('Escolha a categoria.', 'danger'); return; }
+
+  var natureza = String(mov.natureza || '').toUpperCase() === 'CREDIT' ? 'receita' : 'despesa';
+  exibirModalConfirmacao('Criar e consolidar esta ' + natureza + ' de ' + moedaBancoV59_(Math.abs(Number(mov.valor || 0))) + '?', function() {
+    google.script.run
+      .withSuccessHandler(aposAcaoBancoV510_)
+      .withFailureHandler(function(err){ exibirAvisoNaTela('Erro: ' + err, 'danger'); })
+      .criarLancamentoBancoV510({
+        idPluggy: idPluggy,
+        descricao: desc,
+        categoria: categoria,
+        lembrar: lembrar,
+        padraoBanco: padraoBancoV510_(mov)
+      });
+  });
+}
+
+function ignorarBancoV510(idPluggy) {
+  exibirModalConfirmacao('Ignorar este movimento? Ele deixará de aparecer entre os novos.', function() {
+    google.script.run
+      .withSuccessHandler(aposAcaoBancoV510_)
+      .withFailureHandler(function(err){ exibirAvisoNaTela('Erro: ' + err, 'danger'); })
+      .ignorarMovimentoBancoV510(idPluggy);
+  });
+}
+
+function confirmarTransferenciaBancoV510(idPluggy, idPar) {
+  exibirModalConfirmacao('Confirmar este par como transferência interna PF ↔ PJ? Não será criado lançamento de receita/despesa.', function() {
+    google.script.run
+      .withSuccessHandler(aposAcaoBancoV510_)
+      .withFailureHandler(function(err){ exibirAvisoNaTela('Erro: ' + err, 'danger'); })
+      .confirmarTransferenciaBancoV510({ idPluggy: idPluggy, idPar: idPar });
+  });
+}
+
+
 function htmlCandidatoBancoV59_(mov, candidato) {
   if (!candidato) return '';
   var consolidado = String(candidato.status || '').toLowerCase().trim() === 'consolidado';
@@ -1916,6 +2095,7 @@ function renderizarBancoV59() {
           ${s.detalhe ? `<div class="banco-sugestao-detalhe">${escapeHtmlBancoV59_(s.detalhe)}</div>` : ''}
           ${detalheTransferencia}
           ${candidato}
+          ${htmlAcoesBancoV510_(m, s)}
         </div>
       </div>`;
   }).join('');

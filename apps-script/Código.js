@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.9.1";
+var VERSAO_SISTEMA = "5.10";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -44,7 +44,11 @@ function doPost(e) {
       marcarEmAbertoBackend: true,
       enviarAlertasFaturamentoSite: true,
       importarMovimentosBanco15Dias: true,
-      obterConciliacaoBancoV59: true
+      obterConciliacaoBancoV59: true,
+      conciliarMovimentoBancoV510: true,
+      criarLancamentoBancoV510: true,
+      ignorarMovimentoBancoV510: true,
+      confirmarTransferenciaBancoV510: true
     };
     if (!permitidas[nomeFuncao]) throw new Error("Função não permitida: " + nomeFuncao);
     if (typeof this[nomeFuncao] !== "function") throw new Error("Função não encontrada: " + nomeFuncao);
@@ -60,7 +64,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.9.1: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.10: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -69,7 +73,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.9.1" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.10" }));
     return saida;
   } finally {
     if (lock) {
@@ -140,14 +144,14 @@ function garantirEstruturaV58_() {
 
   var props = PropertiesService.getScriptProperties();
   var versaoEstrutura = props.getProperty("FLUXO_CAIXA_ESTRUTURA");
-  var precisaMigrar = versaoEstrutura !== "5.8";
+  var precisaMigrar = versaoEstrutura !== "5.10";
 
   if (!precisaMigrar) {
     ESTRUTURA_CACHE_EXECUCAO_ = true;
     return;
   }
 
-  garantirCabecalhos_(lanc, ["Data", "Descricao", "Valor", "Tipo", "Categoria", "Status", "RecorrenciaId", "IdLancamento", "Origem", "ChaveOrigem", "DataCalculada", "OverrideManual"]);
+  garantirCabecalhos_(lanc, ["Data", "Descricao", "Valor", "Tipo", "Categoria", "Status", "RecorrenciaId", "IdLancamento", "Origem", "ChaveOrigem", "DataCalculada", "OverrideManual", "ValorPrevisto", "ValorRealizado", "DiferencaBanco", "IdMovimentoBanco", "DataConciliacao", "DataPrevistaOriginal"]);
   garantirCabecalhos_(regras, ["Cliente", "ValorVisita", "Condicao", "NovoValor", "DataVigor", "PorHora", "IdCliente"]);
   garantirCabecalhos_(cats, ["Nome", "IdCategoria"]);
   garantirCabecalhos_(cond, ["Nome", "Periodo", "DiaCorte", "MesDeslocamento", "DiaPagamento", "IdCondicao"]);
@@ -252,7 +256,7 @@ function garantirEstruturaV58_() {
   preencherIds(cats, 1, 2);
   preencherIds(cond, 1, 6);
 
-  props.setProperty("FLUXO_CAIXA_ESTRUTURA", "5.8");
+  props.setProperty("FLUXO_CAIXA_ESTRUTURA", "5.10");
   ESTRUTURA_CACHE_EXECUCAO_ = true;
 }
 
@@ -1858,7 +1862,7 @@ function importarMovimentosBanco15Dias() {
 
 
 // =========================
-// V5.9.1 - CONCILIAÇÃO BANCÁRIA (MODO SOMENTE LEITURA)
+// V5.10 - CONCILIAÇÃO BANCÁRIA
 // =========================
 
 function normalizarTextoConciliacao_(texto) {
@@ -2216,6 +2220,260 @@ function encontrarLancamentoConciliacaoV59_(mov, lancamentos, alvoDescricao) {
   };
 }
 
+
+function encontrarMovimentoBancoLinhaV510_(idPluggy) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("MovimentosBanco");
+  if (!sh || sh.getLastRow() <= 1) throw new Error("MovimentosBanco não encontrada ou vazia.");
+
+  var alvo = String(idPluggy || "").trim();
+  if (!alvo) throw new Error("IdPluggy não informado.");
+
+  var dados = sh.getRange(2, 1, sh.getLastRow() - 1, 13).getValues();
+  for (var i = 0; i < dados.length; i++) {
+    if (String(dados[i][0] || "") === alvo) {
+      return {
+        sheet: sh,
+        linha: i + 2,
+        idPluggy: alvo,
+        conta: String(dados[i][1] || "").trim().toUpperCase(),
+        data: isoData_(dados[i][2]),
+        descricao: String(dados[i][3] || ""),
+        descricaoOriginal: String(dados[i][4] || ""),
+        valor: Number(dados[i][5] || 0),
+        tipo: String(dados[i][6] || ""),
+        categoriaPluggy: String(dados[i][7] || ""),
+        statusBanco: String(dados[i][8] || ""),
+        accountId: String(dados[i][9] || ""),
+        statusConciliacao: String(dados[i][10] || "NOVO").trim().toUpperCase(),
+        idLancamento: String(dados[i][11] || "")
+      };
+    }
+  }
+  throw new Error("Movimento bancário não encontrado: " + alvo);
+}
+
+function validarMovimentoNovoV510_(mov) {
+  if (!mov || mov.statusConciliacao !== "NOVO") {
+    throw new Error("Este movimento já foi tratado. Atualize a tela Banco.");
+  }
+}
+
+function marcarMovimentoBancoV510_(mov, status, idLancamento) {
+  mov.sheet.getRange(mov.linha, 11).setValue(String(status || ""));
+  mov.sheet.getRange(mov.linha, 12).setValue(idLancamento ? String(idLancamento) : "");
+}
+
+function tipoFluxoDoMovimentoV510_(mov) {
+  return Number(mov.valor || 0) < 0 ? "Despesa" : "Receita";
+}
+
+function salvarRegraAprendidaBancoV510_(mov, dados, tipoFluxo) {
+  if (!dados || dados.lembrar !== true) return;
+
+  var padrao = String(dados.padraoBanco || "").trim();
+  var descricaoFluxo = String(dados.descricao || "").trim();
+  var categoria = String(dados.categoria || "").trim();
+  if (!padrao || !descricaoFluxo || !categoria) return;
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("RegrasConciliacao") || ss.insertSheet("RegrasConciliacao");
+  garantirCabecalhos_(sh, ["IdRegra", "Conta", "PadraoBanco", "DescricaoFluxo", "Tipo", "Categoria", "Acao", "Automatico", "Ativo"]);
+
+  var conta = String(mov.conta || "TODOS").toUpperCase();
+  var padraoNorm = normalizarTextoConciliacao_(padrao);
+  var tipoNorm = normalizarTextoConciliacao_(tipoFluxo);
+
+  if (sh.getLastRow() > 1) {
+    var existentes = sh.getRange(2, 1, sh.getLastRow() - 1, 9).getValues();
+    for (var i = 0; i < existentes.length; i++) {
+      var contaExist = String(existentes[i][1] || "").trim().toUpperCase();
+      var padraoExist = normalizarTextoConciliacao_(existentes[i][2]);
+      var tipoExist = normalizarTextoConciliacao_(existentes[i][4]);
+      if (contaExist === conta && padraoExist === padraoNorm && tipoExist === tipoNorm) {
+        sh.getRange(i + 2, 4).setValue(descricaoFluxo);
+        sh.getRange(i + 2, 6).setValue(categoria);
+        sh.getRange(i + 2, 7).setValue("CRIAR");
+        sh.getRange(i + 2, 8).setValue("NAO");
+        sh.getRange(i + 2, 9).setValue("SIM");
+        return;
+      }
+    }
+  }
+
+  sh.appendRow([
+    "REG-" + new Date().getTime(),
+    conta,
+    padrao,
+    descricaoFluxo,
+    tipoFluxo,
+    categoria,
+    "CRIAR",
+    "NAO",
+    "SIM"
+  ]);
+}
+
+function conciliarMovimentoBancoV510(dados) {
+  garantirEstruturaV58_();
+  dados = dados || {};
+
+  var mov = encontrarMovimentoBancoLinhaV510_(dados.idPluggy);
+  validarMovimentoNovoV510_(mov);
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var shLanc = ss.getSheetByName("Lancamentos");
+  var linhaLanc = encontrarLinhaPorId_(shLanc, dados.idLancamento, COL_LANC_ID);
+  if (linhaLanc < 2) throw new Error("Lançamento sugerido não foi encontrado.");
+
+  var linha = shLanc.getRange(linhaLanc, 1, 1, 18).getValues()[0];
+  var tipoEsperado = tipoFluxoDoMovimentoV510_(mov);
+  var tipoLanc = String(linha[3] || "").trim();
+  if (normalizarTextoConciliacao_(tipoLanc) !== normalizarTextoConciliacao_(tipoEsperado)) {
+    throw new Error("Tipo incompatível entre banco e lançamento.");
+  }
+
+  var statusAtual = normalizarTextoConciliacao_(linha[5]);
+  var valorAtual = Math.abs(Number(linha[2] || 0));
+  var valorBanco = Math.abs(Number(mov.valor || 0));
+  var dataOriginal = isoData_(linha[0]);
+
+  // Se já estava consolidado manualmente antes da integração, apenas vincula o
+  // movimento bancário. Não altera valor/data/saldo do lançamento histórico.
+  if (statusAtual === "CONSOLIDADO") {
+    if (!linha[12]) linha[12] = valorAtual; // ValorPrevisto
+    linha[13] = valorBanco;                 // ValorRealizado
+    linha[14] = Number((valorBanco - valorAtual).toFixed(2));
+    linha[15] = mov.idPluggy;               // IdMovimentoBanco
+    linha[16] = new Date();                 // DataConciliacao
+    if (!linha[17] && dataOriginal) linha[17] = dataOriginal;
+
+    shLanc.getRange(linhaLanc, 1, 1, 18).setValues([linha]);
+    marcarMovimentoBancoV510_(mov, "CONCILIADO", linha[7]);
+    registrarLog_("BANCO_VINCULADO", linha[7], mov.idPluggy + " | já consolidado");
+    return "Movimento vinculado ao lançamento já consolidado.";
+  }
+
+  var valorPrevisto = linha[12] !== "" && linha[12] !== null
+    ? Math.abs(Number(linha[12] || 0))
+    : valorAtual;
+
+  if (!linha[12]) linha[12] = valorPrevisto;
+  linha[13] = valorBanco;
+  linha[14] = Number((valorBanco - valorPrevisto).toFixed(2));
+  linha[15] = mov.idPluggy;
+  linha[16] = new Date();
+  if (!linha[17] && dataOriginal) linha[17] = dataOriginal;
+
+  linha[0] = new Date(mov.data + "T12:00:00");
+  linha[2] = valorBanco;
+  linha[5] = "Consolidado";
+
+  shLanc.getRange(linhaLanc, 1, 1, 18).setValues([linha]);
+  marcarMovimentoBancoV510_(mov, "CONCILIADO", linha[7]);
+
+  registrarLog_(
+    "BANCO_CONCILIADO",
+    linha[7],
+    mov.idPluggy + " | previsto=" + valorPrevisto + " | realizado=" + valorBanco
+  );
+
+  return "Conciliado com sucesso: " + String(linha[1] || "");
+}
+
+function criarLancamentoBancoV510(dados) {
+  garantirEstruturaV58_();
+  dados = dados || {};
+
+  var mov = encontrarMovimentoBancoLinhaV510_(dados.idPluggy);
+  validarMovimentoNovoV510_(mov);
+
+  var descricao = String(dados.descricao || "").trim();
+  var categoria = String(dados.categoria || "").trim();
+  if (!descricao) throw new Error("Informe a descrição do lançamento.");
+  if (!categoria) throw new Error("Escolha a categoria.");
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var shLanc = ss.getSheetByName("Lancamentos");
+  var chave = "BANCO|" + mov.idPluggy;
+
+  if (shLanc.getLastRow() > 1) {
+    var chaves = shLanc.getRange(2, COL_LANC_CHAVE, shLanc.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < chaves.length; i++) {
+      if (String(chaves[i][0] || "") === chave) {
+        throw new Error("Este movimento já possui lançamento criado no fluxo.");
+      }
+    }
+  }
+
+  var id = gerarIdNumerico_();
+  var valorBanco = Math.abs(Number(mov.valor || 0));
+  var tipoFluxo = tipoFluxoDoMovimentoV510_(mov);
+
+  shLanc.appendRow([
+    new Date(mov.data + "T12:00:00"),
+    descricao,
+    valorBanco,
+    tipoFluxo,
+    categoria,
+    "Consolidado",
+    "",
+    id,
+    "BANCO",
+    chave,
+    "",
+    "BANCO",
+    "",
+    valorBanco,
+    "",
+    mov.idPluggy,
+    new Date(),
+    ""
+  ]);
+
+  marcarMovimentoBancoV510_(mov, "CONCILIADO", id);
+  salvarRegraAprendidaBancoV510_(mov, dados, tipoFluxo);
+
+  registrarLog_("BANCO_NOVO_LANCAMENTO", id, mov.idPluggy + " | " + descricao + " | " + valorBanco);
+  return tipoFluxo + " criada e consolidada: " + descricao;
+}
+
+function ignorarMovimentoBancoV510(idPluggy) {
+  var mov = encontrarMovimentoBancoLinhaV510_(idPluggy);
+  validarMovimentoNovoV510_(mov);
+  marcarMovimentoBancoV510_(mov, "IGNORADO", "");
+  registrarLog_("BANCO_IGNORADO", mov.idPluggy, mov.conta + " | " + mov.descricao);
+  return "Movimento ignorado.";
+}
+
+function confirmarTransferenciaBancoV510(dados) {
+  dados = dados || {};
+  var a = encontrarMovimentoBancoLinhaV510_(dados.idPluggy);
+  var b = encontrarMovimentoBancoLinhaV510_(dados.idPar);
+
+  validarMovimentoNovoV510_(a);
+  validarMovimentoNovoV510_(b);
+
+  if (!a.conta || !b.conta || a.conta === b.conta) {
+    throw new Error("As duas pontas precisam ser PF e PJ.");
+  }
+  if ((a.valor > 0) === (b.valor > 0)) {
+    throw new Error("As duas pontas precisam ter sinais opostos.");
+  }
+  if (Math.abs(Math.abs(a.valor) - Math.abs(b.valor)) > 0.01) {
+    throw new Error("Os valores da transferência não conferem.");
+  }
+  if (diferencaDiasConciliacaoV59_(a.data, b.data) > 1) {
+    throw new Error("As datas estão distantes demais para transferência interna.");
+  }
+
+  marcarMovimentoBancoV510_(a, "TRANSFERENCIA_INTERNA", "");
+  marcarMovimentoBancoV510_(b, "TRANSFERENCIA_INTERNA", "");
+
+  registrarLog_("BANCO_TRANSFERENCIA_INTERNA", a.idPluggy, a.conta + " <-> " + b.conta + " | " + Math.abs(a.valor));
+  return "Transferência interna PF ↔ PJ confirmada.";
+}
+
+
 function obterConciliacaoBancoV59() {
   var movimentos = lerMovimentosBancoV59_();
   var regras = lerRegrasConciliacaoV59_();
@@ -2310,7 +2568,7 @@ function obterConciliacaoBancoV59() {
   });
 
   return {
-    versao: "5.9.1",
+    versao: "5.10",
     resumo: {
       total: movimentos.length,
       sugestoes: sugestoes,
