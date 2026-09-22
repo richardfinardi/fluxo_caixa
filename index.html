@@ -1152,7 +1152,8 @@
       var toastElement = document.getElementById('liveToast');
       var toastMensagem = document.getElementById('toastMensagem');
       toastMensagem.innerText = mensagem;
-      toastElement.className = "toast align-items-center border-0 bg-" + (tipo === 'success' ? 'success' : 'danger');
+      var classe = tipo === 'success' ? 'success' : (tipo === 'warning' ? 'warning text-dark' : 'danger');
+      toastElement.className = "toast align-items-center border-0 bg-" + classe;
       toastBS.show();
     }
 
