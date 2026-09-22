@@ -2105,6 +2105,174 @@ function importarCartaoCreditoV513() {
 }
 
 
+
+function lerCartoesV513_() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Cartoes");
+  if (!sh || sh.getLastRow() <= 1) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 12).getValues()
+    .filter(function(r){ return !!r[1]; })
+    .map(function(r) {
+      return {
+        conta:String(r[0] || ""), accountId:String(r[1] || ""), nome:String(r[2] || ""), final:String(r[3] || ""),
+        saldoFatura:Number(r[4] || 0), limiteDisponivel:r[5] === "" ? null : Number(r[5]),
+        limiteTotal:r[6] === "" ? null : Number(r[6]), vencimento:r[7] ? isoData_(r[7]) : "",
+        fechamento:r[8] ? isoData_(r[8]) : "", bandeira:String(r[9] || ""), status:String(r[10] || ""),
+        atualizadoEm:r[11] instanceof Date ? r[11].toISOString() : String(r[11] || "")
+      };
+    });
+}
+
+function lerMovimentosCartaoV513_() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("MovimentosCartao");
+  if (!sh || sh.getLastRow() <= 1) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 16).getValues()
+    .filter(function(r){ return !!r[0]; })
+    .map(function(r) {
+      return {
+        idPluggy:String(r[0] || ""), conta:String(r[1] || ""), cartao:String(r[2] || ""), accountId:String(r[3] || ""),
+        data:r[4] ? isoData_(r[4]) : "", descricao:String(r[5] || ""), descricaoOriginal:String(r[6] || ""),
+        valor:Number(r[7] || 0), tipo:String(r[8] || ""), categoriaPluggy:String(r[9] || ""),
+        statusPluggy:String(r[10] || ""), billId:String(r[11] || ""), parcelaAtual:Number(r[12] || 0),
+        totalParcelas:Number(r[13] || 0), valorTotalParcelado:Number(r[14] || 0)
+      };
+    })
+    .sort(function(a,b) {
+      if (a.data === b.data) return Math.abs(b.valor) - Math.abs(a.valor);
+      return a.data < b.data ? 1 : -1;
+    });
+}
+
+function obterCartaoCreditoV513() {
+  garantirEstruturaV58_();
+  var cartoes = lerCartoesV513_();
+  var movimentos = lerMovimentosCartaoV513_();
+  var hoje = hojeIso_();
+  var d30 = new Date(); d30.setDate(d30.getDate() - 30);
+  var de30 = Utilities.formatDate(d30, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  var compras30 = 0, pagamentos30 = 0, parceladoFuturo = 0;
+
+  movimentos.forEach(function(m) {
+    if (m.data >= de30 && m.data <= hoje) {
+      if (m.valor > 0) compras30 += m.valor;
+      else pagamentos30 += Math.abs(m.valor);
+    }
+    if (m.valor > 0 && m.data > hoje) parceladoFuturo += m.valor;
+  });
+
+  return {
+    versao:VERSAO_SISTEMA,
+    cartoes:cartoes,
+    movimentos:movimentos.slice(0, 300),
+    resumo:{
+      faturaAtual:Number(cartoes.reduce(function(s,c){ return s + Math.max(0, Number(c.saldoFatura || 0)); }, 0).toFixed(2)),
+      limiteDisponivel:Number(cartoes.reduce(function(s,c){ return s + Math.max(0, Number(c.limiteDisponivel || 0)); }, 0).toFixed(2)),
+      compras30:Number(compras30.toFixed(2)),
+      pagamentos30:Number(pagamentos30.toFixed(2)),
+      parceladoFuturo:Number(parceladoFuturo.toFixed(2))
+    }
+  };
+}
+
+function saldoRealAppV513_() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Lancamentos");
+  if (!sh || sh.getLastRow() <= 1) return 0;
+  var hoje = hojeIso_();
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, 6).getValues();
+  var total = 0;
+  rows.forEach(function(r) {
+    if (!r[0] || normalizarTextoConciliacao_(r[5]) !== "CONSOLIDADO" || isoData_(r[0]) > hoje) return;
+    var valor = Number(r[2] || 0);
+    total += normalizarTextoConciliacao_(r[3]) === "RECEITA" ? valor : -valor;
+  });
+  return Number(total.toFixed(2));
+}
+
+function saldoBancoPluggyV513_() {
+  var props = PropertiesService.getScriptProperties();
+  var itens = [
+    { conta:"PF", itemId:String(props.getProperty("PLUGGY_ITEM_ID_PF") || "").trim() },
+    { conta:"PJ", itemId:String(props.getProperty("PLUGGY_ITEM_ID_PJ") || "").trim() }
+  ].filter(function(x){ return !!x.itemId; });
+
+  var apiKey = obterApiKeyPluggyV512_();
+  var contas = [];
+  itens.forEach(function(item) {
+    listarContasPluggyV513_(apiKey, item.itemId, "BANK").forEach(function(conta) {
+      contas.push({ conta:item.conta, accountId:String(conta.id || ""), nome:String(conta.name || ""), saldo:Number(conta.balance || 0) });
+    });
+  });
+  return { contas:contas, total:Number(contas.reduce(function(s,x){ return s + Number(x.saldo || 0); }, 0).toFixed(2)) };
+}
+
+function obterSaudeSaldosV513_() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var banco = saldoBancoPluggyV513_();
+    var app = saldoRealAppV513_();
+    var baseTxt = props.getProperty("SALDO_PLUGGY_BASE_OFFSET_V513");
+    var calibrado = baseTxt !== null && baseTxt !== "";
+    var base = calibrado ? Number(baseTxt || 0) : 0;
+    var appAjustado = Number((app + base).toFixed(2));
+    var diferenca = Number((banco.total - appAjustado).toFixed(2));
+
+    return {
+      calibrado:calibrado, banco:banco.total, app:app, base:Number(base.toFixed(2)),
+      appAjustado:appAjustado, diferenca:diferenca, ok:calibrado && Math.abs(diferenca) <= 0.50,
+      contas:banco.contas, calibradoEm:String(props.getProperty("SALDO_PLUGGY_BASE_EM_V513") || "")
+    };
+  } catch (e) {
+    return { erro:e && e.message ? e.message : String(e) };
+  }
+}
+
+function calibrarSaldoPluggyV513() {
+  var props = PropertiesService.getScriptProperties();
+  var banco = saldoBancoPluggyV513_();
+  var app = saldoRealAppV513_();
+  var offset = Number((banco.total - app).toFixed(2));
+  props.setProperty("SALDO_PLUGGY_BASE_OFFSET_V513", String(offset));
+  props.setProperty("SALDO_PLUGGY_BASE_EM_V513", new Date().toISOString());
+  registrarLog_("SALDO_CALIBRADO", "", "banco=" + banco.total + " | app=" + app + " | base=" + offset);
+  return { mensagem:"Saldo-base calibrado.", saude:obterSaudeSaldosV513_() };
+}
+
+function importarTudoPluggyV513() {
+  var bancoMsg = importarMovimentosBanco15Dias();
+  var cartao = importarCartaoCreditoV513();
+  var mb = String(bancoMsg || "").match(/(\d+)\s+novo/i);
+  var novosBanco = mb ? Number(mb[1] || 0) : 0;
+
+  return {
+    novosBanco:novosBanco,
+    novosCartao:Number(cartao.novos || 0),
+    cartoes:Number(cartao.cartoes || 0),
+    errosCartao:cartao.erros || [],
+    mensagem:"Banco: " + novosBanco + " novo(s) • Cartão: " + Number(cartao.novos || 0) + " nova(s) transação(ões)."
+  };
+}
+
+function parecePagamentoCartaoV513_(mov) {
+  if (!mov || naturezaMovimentoBancoV59_(mov) !== "DEBIT") return false;
+  var txt = textoBancoConciliacaoV59_(mov);
+  return txt.indexOf("PAGAMENTO DE FATURA") !== -1 ||
+         txt.indexOf("PAGAMENTO FATURA") !== -1 ||
+         txt.indexOf("PAGAMENTO CARTAO") !== -1;
+}
+
+function registrarPagamentoCartaoV513(dados) {
+  dados = dados || {};
+  var mov = encontrarMovimentoBancoLinhaV510_(dados.idPluggy);
+  validarMovimentoNovoV510_(mov);
+  return criarLancamentoBancoV510({
+    idPluggy:mov.idPluggy,
+    descricao:"PAGAMENTO CARTÃO",
+    categoria:"CARTÃO",
+    lembrar:true,
+    padraoBanco:"PAGAMENTO DE FATURA"
+  });
+}
+
+
 // =========================
 // V5.10.3 - CONCILIAÇÃO BANCÁRIA
 // =========================
