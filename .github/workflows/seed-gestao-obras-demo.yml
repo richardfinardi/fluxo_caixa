@@ -1,0 +1,129 @@
+name: Criar Obra Demo Gestao Obras
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".deploy-triggers/gestao-obras-demo.txt"
+
+permissions:
+  contents: read
+
+env:
+  API_URL: https://script.google.com/macros/s/AKfycbw6cRAPlwVzNOURoLNsTJ47xyezz0LStCuZyNpW2wT97f9pj3RADUn1L1MdqTq9Tm_b/exec
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Criar obra demonstracao completa
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          post() {
+            curl --max-time 30 -L --fail --silent --show-error               -H 'Content-Type: text/plain;charset=utf-8'               --data-binary "$1"               "$API_URL"
+          }
+
+          ok() {
+            echo "$1" | jq -e '.ok == true' >/dev/null
+          }
+
+          HEALTH=$(curl --max-time 30 -L --fail --silent --show-error "$API_URL?action=health")
+          echo "$HEALTH" | jq -e '.ok == true' >/dev/null
+
+          # Evita duplicar a demo se este workflow for executado novamente.
+          OBRAS=$(post '{"action":"obras.list"}')
+          EXISTENTE=$(echo "$OBRAS" | jq -r '.data[]? | select(.NOME=="OBRA TESTE - DEMONSTRACAO") | .ID_OBRA' | head -n1)
+          if [ -n "$EXISTENTE" ]; then
+            echo "Demo ja existe: $EXISTENTE"
+            exit 0
+          fi
+
+          OBRA=$(post '{"action":"obras.create","nome":"OBRA TESTE - DEMONSTRACAO","cliente":"CLIENTE DEMONSTRACAO","descricao":"Obra criada automaticamente para demonstrar EAP, atividades, dependencias por percentual e cronograma.","data_inicio_contratual":"2026-09-22","data_fim_contratual":"2026-12-18"}')
+          ok "$OBRA"
+          ID_OBRA=$(echo "$OBRA" | jq -r '.data.ID_OBRA')
+
+          # EAP
+          W1=$(post "$(jq -nc --arg obra "$ID_OBRA" '{action:"wbs.create",id_obra:$obra,nome:"Servicos Preliminares",ordem:1}')")
+          ok "$W1"
+          ID_W1=$(echo "$W1" | jq -r '.data.ID_WBS')
+
+          W2=$(post "$(jq -nc --arg obra "$ID_OBRA" '{action:"wbs.create",id_obra:$obra,nome:"Fundacoes",ordem:2}')")
+          ok "$W2"
+          ID_W2=$(echo "$W2" | jq -r '.data.ID_WBS')
+
+          W3=$(post "$(jq -nc --arg obra "$ID_OBRA" '{action:"wbs.create",id_obra:$obra,nome:"Estrutura",ordem:3}')")
+          ok "$W3"
+          ID_W3=$(echo "$W3" | jq -r '.data.ID_WBS')
+
+          W4=$(post "$(jq -nc --arg obra "$ID_OBRA" '{action:"wbs.create",id_obra:$obra,nome:"Vedacoes e Instalacoes",ordem:4}')")
+          ok "$W4"
+          ID_W4=$(echo "$W4" | jq -r '.data.ID_WBS')
+
+          W5=$(post "$(jq -nc --arg obra "$ID_OBRA" '{action:"wbs.create",id_obra:$obra,nome:"Acabamentos",ordem:5}')")
+          ok "$W5"
+          ID_W5=$(echo "$W5" | jq -r '.data.ID_WBS')
+
+          # Atividades - pesos somam 100%
+          A1=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W1" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Mobilizacao e canteiro",duracao_planejada_dias:3,peso_percentual:5,ordem:1,id_tipo_atividade:"TIP-PRELIMINAR"}')")
+          ok "$A1"; ID_A1=$(echo "$A1" | jq -r '.data.ID_ATIVIDADE')
+
+          A2=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W1" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Terraplenagem",duracao_planejada_dias:10,peso_percentual:10,ordem:2,id_tipo_atividade:"TIP-CIVIL"}')")
+          ok "$A2"; ID_A2=$(echo "$A2" | jq -r '.data.ID_ATIVIDADE')
+
+          A3=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W2" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Escavacao das fundacoes",duracao_planejada_dias:5,peso_percentual:10,ordem:3,id_tipo_atividade:"TIP-CIVIL"}')")
+          ok "$A3"; ID_A3=$(echo "$A3" | jq -r '.data.ID_ATIVIDADE')
+
+          A4=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W2" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Formas e armacao das fundacoes",duracao_planejada_dias:8,peso_percentual:10,ordem:4,id_tipo_atividade:"TIP-CIVIL"}')")
+          ok "$A4"; ID_A4=$(echo "$A4" | jq -r '.data.ID_ATIVIDADE')
+
+          A5=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W2" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Concretagem das fundacoes",duracao_planejada_dias:4,peso_percentual:10,ordem:5,id_tipo_atividade:"TIP-CIVIL"}')")
+          ok "$A5"; ID_A5=$(echo "$A5" | jq -r '.data.ID_ATIVIDADE')
+
+          A6=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W3" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Pilares e vigas",duracao_planejada_dias:15,peso_percentual:20,ordem:6,id_tipo_atividade:"TIP-ESTRUTURA"}')")
+          ok "$A6"; ID_A6=$(echo "$A6" | jq -r '.data.ID_ATIVIDADE')
+
+          A7=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W4" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Alvenaria",duracao_planejada_dias:12,peso_percentual:15,ordem:7,id_tipo_atividade:"TIP-CIVIL"}')")
+          ok "$A7"; ID_A7=$(echo "$A7" | jq -r '.data.ID_ATIVIDADE')
+
+          A8=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W4" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Instalacoes eletricas",duracao_planejada_dias:10,peso_percentual:8,ordem:8,id_tipo_atividade:"TIP-ELETRICA"}')")
+          ok "$A8"; ID_A8=$(echo "$A8" | jq -r '.data.ID_ATIVIDADE')
+
+          A9=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W4" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Instalacoes hidraulicas",duracao_planejada_dias:10,peso_percentual:7,ordem:9,id_tipo_atividade:"TIP-HIDRAULICA"}')")
+          ok "$A9"; ID_A9=$(echo "$A9" | jq -r '.data.ID_ATIVIDADE')
+
+          A10=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W5" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Revestimentos e pintura",duracao_planejada_dias:15,peso_percentual:5,ordem:10,id_tipo_atividade:"TIP-ACABAMENTO"}')")
+          ok "$A10"; ID_A10=$(echo "$A10" | jq -r '.data.ID_ATIVIDADE')
+
+          # Dependencias
+          dep() {
+            local pai="$1"; local filha="$2"; local pct="$3"; local lag="$4"
+            R=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg pai "$pai" --arg filha "$filha" --argjson pct "$pct" --argjson lag "$lag" '{action:"dependencias.create",id_obra:$obra,id_atividade_pai:$pai,id_atividade_filha:$filha,percentual_liberacao:$pct,lag_dias:$lag}')")
+            ok "$R"
+          }
+
+          dep "$ID_A1" "$ID_A2" 100 0
+          dep "$ID_A2" "$ID_A3" 100 0
+          dep "$ID_A3" "$ID_A4" 100 0
+          dep "$ID_A4" "$ID_A5" 100 0
+          dep "$ID_A5" "$ID_A6" 70 2
+          dep "$ID_A6" "$ID_A7" 60 0
+          dep "$ID_A7" "$ID_A8" 50 1
+          dep "$ID_A7" "$ID_A9" 50 1
+          dep "$ID_A8" "$ID_A10" 100 0
+          dep "$ID_A9" "$ID_A10" 100 0
+
+          RECALC=$(post "$(jq -nc --arg obra "$ID_OBRA" '{action:"cronograma.recalcular",id_obra:$obra}')")
+          ok "$RECALC"
+          echo "$RECALC" | jq .
+
+          PLAN=$(post "$(jq -nc --arg obra "$ID_OBRA" '{action:"planejamento.get",id_obra:$obra}')")
+          ok "$PLAN"
+          echo "$PLAN" | jq -e '.data.atividades | length == 10' >/dev/null
+          echo "$PLAN" | jq -e '.data.dependencias | length == 10' >/dev/null
+          echo "$PLAN" | jq -e '([.data.atividades[].PESO_PERCENTUAL] | add) == 100' >/dev/null
+
+          echo "OBRA DEMO CRIADA COM SUCESSO: $ID_OBRA"
