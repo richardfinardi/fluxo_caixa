@@ -1,3 +1,4 @@
 Gestao de Obras - criar obra demo
-Disparo: 2026-09-22T12:33:00-03:00
-Objetivo: deixar uma obra demonstracao permanente para uso do usuario
+Disparo: 2026-09-22T12:36:00-03:00
+Objetivo: criar obra demonstracao permanente
+Tentativa: retry resiliente
