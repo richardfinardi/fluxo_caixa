@@ -125,6 +125,31 @@
 .pluggy-sync-alerta { margin-top:5px; font-weight:700; color:#8a5a00; }
 .automacao-v511 { margin:8px 0 12px; padding:10px 12px; background:#f8f9fa; border:1px solid #dfe4e8; border-radius:10px; font-size:11px; }
 .automacao-v511-acoes { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+.banco-acoes-topo-v513 { display:flex; gap:6px; flex-wrap:wrap; }
+.rotulo-mobile { display:none; }
+.saude-saldo-v513 { margin:8px 0; padding:9px 11px; border:1px solid #dfe4e8; border-radius:10px; background:#f8f9fa; font-size:11px; }
+.saude-saldo-v513.ok { background:#f2fbf5; border-color:#cfe9d8; }
+.saude-saldo-v513.warn { background:#fff8e8; border-color:#f1d38a; }
+.saude-saldo-v513.erro { background:#fff2f2; border-color:#edc6c6; }
+.saude-saldo-grid-v513 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:6px; }
+.saude-saldo-item-v513 { background:rgba(255,255,255,.72); border-radius:8px; padding:7px; text-align:center; }
+.saude-saldo-item-v513 small { display:block; font-size:9px; color:#6c757d; font-weight:700; }
+.saude-saldo-item-v513 strong { display:block; font-size:14px; margin-top:2px; }
+
+.cartao-v513-topo { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.cartao-acoes-v513 { display:flex; gap:6px; flex-wrap:wrap; }
+.cartao-v513-kpis { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:7px; margin:10px 0; }
+.cartao-kpi-v513 { border:1px solid #e2e6ea; border-radius:10px; padding:9px 6px; background:#fff; text-align:center; }
+.cartao-kpi-v513 small { display:block; font-size:9px; font-weight:800; color:#6c757d; line-height:1.15; }
+.cartao-kpi-v513 strong { display:block; margin-top:3px; font-size:15px; }
+.cartao-resumo-v513 { padding:8px 10px; border-radius:9px; background:#f8f9fa; border:1px solid #e4e7eb; font-size:11px; margin-bottom:8px; }
+.cartao-filtros-v513 { display:flex; gap:6px; margin-bottom:9px; }
+.cartao-lista-v513 { display:grid; gap:8px; }
+.cartao-mov-v513 { border:1px solid #e3e6ea; border-radius:10px; padding:10px; background:#fff; }
+.cartao-mov-topo-v513 { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+.cartao-mov-desc-v513 { font-size:13px; font-weight:800; line-height:1.2; }
+.cartao-mov-meta-v513 { font-size:10px; color:#6c757d; margin-top:3px; }
+.cartao-mov-valor-v513 { font-size:15px; font-weight:800; white-space:nowrap; }
 @media (max-width:576px) { .banco-acoes-v510 .btn { flex:1 1 auto; min-height:38px; } }
 
     @media (max-width: 576px) {
@@ -133,46 +158,74 @@
       .navbar { margin-bottom: 8px; }
       .navbar-brand { font-size: 14px !important; }
 
-      /* Cockpit vira uma faixa horizontal: ocupa muito menos altura no celular */
+      /* V5.13: todos os KPIs aparecem na tela, sem swipe lateral */
       #cockpitFinanceiro {
-        display: flex !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-        margin-left: -2px;
-        margin-right: -2px;
-        padding: 0 2px 4px 2px;
+        display:grid !important;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:5px;
+        margin:0 0 7px 0 !important;
       }
-      #cockpitFinanceiro::-webkit-scrollbar { display: none; }
       #cockpitFinanceiro > [class*="col-"] {
-        flex: 0 0 148px;
-        max-width: 148px;
-        width: 148px;
+        width:auto !important;
+        max-width:none !important;
+        flex:none !important;
+        padding:0 !important;
       }
-      .cockpit-card { min-height: 72px; padding: 8px 7px !important; margin-bottom: 0; }
-      .cockpit-card small { font-size: 8px; line-height: 1.15; }
-      .cockpit-card h5 { font-size: 16px; }
-      .cockpit-card .subvalor { font-size: 8px; }
+      .cockpit-card { min-height:62px; padding:6px 4px !important; margin-bottom:0; }
+      .cockpit-card small { font-size:7px; line-height:1.08; }
+      .cockpit-card h5 { font-size:13px; line-height:1.05; margin-top:3px !important; }
+      .cockpit-card .subvalor { font-size:7px; line-height:1.05; }
 
-      /* Menu principal em uma única linha com swipe horizontal */
+      /* Menu inteiro em grade: sem correr para os lados */
       #mainTabs {
-        display: flex;
-        flex-wrap: nowrap !important;
-        overflow-x: auto;
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-        white-space: nowrap;
-        margin-left: -8px;
-        margin-right: -8px;
-        padding-left: 8px;
-        padding-right: 8px;
-        margin-bottom: 10px !important;
+        display:grid !important;
+        grid-template-columns:repeat(4,minmax(0,1fr));
+        gap:3px;
+        overflow:visible !important;
+        white-space:normal;
+        margin:0 0 9px 0 !important;
+        padding:0;
+        border-bottom:0;
       }
-      #mainTabs::-webkit-scrollbar { display: none; }
-      #mainTabs .nav-item { flex: 0 0 auto; }
-      #mainTabs .nav-link { font-size: 12px; padding: 7px 10px; white-space: nowrap; }
+      #mainTabs .nav-item { width:100%; min-width:0; }
+      #mainTabs .nav-link {
+        width:100%;
+        height:100%;
+        min-height:34px;
+        font-size:9px;
+        line-height:1.05;
+        padding:5px 2px;
+        white-space:normal;
+        border:1px solid #dee2e6;
+        border-radius:7px;
+      }
+      #mainTabs .nav-link.active { background:#fff; border-color:#adb5bd; font-weight:800; }
+
+      .banco-v59-topo { display:block; }
+      .banco-acoes-topo-v513 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin-top:8px; }
+      .banco-acoes-topo-v513 .btn { min-width:0; padding:6px 3px; font-size:9px; line-height:1.1; min-height:36px; }
+      .rotulo-desktop { display:none; }
+      .rotulo-mobile { display:inline; }
+      .banco-v59-kpis { gap:5px; margin:8px 0 9px; }
+      .banco-v59-kpi { padding:7px 3px; }
+      .banco-v59-kpi small { font-size:8px; line-height:1.05; }
+      .banco-v59-kpi strong { font-size:16px; }
+
+      .saude-saldo-grid-v513 { grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; }
+      .saude-saldo-item-v513 { padding:6px 3px; }
+      .saude-saldo-item-v513 small { font-size:7px; }
+      .saude-saldo-item-v513 strong { font-size:11px; }
+
+      .cartao-v513-topo { display:block; }
+      .cartao-acoes-v513 { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:7px; }
+      .cartao-acoes-v513 .btn { font-size:9px; padding:6px 3px; }
+      .cartao-v513-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
+      .cartao-kpi-v513 { padding:7px 3px; }
+      .cartao-kpi-v513 small { font-size:7px; }
+      .cartao-kpi-v513 strong { font-size:12px; }
+      .cartao-mov-v513 { padding:8px; }
+      .cartao-mov-desc-v513 { font-size:12px; }
+      .cartao-mov-valor-v513 { font-size:13px; }
 
       .table-mobile { font-size: 11px !important; width: 100% !important; table-layout: fixed; }
       .table-mobile th, .table-mobile td { padding: 4px 2px !important; word-wrap: break-word; white-space: normal !important; }
