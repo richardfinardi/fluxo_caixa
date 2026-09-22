@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.12.0";
+var VERSAO_SISTEMA = "5.12.1";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -72,7 +72,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.12.0: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.12.1: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -81,7 +81,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.12.0" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.12.1" }));
     return saida;
   } finally {
     if (lock) {
@@ -2895,6 +2895,7 @@ function atualizarPluggyAgoraV512() {
         concluido: false,
         limite: true,
         http: http,
+        codigo: erro.codigo || "",
         mensagem: erro.mensagem || "A Pluggy ainda não liberou uma nova atualização por API para este Item."
       });
       return;
@@ -2907,6 +2908,7 @@ function atualizarPluggyAgoraV512() {
       concluido: false,
       erro: true,
       http: http,
+      codigo: erro.codigo || "",
       mensagem: erro.mensagem || ("Falha ao atualizar Item. HTTP " + http)
     });
   });
@@ -2944,9 +2946,22 @@ function atualizarPluggyAgoraV512() {
   var m = String(msgImportacao || "").match(/(\d+)\s+novo/i);
   var novos = m ? Number(m[1] || 0) : 0;
 
+  resultados.forEach(function(x) {
+    var cod = normalizarTextoConciliacao_(x.codigo || "");
+    if (
+      cod === "SANDBOX CLIENT ITEM UPDATE NOT ALLOWED" ||
+      cod === "CLIENT HAS ITEM UPDATES DISABLED" ||
+      cod === "PARAMETERS NOT PROVIDED" ||
+      cod === "CONNECTOR REQUIRED PARAMETER VALIDATION ERROR"
+    ) {
+      x.requerInteracao = true;
+    }
+  });
+
   var concluidos = resultados.filter(function(x) { return x.concluido; }).length;
   var limites = resultados.filter(function(x) { return x.limite; }).length;
-  var erros = resultados.filter(function(x) { return x.erro; }).length;
+  var requerInteracao = resultados.filter(function(x) { return x.requerInteracao; }).length;
+  var erros = resultados.filter(function(x) { return x.erro && !x.requerInteracao; }).length;
   var aguardando = resultados.filter(function(x) {
     return (x.solicitado || x.jaAtualizando) && !x.concluido;
   }).length;
@@ -2955,6 +2970,7 @@ function atualizarPluggyAgoraV512() {
   if (concluidos) partes.push(concluidos + " conta(s) sincronizada(s)");
   if (aguardando) partes.push(aguardando + " ainda sincronizando");
   if (limites) partes.push(limites + " no limite de frequência da Pluggy");
+  if (requerInteracao) partes.push(requerInteracao + " exigem atualização interativa");
   if (erros) partes.push(erros + " com erro");
   partes.push(novos + " movimento(s) novo(s) importado(s)");
 
@@ -3353,7 +3369,7 @@ function obterConciliacaoBancoV59() {
   });
 
   return {
-    versao: "5.12.0",
+    versao: "5.12.1",
     statusPluggy: obterStatusPluggyV5103_(),
     resumo: {
       total: movimentosExibicao.length,
