@@ -2976,6 +2976,8 @@ function processarMovimentosBancoLoteV5102(dados) {
           lembrar: item.lembrar === true,
           padraoBanco: item.padraoBanco
         });
+      } else if (acao === "PAGAMENTO_CARTAO") {
+        mensagem = registrarPagamentoCartaoV513({ idPluggy: item.idPluggy });
       } else {
         throw new Error("Ação não reconhecida: " + acao);
       }
@@ -3693,6 +3695,15 @@ function obterConciliacaoBancoV59() {
       return;
     }
 
+    if (parecePagamentoCartaoV513_(mov)) {
+      mov.sugestao = {
+        tipo: "PAGAMENTO_CARTAO",
+        titulo: "Pagamento / antecipação de cartão",
+        detalhe: "Esta saída afeta o saldo da conta, mas não duplica as compras do cartão."
+      };
+      return;
+    }
+
     var regra = encontrarRegraConciliacaoV59_(mov, regras);
     var cliente = encontrarClienteConciliacaoV59_(mov, clientes);
     var candidato = null;
@@ -3775,6 +3786,7 @@ function obterConciliacaoBancoV59() {
   return {
     versao: "5.13.0",
     statusPluggy: obterStatusPluggyV5103_(),
+    saudeSaldo: obterSaudeSaldosV513_(),
     resumo: {
       total: movimentosExibicao.length,
       sugestoes: sugestoes,
