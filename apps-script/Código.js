@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.11.5";
+var VERSAO_SISTEMA = "5.12.0";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -44,6 +44,7 @@ function doPost(e) {
       marcarEmAbertoBackend: true,
       enviarAlertasFaturamentoSite: true,
       importarMovimentosBanco15Dias: true,
+      atualizarPluggyAgoraV512: true,
       obterConciliacaoBancoV59: true,
       conciliarMovimentoBancoV510: true,
       criarLancamentoBancoV510: true,
@@ -71,7 +72,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.11.5: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.12.0: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -80,7 +81,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.11.5" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.12.0" }));
     return saida;
   } finally {
     if (lock) {
@@ -2141,10 +2142,11 @@ function pontuarLancamentoConciliacaoV59_(mov, lanc, alvoDescricao) {
 
   // Guard rails contra falsos positivos históricos.
   if (consolidado) {
-    // Um movimento atual só pode apontar para algo já consolidado se for praticamente
-    // o mesmo evento: descrição compatível, data muito próxima e valor muito próximo.
-    if (!sinalDescricao || dias > 3) return null;
-    if (diff > Math.max(2, valorLanc * 0.05)) return null;
+    // V5.12: histórico consolidado exige evidência praticamente exata.
+    // Evita falsos positivos como COVABRA de dias/valores diferentes.
+    // Quando houver dúvida, o usuário usa o vínculo manual.
+    if (!sinalDescricao || dias !== 0) return null;
+    if (diff > 0.01) return null;
   } else if (alvo) {
     // Regra/alias pode localizar conta vencida, mas não deve pular para parcela futura distante.
     if (lancFuturo && dias > 7) return null;
@@ -2356,6 +2358,16 @@ function conciliarMovimentoBancoV510(dados) {
 
     shLanc.getRange(linhaLanc, 1, 1, 18).setValues([linha]);
     marcarMovimentoBancoV510_(mov, "CONCILIADO", linha[7]);
+
+    if (dados.lembrar === true) {
+      salvarRegraAprendidaBancoV510_(mov, {
+        lembrar: true,
+        padraoBanco: dados.padraoBanco,
+        descricao: String(linha[1] || ""),
+        categoria: String(linha[4] || "")
+      }, tipoEsperado);
+    }
+
     registrarLog_("BANCO_VINCULADO", linha[7], mov.idPluggy + " | já consolidado");
     return "Movimento vinculado ao lançamento já consolidado.";
   }
@@ -2377,6 +2389,15 @@ function conciliarMovimentoBancoV510(dados) {
 
   shLanc.getRange(linhaLanc, 1, 1, 18).setValues([linha]);
   marcarMovimentoBancoV510_(mov, "CONCILIADO", linha[7]);
+
+  if (dados.lembrar === true) {
+    salvarRegraAprendidaBancoV510_(mov, {
+      lembrar: true,
+      padraoBanco: dados.padraoBanco,
+      descricao: String(linha[1] || ""),
+      categoria: String(linha[4] || "")
+    }, tipoEsperado);
+  }
 
   registrarLog_(
     "BANCO_CONCILIADO",
@@ -2534,7 +2555,9 @@ function processarMovimentosBancoLoteV5102(dados) {
       if (acao === "CONCILIAR") {
         mensagem = conciliarMovimentoBancoV510({
           idPluggy: item.idPluggy,
-          idLancamento: item.idLancamento
+          idLancamento: item.idLancamento,
+          lembrar: item.lembrar === true,
+          padraoBanco: item.padraoBanco
         });
       } else if (acao === "TRANSFERENCIA") {
         mensagem = confirmarTransferenciaBancoV510({
@@ -2706,6 +2729,243 @@ function obterStatusPluggyV5103_() {
   };
 }
 
+
+
+// =========================
+// V5.12 - SINCRONIZAÇÃO MANUAL PLUGGY
+// =========================
+
+function obterApiKeyPluggyV512_() {
+  var props = PropertiesService.getScriptProperties();
+  var clientId = String(props.getProperty("PLUGGY_CLIENT_ID") || "").trim();
+  var clientSecret = String(props.getProperty("PLUGGY_CLIENT_SECRET") || "").trim();
+
+  if (!clientId || !clientSecret) {
+    throw new Error("Credenciais Pluggy não configuradas.");
+  }
+
+  var resp = UrlFetchApp.fetch("https://api.pluggy.ai/auth", {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({
+      clientId: clientId,
+      clientSecret: clientSecret
+    }),
+    muteHttpExceptions: true
+  });
+
+  var code = resp.getResponseCode();
+  var txt = resp.getContentText() || "";
+  if (code < 200 || code >= 300) {
+    throw new Error("Falha ao autenticar na Pluggy. HTTP " + code);
+  }
+
+  var json = JSON.parse(txt || "{}");
+  if (!json.apiKey) throw new Error("Pluggy não devolveu apiKey.");
+  return json.apiKey;
+}
+
+function consultarItemPluggyV512_(apiKey, itemId) {
+  var resp = UrlFetchApp.fetch(
+    "https://api.pluggy.ai/items/" + encodeURIComponent(itemId),
+    {
+      method: "get",
+      headers: { "X-API-KEY": apiKey },
+      muteHttpExceptions: true
+    }
+  );
+
+  var code = resp.getResponseCode();
+  var txt = resp.getContentText() || "";
+  if (code < 200 || code >= 300) {
+    return { ok: false, http: code, erro: txt || ("HTTP " + code) };
+  }
+
+  var json = JSON.parse(txt || "{}");
+  return {
+    ok: true,
+    status: String(json.status || ""),
+    executionStatus: String(json.executionStatus || ""),
+    lastUpdatedAt: String(json.lastUpdatedAt || json.updatedAt || ""),
+    error: json.error || null,
+    raw: json
+  };
+}
+
+function erroPluggyV512_(texto) {
+  var json = {};
+  try { json = JSON.parse(String(texto || "{}")); } catch (e) {}
+
+  var codigo = String(
+    json.codeDescription ||
+    json.code ||
+    (json.error && (json.error.codeDescription || json.error.code)) ||
+    ""
+  );
+
+  var mensagem = String(
+    json.message ||
+    (json.error && json.error.message) ||
+    texto ||
+    ""
+  );
+
+  return {
+    codigo: codigo,
+    mensagem: mensagem
+  };
+}
+
+function atualizarPluggyAgoraV512() {
+  var props = PropertiesService.getScriptProperties();
+  var itens = [
+    { conta: "PF", itemId: String(props.getProperty("PLUGGY_ITEM_ID_PF") || "").trim() },
+    { conta: "PJ", itemId: String(props.getProperty("PLUGGY_ITEM_ID_PJ") || "").trim() }
+  ].filter(function(x) { return !!x.itemId; });
+
+  if (!itens.length) throw new Error("Nenhum Item PF/PJ configurado na Pluggy.");
+
+  var apiKey = obterApiKeyPluggyV512_();
+  var resultados = [];
+  var pendentes = [];
+
+  itens.forEach(function(item) {
+    var antes = consultarItemPluggyV512_(apiKey, item.itemId);
+    var ultimaAntes = antes.ok ? String(antes.lastUpdatedAt || "") : "";
+
+    var resp = UrlFetchApp.fetch(
+      "https://api.pluggy.ai/items/" + encodeURIComponent(item.itemId),
+      {
+        method: "patch",
+        contentType: "application/json",
+        headers: { "X-API-KEY": apiKey },
+        payload: "{}",
+        muteHttpExceptions: true
+      }
+    );
+
+    var http = resp.getResponseCode();
+    var txt = resp.getContentText() || "";
+    var erro = erroPluggyV512_(txt);
+    var codigo = normalizarTextoConciliacao_(erro.codigo);
+
+    if (http >= 200 && http < 300) {
+      var registro = {
+        conta: item.conta,
+        itemId: item.itemId,
+        solicitado: true,
+        concluido: false,
+        ultimaAntes: ultimaAntes,
+        http: http,
+        mensagem: "Sincronização solicitada."
+      };
+      resultados.push(registro);
+      pendentes.push(registro);
+      return;
+    }
+
+    if (
+      codigo.indexOf("ITEM ALREADY UPDATING") !== -1 ||
+      codigo.indexOf("ITEM IS ALREADY UPDATING") !== -1 ||
+      normalizarTextoConciliacao_(erro.mensagem).indexOf("ALREADY UPDATING") !== -1
+    ) {
+      var atualizando = {
+        conta: item.conta,
+        itemId: item.itemId,
+        solicitado: false,
+        jaAtualizando: true,
+        concluido: false,
+        ultimaAntes: ultimaAntes,
+        http: http,
+        mensagem: "Já havia uma sincronização em andamento."
+      };
+      resultados.push(atualizando);
+      pendentes.push(atualizando);
+      return;
+    }
+
+    if (
+      http === 409 ||
+      codigo.indexOf("CLIENT IS UPDATING BEFORE ALLOWED FREQUENCY") !== -1
+    ) {
+      resultados.push({
+        conta: item.conta,
+        itemId: item.itemId,
+        solicitado: false,
+        concluido: false,
+        limite: true,
+        http: http,
+        mensagem: erro.mensagem || "A Pluggy ainda não liberou uma nova atualização por API para este Item."
+      });
+      return;
+    }
+
+    resultados.push({
+      conta: item.conta,
+      itemId: item.itemId,
+      solicitado: false,
+      concluido: false,
+      erro: true,
+      http: http,
+      mensagem: erro.mensagem || ("Falha ao atualizar Item. HTTP " + http)
+    });
+  });
+
+  // Espera até ~50 s para tentar entregar a atualização completa na mesma ação.
+  // Se demorar mais, o monitor automático continuará acompanhando normalmente.
+  var limiteTempo = new Date().getTime() + 50000;
+
+  while (pendentes.some(function(x) { return !x.concluido; }) && new Date().getTime() < limiteTempo) {
+    Utilities.sleep(3500);
+
+    pendentes.forEach(function(item) {
+      if (item.concluido) return;
+
+      var atual = consultarItemPluggyV512_(apiKey, item.itemId);
+      if (!atual.ok) return;
+
+      item.status = atual.status;
+      item.executionStatus = atual.executionStatus;
+      item.lastUpdatedAt = atual.lastUpdatedAt;
+
+      var mudou = !!atual.lastUpdatedAt && atual.lastUpdatedAt !== item.ultimaAntes;
+      var exec = normalizarTextoConciliacao_(atual.executionStatus);
+      var st = normalizarTextoConciliacao_(atual.status);
+      var terminou = exec === "SUCCESS" || st === "UPDATED" || st === "PARTIAL SUCCESS";
+
+      if (mudou && terminou) {
+        item.concluido = true;
+        item.mensagem = "Sincronização concluída.";
+      }
+    });
+  }
+
+  var msgImportacao = importarMovimentosBanco15Dias();
+  var m = String(msgImportacao || "").match(/(\d+)\s+novo/i);
+  var novos = m ? Number(m[1] || 0) : 0;
+
+  var concluidos = resultados.filter(function(x) { return x.concluido; }).length;
+  var limites = resultados.filter(function(x) { return x.limite; }).length;
+  var erros = resultados.filter(function(x) { return x.erro; }).length;
+  var aguardando = resultados.filter(function(x) {
+    return (x.solicitado || x.jaAtualizando) && !x.concluido;
+  }).length;
+
+  var partes = [];
+  if (concluidos) partes.push(concluidos + " conta(s) sincronizada(s)");
+  if (aguardando) partes.push(aguardando + " ainda sincronizando");
+  if (limites) partes.push(limites + " no limite de frequência da Pluggy");
+  if (erros) partes.push(erros + " com erro");
+  partes.push(novos + " movimento(s) novo(s) importado(s)");
+
+  return {
+    ok: erros === 0,
+    mensagem: partes.join(" • "),
+    novos: novos,
+    itens: resultados,
+    statusPluggy: obterStatusPluggyV5103_()
+  };
+}
 
 
 // =========================
@@ -3093,7 +3353,7 @@ function obterConciliacaoBancoV59() {
   });
 
   return {
-    versao: "5.11.5",
+    versao: "5.12.0",
     statusPluggy: obterStatusPluggyV5103_(),
     resumo: {
       total: movimentosExibicao.length,
