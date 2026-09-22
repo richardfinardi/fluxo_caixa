@@ -1,2 +1,5 @@
-Gestão de Obras deploy trigger
-Estado: aguardando Script ID
+Gestao de Obras deploy trigger
+Estado: ATIVO
+Script ID: 1EMR4UjO1xwYYJIP_lL1hZ2D3ZRqkReqnB326XPoPqjx96o_2zSTAXWIl
+Deployment ID: AKfycbw6cRAPlwVzNOURoLNsTJ47xyezz0LStCuZyNpW2wT97f9pj3RADUn1L1MdqTq9Tm_b
+Ultimo teste: deploy automatico concluido com sucesso em 2026-09-22
