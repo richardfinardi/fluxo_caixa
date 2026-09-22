@@ -24,33 +24,33 @@ jobs:
     steps:
       - name: Validar configuracao
         run: |
-          test -n "$APPS_SCRIPT_ID" || (echo "Script ID não configurado" && exit 1)
+          test -n "$APPS_SCRIPT_ID" || (echo "Script ID nao configurado" && exit 1)
 
-      - name: Checkout Gestão de Obras
-                uses: actions/checkout@v4
+      - name: Checkout Gestao de Obras
+        uses: actions/checkout@v4
         with:
           repository: ${{ env.SOURCE_REPOSITORY }}
           ref: main
           path: gestao-obras
 
       - name: Setup Node
-                uses: actions/setup-node@v4
+        uses: actions/setup-node@v4
         with:
           node-version: "24"
 
       - name: Install clasp
-                run: npm install -g @google/clasp@3.4.1
+        run: npm install -g @google/clasp@3.4.1
 
-      - name: Configurar autorização Google
-                env:
+      - name: Configurar autorizacao Google
+        env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
         run: |
-          test -n "$CLASPRC_JSON" || (echo "Secret CLASPRC_JSON não configurado no fluxo_caixa" && exit 1)
+          test -n "$CLASPRC_JSON" || (echo "Secret CLASPRC_JSON nao configurado no fluxo_caixa" && exit 1)
           printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
           chmod 600 "$HOME/.clasprc.json"
 
       - name: Configurar projeto Apps Script
-                working-directory: gestao-obras/apps-script
+        working-directory: gestao-obras/apps-script
         run: |
           cat > .clasp.json <<EOF
           {
@@ -65,15 +65,15 @@ jobs:
           EOF
 
       - name: Enviar backend para Apps Script
-                working-directory: gestao-obras/apps-script
+        working-directory: gestao-obras/apps-script
         run: clasp push --force
 
       - name: Atualizar Web App existente
-                working-directory: gestao-obras/apps-script
-        run: clasp update-deployment "$DEPLOYMENT_ID" --description "Deploy automático Gestão de Obras ${{ github.sha }}"
+        working-directory: gestao-obras/apps-script
+        run: clasp update-deployment "$DEPLOYMENT_ID" --description "Deploy automatico Gestao de Obras ${{ github.sha }}"
 
-      - name: Mostrar versão publicada
-                working-directory: gestao-obras
+      - name: Mostrar versao publicada
+        working-directory: gestao-obras
         run: |
-          echo "Gestão de Obras publicado."
+          echo "Gestao de Obras publicado."
           git rev-parse HEAD
