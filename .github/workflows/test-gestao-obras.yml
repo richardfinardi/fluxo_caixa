@@ -34,7 +34,7 @@ jobs:
           echo "1/11 Health"
           HEALTH=$(curl -L --fail --silent --show-error "$API_URL?action=health")
           echo "$HEALTH" | jq .
-          echo "$HEALTH" | jq -e '.ok == true and .data.schemaVersion == "2"' >/dev/null
+          echo "$HEALTH" | jq -e '.ok == true and .data.schemaVersion == "3"' >/dev/null
 
           echo "2/11 Criar obra sem codigo informado"
           OBRA=$(post '{"action":"obras.create","nome":"TESTE AUTOMATICO - CRONOGRAMA","cliente":"QA SISTEMA","data_inicio_contratual":"2026-09-22","data_fim_contratual":"2026-12-31"}')
