@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.12.3</title>
+  <title>Fluxo de Caixa Automatizado 5.13.0</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.12.3">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.13.0">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -226,13 +226,105 @@
       #hoje .card { margin-bottom: 0; }
       #hoje .alert { font-size: 11px; padding: 8px 10px; }
     }
-  </style>
+  
+/* V5.13 - cartão, saúde de saldo e mobile compacto */
+.banco-acoes-topo-v513 { display:flex; gap:6px; flex-wrap:wrap; }
+.rotulo-mobile { display:none; }
+.saude-saldo-v513 { margin:8px 0; padding:9px 10px; border:1px solid #dfe4e8; border-radius:10px; background:#f8f9fa; font-size:11px; }
+.saude-saldo-v513.ok { background:#f2fbf5; border-color:#cfe9d8; }
+.saude-saldo-v513.warn { background:#fff8e8; border-color:#f1d38a; }
+.saude-saldo-v513.erro { background:#fff2f2; border-color:#edc6c6; }
+.saude-saldo-grid-v513 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:6px; }
+.saude-saldo-item-v513 { background:rgba(255,255,255,.8); border-radius:8px; padding:7px; text-align:center; }
+.saude-saldo-item-v513 small { display:block; font-size:9px; font-weight:800; color:#6c757d; }
+.saude-saldo-item-v513 strong { display:block; font-size:14px; margin-top:2px; }
+.cartao-v513-topo { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.cartao-acoes-v513 { display:flex; gap:6px; flex-wrap:wrap; }
+.cartao-v513-kpis { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:7px; margin:10px 0; }
+.cartao-kpi-v513 { border:1px solid #e2e6ea; border-radius:10px; padding:9px 6px; background:#fff; text-align:center; }
+.cartao-kpi-v513 small { display:block; font-size:9px; font-weight:800; color:#6c757d; line-height:1.1; }
+.cartao-kpi-v513 strong { display:block; margin-top:3px; font-size:15px; }
+.cartao-resumo-v513 { padding:8px 10px; border-radius:9px; background:#f8f9fa; border:1px solid #e4e7eb; font-size:11px; margin-bottom:8px; }
+.cartao-filtros-v513 { display:flex; gap:6px; margin-bottom:9px; }
+.cartao-lista-v513 { display:grid; gap:8px; }
+.cartao-mov-v513 { border:1px solid #e3e6ea; border-radius:10px; padding:10px; background:#fff; }
+.cartao-mov-topo-v513 { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+.cartao-mov-desc-v513 { font-size:13px; font-weight:800; line-height:1.2; }
+.cartao-mov-meta-v513 { font-size:10px; color:#6c757d; margin-top:3px; }
+.cartao-mov-valor-v513 { font-size:15px; font-weight:800; white-space:nowrap; }
+
+@media (max-width:576px) {
+  /* Todos os 6 KPIs visíveis: 3 x 2, sem arrastar */
+  #cockpitFinanceiro {
+    display:grid !important;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:5px;
+    margin:0 0 8px 0 !important;
+    padding:0 !important;
+    overflow:visible !important;
+  }
+  #cockpitFinanceiro > [class*="col-"] {
+    width:auto !important; max-width:none !important; flex:none !important; padding:0 !important;
+  }
+  .cockpit-card { min-height:62px !important; padding:6px 3px !important; margin:0 !important; }
+  .cockpit-card small { font-size:7px !important; line-height:1.05 !important; }
+  .cockpit-card h5 { font-size:13px !important; line-height:1.05; margin-top:3px !important; }
+  .cockpit-card .subvalor { font-size:7px !important; line-height:1.05; }
+
+  /* Menu inteiro em grade, sem swipe lateral */
+  #mainTabs {
+    display:grid !important;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:3px;
+    overflow:visible !important;
+    white-space:normal !important;
+    margin:0 0 9px 0 !important;
+    padding:0 !important;
+    border-bottom:0 !important;
+  }
+  #mainTabs .nav-item { width:100%; min-width:0; }
+  #mainTabs .nav-link {
+    width:100%; min-height:34px; height:100%;
+    font-size:9px !important; line-height:1.05;
+    padding:5px 2px !important; white-space:normal !important;
+    border:1px solid #dee2e6; border-radius:7px;
+  }
+  #mainTabs .nav-link.active { background:#fff; border-color:#adb5bd; font-weight:800; }
+
+  .banco-v59-topo { display:block; }
+  .banco-acoes-topo-v513 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin-top:7px; }
+  .banco-acoes-topo-v513 .btn { min-width:0; min-height:36px; padding:5px 2px; font-size:9px; line-height:1.05; }
+  .rotulo-desktop { display:none; }
+  .rotulo-mobile { display:inline; }
+  .banco-v59-kpis { gap:5px; margin:8px 0 9px; }
+  .banco-v59-kpi { padding:7px 3px; }
+  .banco-v59-kpi small { font-size:8px; line-height:1.05; }
+  .banco-v59-kpi strong { font-size:16px; }
+
+  .saude-saldo-grid-v513 { gap:4px; }
+  .saude-saldo-item-v513 { padding:6px 3px; }
+  .saude-saldo-item-v513 small { font-size:7px; }
+  .saude-saldo-item-v513 strong { font-size:11px; }
+
+  .cartao-v513-topo { display:block; }
+  .cartao-acoes-v513 { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:7px; }
+  .cartao-acoes-v513 .btn { font-size:9px; padding:6px 3px; }
+  .cartao-v513-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
+  .cartao-kpi-v513 { padding:7px 3px; }
+  .cartao-kpi-v513 small { font-size:7px; }
+  .cartao-kpi-v513 strong { font-size:12px; }
+  .cartao-mov-v513 { padding:8px; }
+  .cartao-mov-desc-v513 { font-size:12px; }
+  .cartao-mov-valor-v513 { font-size:13px; }
+}
+
+</style>
 </head>
 <body>
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.12.3</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.13.0</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -334,6 +426,7 @@
       <li class="nav-item"><button class="nav-link active" id="fluxo-tab" data-bs-toggle="tab" data-bs-target="#fluxo" type="button">📉 Fluxo</button></li>
       <li class="nav-item"><button class="nav-link" id="hoje-tab" data-bs-toggle="tab" data-bs-target="#hoje" type="button">✅ Hoje <span class="badge bg-danger ms-1 d-none" id="badgePendenciasHoje">0</span></button></li>
       <li class="nav-item"><button class="nav-link" id="banco-tab" data-bs-toggle="tab" data-bs-target="#banco" type="button" onclick="carregarConciliacaoBancoV59()">🏦 Banco</button></li>
+      <li class="nav-item"><button class="nav-link" id="cartao-tab" data-bs-toggle="tab" data-bs-target="#cartao" type="button" onclick="carregarCartaoV513()">💳 Cartão</button></li>
       <li class="nav-item"><button class="nav-link" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button" onclick="renderizarDashboardMensal()">📊 Dashboard</button></li>
       <li class="nav-item"><button class="nav-link" id="faturar-tab" data-bs-toggle="tab" data-bs-target="#faturar" type="button">🧾 A Faturar</button></li>
       <li class="nav-item"><button class="nav-link" id="recorrente-tab" data-bs-toggle="tab" data-bs-target="#recorrente" type="button">🔁 Fixas Recorrentes</button></li>
@@ -748,6 +841,43 @@
         </div>
       </div>
 
+
+<!-- TAB CARTÃO V5.13 -->
+<div class="tab-pane fade" id="cartao" role="tabpanel">
+  <div class="card">
+    <div class="cartao-v513-topo">
+      <div>
+        <h6 class="fw-bold mb-1">💳 Cartão de Crédito</h6>
+        <div class="text-muted" style="font-size:11px;">Compras ficam aqui • pagamento da fatura é a saída real no Banco</div>
+      </div>
+      <div class="cartao-acoes-v513">
+        <button type="button" class="btn btn-sm btn-primary fw-bold" onclick="abrirMeuPluggyV5122()">🌐 Meu Pluggy</button>
+        <button type="button" class="btn btn-sm btn-outline-primary fw-bold" id="btnAtualizarCartaoV513" onclick="atualizarCartaoV513()">↻ Buscar cartão</button>
+      </div>
+    </div>
+
+    <div class="cartao-v513-kpis">
+      <div class="cartao-kpi-v513"><small>FATURA ATUAL</small><strong id="cartaoFaturaAtualV513">R$ 0,00</strong></div>
+      <div class="cartao-kpi-v513"><small>LIMITE DISP.</small><strong id="cartaoLimiteV513">R$ 0,00</strong></div>
+      <div class="cartao-kpi-v513"><small>COMPRAS 30D</small><strong id="cartaoCompras30V513">R$ 0,00</strong></div>
+      <div class="cartao-kpi-v513"><small>PAGAMENTOS 30D</small><strong id="cartaoPagamentos30V513">R$ 0,00</strong></div>
+      <div class="cartao-kpi-v513"><small>PENDENTES</small><strong id="cartaoPendentesV513">0</strong></div>
+      <div class="cartao-kpi-v513"><small>VENCIMENTO</small><strong id="cartaoVencimentoV513">—</strong></div>
+    </div>
+
+    <div id="cartaoResumoV513" class="cartao-resumo-v513">Abra a aba para carregar os dados do cartão.</div>
+
+    <div class="cartao-filtros-v513">
+      <button class="btn btn-sm btn-dark cartao-filtro-v513" data-filtro="TODOS" onclick="filtrarCartaoV513('TODOS',this)">Todos</button>
+      <button class="btn btn-sm btn-outline-dark cartao-filtro-v513" data-filtro="COMPRAS" onclick="filtrarCartaoV513('COMPRAS',this)">Compras</button>
+      <button class="btn btn-sm btn-outline-dark cartao-filtro-v513" data-filtro="PAGAMENTOS" onclick="filtrarCartaoV513('PAGAMENTOS',this)">Pagamentos</button>
+    </div>
+
+    <div id="cartaoListaV513" class="cartao-lista-v513"></div>
+  </div>
+</div>
+
+
 <!-- TAB BANCO V5.11 -->
 <div class="tab-pane fade" id="banco" role="tabpanel">
   <div class="card">
@@ -756,20 +886,28 @@
         <h6 class="fw-bold mb-1">🏦 Conciliação Bancária</h6>
         <div class="text-muted" style="font-size:11px;">PF + PJ • Nubank / Pluggy</div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
-        <button type="button" class="btn btn-sm btn-success fw-bold" id="btnConciliarConfirmadosV5101" onclick="processarConfirmadosBancoV5102()" disabled>✅ Processar confirmados (0)</button>
-        <button type="button" class="btn btn-sm btn-primary fw-bold" onclick="abrirMeuPluggyV5122()">🌐 Atualizar no Meu Pluggy</button>
-        <button type="button" class="btn btn-sm btn-outline-primary fw-bold" id="btnAtualizarBancoV59" onclick="atualizarBancoV59()">↻ Já atualizei — buscar movimentos</button>
+      <div class="banco-acoes-topo-v513">
+        <button type="button" class="btn btn-sm btn-success fw-bold" id="btnConciliarConfirmadosV5101" onclick="processarConfirmadosBancoV5102()" disabled>
+          ✅ <span class="rotulo-desktop">Processar confirmados (0)</span><span class="rotulo-mobile">Processar (0)</span>
+        </button>
+        <button type="button" class="btn btn-sm btn-primary fw-bold" onclick="abrirMeuPluggyV5122()">
+          🌐 <span class="rotulo-desktop">Atualizar no Meu Pluggy</span><span class="rotulo-mobile">Meu Pluggy</span>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-primary fw-bold" id="btnAtualizarBancoV59" onclick="atualizarBancoV59()">
+          ↻ <span class="rotulo-desktop">Já atualizei — buscar movimentos</span><span class="rotulo-mobile">Buscar</span>
+        </button>
       </div>
     </div>
 
     <div class="alert alert-info py-2 px-3 mt-3 mb-2" style="font-size:11px;">
-      ✅ <b>Modo ativo V5.12.3:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
+      ✅ <b>Modo ativo V5.13.0:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
     </div>
 
     <div id="pluggySyncV5103" class="pluggy-sync-v5103">
       🔄 Consultando última sincronização Pluggy...
     </div>
+
+    <div id="saudeSaldoV513" class="saude-saldo-v513">🧮 Conferindo saldo Pluggy x fluxo...</div>
 
     <div class="automacao-v511">
       <div id="automacaoBancoV511">🤖 Carregando monitor automático...</div>
@@ -900,7 +1038,7 @@
               else payload.args = argumentos;
 
               // V5.8: em gravações, o backend já devolve o estado atualizado na mesma resposta.
-              payload.retornarDados = funcaoBackend !== 'obterDadosIniciais' && funcaoBackend !== 'enviarAlertasFaturamentoSite' && funcaoBackend !== 'obterConciliacaoBancoV59' && funcaoBackend !== 'registrarSubscriptionV5112';
+              payload.retornarDados = funcaoBackend !== 'obterDadosIniciais' && funcaoBackend !== 'enviarAlertasFaturamentoSite' && funcaoBackend !== 'obterConciliacaoBancoV59' && funcaoBackend !== 'obterCartaoCreditoV513' && funcaoBackend !== 'importarCartaoCreditoV513' && funcaoBackend !== 'importarTudoPluggyV513' && funcaoBackend !== 'calibrarSaldoPluggyV513' && funcaoBackend !== 'registrarSubscriptionV5112';
 
               const resposta = await fetch(GOOGLE_API_URL, {
                 method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload)
@@ -946,6 +1084,10 @@
           liquidarLancamentoBackend: function(id) { return this.executarGenerico('liquidarLancamentoBackend', id); },
           marcarEmAbertoBackend: function(id, novaData) { return this.executarGenerico('marcarEmAbertoBackend', { argsArray: [id, novaData || ''] }); },
           importarMovimentosBanco15Dias: function() { return this.executarGenerico('importarMovimentosBanco15Dias'); },
+          importarTudoPluggyV513: function() { return this.executarGenerico('importarTudoPluggyV513'); },
+          importarCartaoCreditoV513: function() { return this.executarGenerico('importarCartaoCreditoV513'); },
+          obterCartaoCreditoV513: function() { return this.executarGenerico('obterCartaoCreditoV513'); },
+          calibrarSaldoPluggyV513: function() { return this.executarGenerico('calibrarSaldoPluggyV513'); },
           obterConciliacaoBancoV59: function() { return this.executarGenerico('obterConciliacaoBancoV59'); },
           conciliarMovimentoBancoV510: function(dados) { return this.executarGenerico('conciliarMovimentoBancoV510', dados); },
           criarLancamentoBancoV510: function(dados) { return this.executarGenerico('criarLancamentoBancoV510', dados); },
@@ -971,6 +1113,7 @@
     var exibirHistoricoExtrato = false;
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
     var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS', confirmados: {}, rascunhos: {}, rejeitados: {}, vinculosManuais: {}, vinculoAtualId: '', pushCfg: null, oneSignal: null, oneSignalIniciado: false, subscriptionId: '', pushToken: '', pushVerificado: false };
+    var cartaoV513 = { dados: null, filtro: 'TODOS' };
     
     var mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     var dataPonteiroDash = new Date();
@@ -1009,7 +1152,8 @@
       var toastElement = document.getElementById('liveToast');
       var toastMensagem = document.getElementById('toastMensagem');
       toastMensagem.innerText = mensagem;
-      toastElement.className = "toast align-items-center border-0 bg-" + (tipo === 'success' ? 'success' : 'danger');
+      var classe = tipo === 'success' ? 'success' : (tipo === 'warning' ? 'warning text-dark' : 'danger');
+      toastElement.className = "toast align-items-center border-0 bg-" + classe;
       toastBS.show();
     }
 
@@ -1828,7 +1972,7 @@
     }
 
 // =========================
-// V5.12.3 - CONCILIAÇÃO BANCÁRIA
+// V5.13.0 - CONCILIAÇÃO BANCÁRIA
 // =========================
 
 
@@ -2380,6 +2524,7 @@ function filtrarVisaoBancoV591(modo) {
 
 function classeSugestaoBancoV59_(tipo) {
   if (tipo === 'TRANSFERENCIA_INTERNA') return 'transferencia';
+  if (tipo === 'PAGAMENTO_CARTAO') return 'regra';
   if (tipo === 'REGRA') return 'regra';
   if (tipo === 'CLIENTE') return 'cliente';
   if (tipo === 'MATCH') return 'match';
@@ -2454,7 +2599,9 @@ function atualizarBotaoConfirmadosBancoV5102_() {
   if (!btn) return;
   var qtd = Object.keys(bancoV59.confirmados || {}).length;
   btn.disabled = qtd === 0;
-  btn.innerText = '✅ Processar confirmados (' + qtd + ')';
+  btn.innerHTML =
+    '✅ <span class="rotulo-desktop">Processar confirmados (' + qtd + ')</span>' +
+    '<span class="rotulo-mobile">Processar (' + qtd + ')</span>';
 }
 
 function movimentoBancoV5102_(idPluggy) {
@@ -2735,7 +2882,12 @@ function alternarConfirmadoBancoV5102(idPluggy, marcado) {
   var candidato = candidatoEfetivoBancoV512_(mov);
   var manual = (bancoV59.vinculosManuais || {})[id] || null;
 
-  if (s.tipo === 'TRANSFERENCIA_INTERNA' && s.par && !manual) {
+  if (s.tipo === 'PAGAMENTO_CARTAO' && !manual) {
+    bancoV59.confirmados[id] = {
+      acao: 'PAGAMENTO_CARTAO',
+      idPluggy: id
+    };
+  } else if (s.tipo === 'TRANSFERENCIA_INTERNA' && s.par && !manual) {
     bancoV59.confirmados[id] = {
       acao: 'TRANSFERENCIA',
       idPluggy: id,
@@ -2795,6 +2947,14 @@ function montarItensConfirmadosBancoV5102_() {
         acao: 'TRANSFERENCIA',
         idPluggy: id,
         idPar: base.idPar
+      });
+      return;
+    }
+
+    if (base.acao === 'PAGAMENTO_CARTAO') {
+      itens.push({
+        acao: 'PAGAMENTO_CARTAO',
+        idPluggy: id
       });
       return;
     }
@@ -2871,7 +3031,7 @@ function htmlAcoesBancoV510_(mov, sugestao) {
   var rejeitada = !!((bancoV59.rejeitados || {})[id]);
 
   var blocoEdicao = '';
-  if (!candidato && s.tipo !== 'TRANSFERENCIA_INTERNA') {
+  if (!candidato && s.tipo !== 'TRANSFERENCIA_INTERNA' && s.tipo !== 'PAGAMENTO_CARTAO') {
     var rascunho = (bancoV59.rascunhos || {})[id] || {};
     var desc = rascunho.descricao || descricaoSugeridaBancoV510_(mov, s);
     var categoriaRegra = s.regra && s.regra.categoria ? s.regra.categoria : '';
@@ -2902,7 +3062,7 @@ function htmlAcoesBancoV510_(mov, sugestao) {
   }
 
   var botoes = '';
-  if (s.tipo !== 'TRANSFERENCIA_INTERNA') {
+  if (s.tipo !== 'TRANSFERENCIA_INTERNA' && s.tipo !== 'PAGAMENTO_CARTAO') {
     botoes += '<button type="button" class="btn btn-sm btn-outline-primary" onclick="abrirVinculoManualBancoV512(\'' + id + '\')">🔗 Vincular lançamento</button>';
 
     if (manual) {
@@ -3007,6 +3167,64 @@ function htmlCandidatoBancoV59_(mov, candidato, manual) {
     </div>`;
 }
 
+
+function renderizarSaudeSaldoV513_(s) {
+  var box = document.getElementById('saudeSaldoV513');
+  if (!box) return;
+
+  if (!s) {
+    box.className = 'saude-saldo-v513';
+    box.innerHTML = '🧮 Conferindo saldo Pluggy x fluxo...';
+    return;
+  }
+
+  if (s.erro) {
+    box.className = 'saude-saldo-v513 erro';
+    box.innerHTML = '<b>🧮 Conferência de saldo:</b> ' + escapeHtmlBancoV59_(s.erro);
+    return;
+  }
+
+  var diffAbs = Math.abs(Number(s.diferenca || 0));
+  var classe = s.calibrado ? (diffAbs <= 0.50 ? 'ok' : 'warn') : 'warn';
+  var titulo = !s.calibrado
+    ? 'Defina a referência uma vez para o app passar a vigiar diferenças.'
+    : (diffAbs <= 0.50 ? 'Saldos conferem.' : 'Diferença detectada — pode existir movimento faltando ou duplicado.');
+
+  box.className = 'saude-saldo-v513 ' + classe;
+  box.innerHTML =
+    '<div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">' +
+      '<div><b>🧮 Saldo Pluggy x Fluxo</b><div class="text-muted" style="font-size:10px;">' + escapeHtmlBancoV59_(titulo) + '</div></div>' +
+      '<button type="button" class="btn btn-sm ' + (s.calibrado ? 'btn-outline-secondary' : 'btn-warning') + '" onclick="calibrarSaldoV513()">' +
+        (s.calibrado ? 'Recalibrar' : 'Usar saldo atual como referência') +
+      '</button>' +
+    '</div>' +
+    '<div class="saude-saldo-grid-v513">' +
+      '<div class="saude-saldo-item-v513"><small>PLUGGY</small><strong>' + moedaBancoV59_(Number(s.banco || 0)) + '</strong></div>' +
+      '<div class="saude-saldo-item-v513"><small>APP AJUSTADO</small><strong>' + moedaBancoV59_(Number(s.appAjustado || s.app || 0)) + '</strong></div>' +
+      '<div class="saude-saldo-item-v513"><small>DIFERENÇA</small><strong class="' + (diffAbs <= 0.50 ? 'text-success' : 'text-danger') + '">' + moedaBancoV59_(Number(s.diferenca || 0)) + '</strong></div>' +
+    '</div>';
+}
+
+function calibrarSaldoV513() {
+  exibirModalConfirmacao(
+    'Usar os saldos atuais como referência? Isso não altera nenhum lançamento; apenas cria uma base para detectar diferenças futuras.',
+    function() {
+      google.script.run
+        .withSuccessHandler(function(resp) {
+          resp = resp || {};
+          if (bancoV59.dados) bancoV59.dados.saudeSaldo = resp.saude || null;
+          renderizarSaudeSaldoV513_(resp.saude || null);
+          exibirAvisoNaTela(resp.mensagem || 'Referência salva.', 'success');
+        })
+        .withFailureHandler(function(err) {
+          exibirAvisoNaTela('Erro ao calibrar saldo: ' + err, 'danger');
+        })
+        .calibrarSaldoPluggyV513();
+    }
+  );
+}
+
+
 function renderizarBancoV59() {
   var dados = bancoV59.dados;
   var status = document.getElementById('bancoStatusV59');
@@ -3020,6 +3238,7 @@ function renderizarBancoV59() {
   }
 
   renderizarStatusPluggyV5103_(dados.statusPluggy);
+  renderizarSaudeSaldoV513_(dados.saudeSaldo);
 
   document.getElementById('bancoKpiNovos').innerText = Number(dados.resumo && dados.resumo.total || 0);
   document.getElementById('bancoKpiSugestoes').innerText = Number(dados.resumo && dados.resumo.sugestoes || 0);
@@ -3035,7 +3254,7 @@ function renderizarBancoV59() {
 
     var tipoSug = String((m.sugestao && m.sugestao.tipo) || '');
     if (bancoV59.visao === 'TRANSFERENCIAS') return tipoSug === 'TRANSFERENCIA_INTERNA';
-    if (bancoV59.visao === 'SUGESTOES') return !!candidatoEfetivoBancoV512_(m);
+    if (bancoV59.visao === 'SUGESTOES') return !!candidatoEfetivoBancoV512_(m) || tipoSug === 'PAGAMENTO_CARTAO';
     return true;
   });
 
@@ -3121,20 +3340,159 @@ function carregarConciliacaoBancoV59() {
 
 function atualizarBancoV59() {
   var btn = document.getElementById('btnAtualizarBancoV59');
-  if (btn) { btn.disabled = true; btn.innerText = '↻ Buscando movimentos...'; }
+  if (btn) { btn.disabled = true; btn.innerText = '↻ Buscando...'; }
 
   google.script.run
-    .withSuccessHandler(function(msg) {
-      if (btn) { btn.disabled = false; btn.innerText = '↻ Já atualizei — buscar movimentos'; }
-      exibirAvisoNaTela(msg || 'Movimentos importados.', 'success');
+    .withSuccessHandler(function(resp) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '↻ <span class="rotulo-desktop">Já atualizei — buscar movimentos</span><span class="rotulo-mobile">Buscar</span>';
+      }
+      resp = resp || {};
+      exibirAvisoNaTela(resp.mensagem || 'Banco e cartão atualizados.', 'success');
       carregarConciliacaoBancoV59();
+      carregarCartaoV513();
     })
     .withFailureHandler(function(err) {
-      if (btn) { btn.disabled = false; btn.innerText = '↻ Já atualizei — buscar movimentos'; }
-      exibirAvisoNaTela('Erro ao importar banco: ' + err, 'danger');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '↻ <span class="rotulo-desktop">Já atualizei — buscar movimentos</span><span class="rotulo-mobile">Buscar</span>';
+      }
+      exibirAvisoNaTela('Erro ao buscar Pluggy: ' + err, 'danger');
     })
-    .importarMovimentosBanco15Dias();
+    .importarTudoPluggyV513();
 }
+
+
+function formatarDataCartaoV513_(iso) {
+  if (!iso) return '—';
+  var p = String(iso).substring(0,10).split('-');
+  return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso;
+}
+
+function filtrarCartaoV513(filtro, btn) {
+  cartaoV513.filtro = filtro || 'TODOS';
+  document.querySelectorAll('.cartao-filtro-v513').forEach(function(b) {
+    var ativo = b.getAttribute('data-filtro') === cartaoV513.filtro;
+    b.className = 'btn btn-sm cartao-filtro-v513 ' + (ativo ? 'btn-dark' : 'btn-outline-dark');
+  });
+  renderizarCartaoV513();
+}
+
+function renderizarCartaoV513() {
+  var dados = cartaoV513.dados || { resumo:{}, cartoes:[], movimentos:[] };
+  var r = dados.resumo || {};
+  var box = document.getElementById('cartaoListaV513');
+  var resumo = document.getElementById('cartaoResumoV513');
+  if (!box || !resumo) return;
+
+  document.getElementById('cartaoFaturaAtualV513').innerText = moedaBancoV59_(Number(r.faturaAtual || 0));
+  document.getElementById('cartaoLimiteV513').innerText = moedaBancoV59_(Number(r.limiteDisponivel || 0));
+  document.getElementById('cartaoCompras30V513').innerText = moedaBancoV59_(Number(r.compras30 || 0));
+  document.getElementById('cartaoPagamentos30V513').innerText = moedaBancoV59_(Number(r.pagamentos30 || 0));
+  document.getElementById('cartaoPendentesV513').innerText = Number(r.pendentes || 0);
+  document.getElementById('cartaoVencimentoV513').innerText = formatarDataCartaoV513_(r.vencimento || '');
+
+  var cartoes = dados.cartoes || [];
+  if (!cartoes.length) {
+    resumo.innerHTML = '<b>Nenhum cartão carregado ainda.</b> Toque em “Buscar cartão”.';
+  } else {
+    resumo.innerHTML = cartoes.map(function(c) {
+      var final = c.final ? (' • ' + escapeHtmlBancoV59_(c.final)) : '';
+      var limite = c.limiteTotal === null || c.limiteTotal === undefined ? '' : (' • Limite ' + moedaBancoV59_(c.limiteTotal));
+      return '<b>' + escapeHtmlBancoV59_(c.nome || 'Cartão') + final + '</b>' +
+        ' • Fatura ' + moedaBancoV59_(Number(c.saldoFatura || 0)) +
+        ' • Vence ' + formatarDataCartaoV513_(c.vencimento) + limite;
+    }).join('<br>');
+  }
+
+  var movimentos = (dados.movimentos || []).filter(function(m) {
+    var tipo = String(m.tipo || '').toUpperCase();
+    var compra = tipo === 'DEBIT' || (tipo !== 'CREDIT' && Number(m.valor || 0) > 0);
+    var pagamento = tipo === 'CREDIT' || (tipo !== 'DEBIT' && Number(m.valor || 0) < 0);
+    if (cartaoV513.filtro === 'COMPRAS') return compra;
+    if (cartaoV513.filtro === 'PAGAMENTOS') return pagamento;
+    return true;
+  }).slice(0,80);
+
+  if (!movimentos.length) {
+    box.innerHTML = '<div class="text-muted text-center py-4">Nenhuma transação para este filtro.</div>';
+    return;
+  }
+
+  box.innerHTML = movimentos.map(function(m) {
+    var tipo = String(m.tipo || '').toUpperCase();
+    var compra = tipo === 'DEBIT' || (tipo !== 'CREDIT' && Number(m.valor || 0) > 0);
+    var parcela = Number(m.totalParcelas || 0) > 1
+      ? (' • Parcela ' + Number(m.parcelaAtual || 0) + '/' + Number(m.totalParcelas || 0))
+      : '';
+    var pendente = String(m.statusPluggy || '').toUpperCase() === 'PENDING'
+      ? '<span class="badge bg-warning text-dark ms-1">Pendente</span>'
+      : '';
+
+    return '<div class="cartao-mov-v513">' +
+      '<div class="cartao-mov-topo-v513">' +
+        '<div>' +
+          '<div class="cartao-mov-desc-v513">' + escapeHtmlBancoV59_(m.descricao || m.descricaoOriginal || 'Sem descrição') + '</div>' +
+          '<div class="cartao-mov-meta-v513">' +
+            formatarDataCartaoV513_(m.data) + ' • ' +
+            escapeHtmlBancoV59_(m.cartao || 'Cartão') +
+            parcela + ' • ' +
+            escapeHtmlBancoV59_(m.categoriaPluggy || 'Sem categoria') +
+            pendente +
+          '</div>' +
+        '</div>' +
+        '<div class="cartao-mov-valor-v513 ' + (compra ? 'text-danger' : 'text-success') + '">' +
+          (compra ? '-' : '+') + moedaBancoV59_(Math.abs(Number(m.valor || 0))) +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function carregarCartaoV513() {
+  var resumo = document.getElementById('cartaoResumoV513');
+  if (resumo) resumo.innerText = 'Carregando cartão...';
+
+  google.script.run
+    .withSuccessHandler(function(dados) {
+      cartaoV513.dados = dados || { resumo:{}, cartoes:[], movimentos:[] };
+      renderizarCartaoV513();
+    })
+    .withFailureHandler(function(err) {
+      if (resumo) resumo.innerText = 'Erro ao carregar cartão: ' + err;
+      exibirAvisoNaTela('Erro ao carregar cartão: ' + err, 'danger');
+    })
+    .obterCartaoCreditoV513();
+}
+
+function atualizarCartaoV513() {
+  var btn = document.getElementById('btnAtualizarCartaoV513');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = '⏳ Buscando...';
+  }
+
+  google.script.run
+    .withSuccessHandler(function(resp) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = '↻ Buscar cartão';
+      }
+      resp = resp || {};
+      exibirAvisoNaTela(resp.mensagem || 'Cartão atualizado.', resp.erros && resp.erros.length ? 'warning' : 'success');
+      carregarCartaoV513();
+    })
+    .withFailureHandler(function(err) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = '↻ Buscar cartão';
+      }
+      exibirAvisoNaTela('Erro ao buscar cartão: ' + err, 'danger');
+    })
+    .importarCartaoCreditoV513();
+}
+
 
 function abrirMeuPluggyV5122() {
   var url = 'https://meu.pluggy.ai/connections';
