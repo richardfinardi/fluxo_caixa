@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.12.2";
+var VERSAO_SISTEMA = "5.12.3";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -967,9 +967,10 @@ function atualizarLancamentoAvancado(dados, tipoEdicao) {
 
 // 🔒 V5.8: sincronização preserva ajustes manuais, Em Aberto e títulos vencidos.
 function sincronizarCalendarBackend() {
+  // V5.12.3: agenda e recorrências são independentes.
+  // A sincronização da agenda NÃO recria, remove ou recalcula recorrências.
   var resumo = sincronizarCalendarBackendReal();
-  var novasRecorrencias = gerarParcelasRecorrentesGerais();
-  var final = resumo + " | Recorrências novas: " + novasRecorrencias;
+  var final = resumo + " | Recorrências preservadas";
   registrarLog_("SINCRONIZAR_CALENDAR", "CALENDAR", final);
   return final;
 }
@@ -1084,10 +1085,14 @@ function sincronizarCalendarBackendReal() {
 
   var gerados = {};
   var geradosPorDesc = {};
+  function normalizarDescricaoCalendarCompat_(desc) {
+    return normalizarChave_(String(desc || "").replace(/^Faturamento:\s*/i, ""));
+  }
   function adicionarGerado(dataVenc, desc, valor, chaveEstrutural) {
     var chave = chaveEstrutural || ("CAL|" + normalizarChave_(desc));
-    gerados[chave] = [dataVenc, desc, valor, "Receita", "Visitas Técnicas", "Projetado", "", "", "CALENDAR", chave, isoData_(dataVenc), ""];
+    gerados[chave] = [dataVenc, desc, valor, "Receita", "Visitas Técnicas", "Projetado", "", "", "CALENDAR", chave, isoData_(dataVenc), "", "", "", "", "", "", ""];
     geradosPorDesc[normalizarChave_(desc)] = chave;
+    geradosPorDesc[normalizarDescricaoCalendarCompat_(desc)] = chave;
   }
 
   for (var cKey in faturamentosConsolidados) {
@@ -1114,14 +1119,14 @@ function sincronizarCalendarBackendReal() {
   }
 
   var dbLanc = sheetLancamentos.getDataRange().getValues();
-  var finais = [dbLanc[0].slice(0,12)];
+  var finais = [dbLanc[0].slice(0,18)];
   var finalizadasChave = {};
   var finalizadasDesc = {};
   var consolidadosPreservados = 0, abertosPreservados = 0, vencidosPreservados = 0, ajustesPreservados = 0, atualizados = 0, removidos = 0;
 
   for (var k=1; k<dbLanc.length; k++) {
-    var row = dbLanc[k].slice(0,12);
-    while (row.length < 12) row.push("");
+    var row = dbLanc[k].slice(0,18);
+    while (row.length < 18) row.push("");
     if (!row[0]) continue;
     var origem = String(row[8] || "");
     var desc = String(row[1] || "");
@@ -1133,7 +1138,7 @@ function sincronizarCalendarBackendReal() {
     var chaveGerada = chaveExist;
     var novo = gerados[chaveGerada];
     if (!novo) {
-      var chavePorDescricao = geradosPorDesc[normalizarChave_(desc)];
+      var chavePorDescricao = geradosPorDesc[normalizarChave_(desc)] || geradosPorDesc[normalizarDescricaoCalendarCompat_(desc)];
       if (chavePorDescricao) { chaveGerada = chavePorDescricao; novo = gerados[chavePorDescricao]; }
     }
 
@@ -1144,6 +1149,7 @@ function sincronizarCalendarBackendReal() {
       finais.push(row);
       finalizadasChave[chaveExist] = true;
       finalizadasDesc[normalizarChave_(desc)] = true;
+      finalizadasDesc[normalizarDescricaoCalendarCompat_(desc)] = true;
       if (novo) delete gerados[chaveGerada];
       if (status === "consolidado") consolidadosPreservados++; else abertosPreservados++;
       continue;
@@ -1176,14 +1182,14 @@ function sincronizarCalendarBackendReal() {
   var criados = 0;
   for (var chaveNova in gerados) {
     var novoRow = gerados[chaveNova];
-    if (finalizadasChave[chaveNova] || finalizadasDesc[normalizarChave_(novoRow[1])]) continue;
+    if (finalizadasChave[chaveNova] || finalizadasDesc[normalizarChave_(novoRow[1])] || finalizadasDesc[normalizarDescricaoCalendarCompat_(novoRow[1])]) continue;
     novoRow[7] = gerarIdNumerico_();
     finais.push(novoRow); criados++;
   }
 
   var linhasParaLimpar = Math.max(sheetLancamentos.getLastRow(), finais.length);
-  sheetLancamentos.getRange(1, 1, linhasParaLimpar, 12).clearContent();
-  sheetLancamentos.getRange(1,1,finais.length,12).setValues(finais);
+  sheetLancamentos.getRange(1, 1, linhasParaLimpar, 18).clearContent();
+  sheetLancamentos.getRange(1,1,finais.length,18).setValues(finais);
   return "Sincronizado! Novos: " + criados + " | Atualizados: " + atualizados + " | Em aberto preservados: " + abertosPreservados + " | Vencidos pendentes: " + vencidosPreservados + " | Consolidados preservados: " + consolidadosPreservados + " | Ajustes manuais: " + ajustesPreservados + " | Obsoletos removidos: " + removidos;
 }
 
