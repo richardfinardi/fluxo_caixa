@@ -1,0 +1,3 @@
+Teste batch Gestao Obras V3
+Disparo: 2026-09-22T13:00:00-03:00
+Objetivo: validar efetivacao em lote e medir tempo
