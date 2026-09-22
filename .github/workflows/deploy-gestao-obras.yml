@@ -72,6 +72,15 @@ jobs:
         working-directory: gestao-obras/apps-script
         run: clasp update-deployment "$DEPLOYMENT_ID" --description "Deploy automatico Gestao de Obras ${{ github.sha }}"
 
+      - name: Validar API publicada
+        run: |
+          URL="https://script.google.com/macros/s/$DEPLOYMENT_ID/exec?action=health"
+          echo "Testando $URL"
+          BODY=$(curl -L --fail --silent --show-error "$URL")
+          echo "$BODY"
+          echo "$BODY" | grep -q '"ok":true'
+          echo "$BODY" | grep -q '"schemaVersion":"2"'
+
       - name: Mostrar versao publicada
         working-directory: gestao-obras
         run: |
