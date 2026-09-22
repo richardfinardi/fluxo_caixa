@@ -1,0 +1,90 @@
+name: Deploy Gestao Obras
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".deploy-triggers/gestao-obras.txt"
+      - ".github/workflows/deploy-gestao-obras.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_REPOSITORY: richardfinardi/gestao_obras
+  APPS_SCRIPT_ID: PENDING_SCRIPT_ID
+  DEPLOYMENT_ID: AKfycbw6cRAPlwVzNOURoLNsTJ47xyezz0LStCuZyNpW2wT97f9pj3RADUn1L1MdqTq9Tm_b
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validar configuracao
+        run: |
+          if [ "$APPS_SCRIPT_ID" = "PENDING_SCRIPT_ID" ]; then
+            echo "Script ID do Gestão de Obras ainda não configurado."
+            exit 0
+          fi
+
+      - name: Checkout Gestão de Obras
+        if: env.APPS_SCRIPT_ID != 'PENDING_SCRIPT_ID'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: main
+          path: gestao-obras
+
+      - name: Setup Node
+        if: env.APPS_SCRIPT_ID != 'PENDING_SCRIPT_ID'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install clasp
+        if: env.APPS_SCRIPT_ID != 'PENDING_SCRIPT_ID'
+        run: npm install -g @google/clasp@3.4.1
+
+      - name: Configurar autorização Google
+        if: env.APPS_SCRIPT_ID != 'PENDING_SCRIPT_ID'
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          test -n "$CLASPRC_JSON" || (echo "Secret CLASPRC_JSON não configurado no fluxo_caixa" && exit 1)
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+
+      - name: Configurar projeto Apps Script
+        if: env.APPS_SCRIPT_ID != 'PENDING_SCRIPT_ID'
+        working-directory: gestao-obras/apps-script
+        run: |
+          cat > .clasp.json <<EOF
+          {
+            "scriptId": "$APPS_SCRIPT_ID",
+            "rootDir": "",
+            "scriptExtensions": [".js", ".gs"],
+            "htmlExtensions": [".html"],
+            "jsonExtensions": [".json"],
+            "filePushOrder": [],
+            "skipSubdirectories": false
+          }
+          EOF
+
+      - name: Enviar backend para Apps Script
+        if: env.APPS_SCRIPT_ID != 'PENDING_SCRIPT_ID'
+        working-directory: gestao-obras/apps-script
+        run: clasp push --force
+
+      - name: Atualizar Web App existente
+        if: env.APPS_SCRIPT_ID != 'PENDING_SCRIPT_ID'
+        working-directory: gestao-obras/apps-script
+        run: clasp update-deployment "$DEPLOYMENT_ID" --description "Deploy automático Gestão de Obras ${{ github.sha }}"
+
+      - name: Mostrar versão publicada
+        if: env.APPS_SCRIPT_ID != 'PENDING_SCRIPT_ID'
+        working-directory: gestao-obras
+        run: |
+          echo "Gestão de Obras publicado."
+          git rev-parse HEAD
