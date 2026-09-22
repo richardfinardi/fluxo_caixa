@@ -632,12 +632,12 @@ function reconciliarParcelasRecorrencia_(idSerie) {
   var hojeIso = hojeIso_();
   var dados = sh.getDataRange().getValues();
   var vistos = {};
-  var finais = [dados[0].slice(0, 12)];
+  var finais = [dados[0].slice(0, 18)];
   var removidos = 0;
 
   for (var i = 1; i < dados.length; i++) {
-    var row = dados[i].slice(0, 12);
-    while (row.length < 12) row.push("");
+    var row = dados[i].slice(0, 18);
+    while (row.length < 18) row.push("");
     if (String(row[6] || "") !== String(idSerie)) { finais.push(row); continue; }
 
     var origem = String(row[8] || "");
@@ -663,8 +663,8 @@ function reconciliarParcelasRecorrencia_(idSerie) {
 
   if (removidos) {
     var limpar = Math.max(sh.getLastRow(), finais.length);
-    sh.getRange(1, 1, limpar, 12).clearContent();
-    sh.getRange(1, 1, finais.length, 12).setValues(finais);
+    sh.getRange(1, 1, limpar, 18).clearContent();
+    sh.getRange(1, 1, finais.length, 18).setValues(finais);
     registrarLog_("RECONCILIAR_RECORRENCIA", idSerie, removidos + " parcela(s) futura(s) inválida(s)/duplicada(s) removida(s)");
   }
   return removidos;
@@ -707,12 +707,12 @@ function gerarParcelasRecorrencia_(idSerie, dataMinimaIso) {
       return;
     }
     var id = gerarIdNumerico_();
-    inserir.push([o.data, rec.descricao, rec.valor, rec.tipo, rec.categoria, status, rec.idSerie, id, "RECORRENCIA", o.chave, o.dataBaseIso, ""]);
+    inserir.push([o.data, rec.descricao, rec.valor, rec.tipo, rec.categoria, status, rec.idSerie, id, "RECORRENCIA", o.chave, o.dataBaseIso, "", "", "", "", "", "", ""]);
     existentesChave[o.chave] = true;
     existentesData[o.dataIso] = true;
   });
 
-  if (inserir.length) sh.getRange(sh.getLastRow() + 1, 1, inserir.length, 12).setValues(inserir);
+  if (inserir.length) sh.getRange(sh.getLastRow() + 1, 1, inserir.length, 18).setValues(inserir);
   return inserir.length;
 }
 
@@ -760,14 +760,14 @@ function gerarParcelasRecorrentesGerais() {
   });
 
   var dados = shLanc.getDataRange().getValues();
-  var finais = [dados[0].slice(0, 12)];
+  var finais = [dados[0].slice(0, 18)];
   var existentes = {};
   var hojeIso = hojeIso_();
   var removidos = 0;
 
   for (var i = 1; i < dados.length; i++) {
-    var row = dados[i].slice(0, 12);
-    while (row.length < 12) row.push("");
+    var row = dados[i].slice(0, 18);
+    while (row.length < 18) row.push("");
     var recId = String(row[6] || "");
     var cfg = configs[recId];
     if (!cfg) { finais.push(row); continue; }
@@ -804,7 +804,7 @@ function gerarParcelasRecorrentesGerais() {
       if (o.dataIso < hojeIso) return;
       if (exc[o.chave] || exc["DATE|" + o.dataIso] || existentes[id][o.chave]) return;
       var novoId = gerarIdNumerico_();
-      inserir.push([o.data, cfg.descricao, cfg.valor, cfg.tipo, cfg.categoria, "Projetado", cfg.idSerie, novoId, "RECORRENCIA", o.chave, o.dataBaseIso, ""]);
+      inserir.push([o.data, cfg.descricao, cfg.valor, cfg.tipo, cfg.categoria, "Projetado", cfg.idSerie, novoId, "RECORRENCIA", o.chave, o.dataBaseIso, "", "", "", "", "", "", ""]);
       existentes[id][o.chave] = true;
     });
   });
@@ -812,10 +812,10 @@ function gerarParcelasRecorrentesGerais() {
   if (removidos) {
     inserir.forEach(function(r) { finais.push(r); });
     var limpar = Math.max(shLanc.getLastRow(), finais.length);
-    shLanc.getRange(1, 1, limpar, 12).clearContent();
-    shLanc.getRange(1, 1, finais.length, 12).setValues(finais);
+    shLanc.getRange(1, 1, limpar, 18).clearContent();
+    shLanc.getRange(1, 1, finais.length, 18).setValues(finais);
   } else if (inserir.length) {
-    shLanc.getRange(shLanc.getLastRow() + 1, 1, inserir.length, 12).setValues(inserir);
+    shLanc.getRange(shLanc.getLastRow() + 1, 1, inserir.length, 18).setValues(inserir);
   }
 
   if (removidos) registrarLog_("RECONCILIAR_RECORRENCIAS", "GERAL", removidos + " inválida(s)/duplicada(s) removida(s)");
@@ -852,10 +852,10 @@ function excluirLancamentoAvancado(idLancamento, modo, recorrenciaId, dataCorte)
     if (!corte || !/^\d{4}-\d{2}-\d{2}$/.test(corte)) corte = "2000-01-01";
 
     var dados = sh.getDataRange().getValues();
-    var finais = [dados[0].slice(0, 12)];
+    var finais = [dados[0].slice(0, 18)];
     var removidos = 0;
     for (var i = 1; i < dados.length; i++) {
-      var rowL = dados[i].slice(0, 12);
+      var rowL = dados[i].slice(0, 18);
       var checkId = String(rowL[6] || "").trim();
       var dataLinha = rowL[0] ? isoData_(rowL[0]) : "";
       if (checkId === recIdFinal && dataLinha && dataLinha >= corte) { removidos++; continue; }
@@ -863,8 +863,8 @@ function excluirLancamentoAvancado(idLancamento, modo, recorrenciaId, dataCorte)
     }
     if (removidos) {
       var limpar = Math.max(sh.getLastRow(), finais.length);
-      sh.getRange(1, 1, limpar, 12).clearContent();
-      sh.getRange(1, 1, finais.length, 12).setValues(finais);
+      sh.getRange(1, 1, limpar, 18).clearContent();
+      sh.getRange(1, 1, finais.length, 18).setValues(finais);
     }
 
     var config = ss.getSheetByName("RecorrenciasConfig");
@@ -941,10 +941,10 @@ function atualizarLancamentoAvancado(dados, tipoEdicao) {
 
     var corteOriginal = dados.dataOriginalCorte || dados.data;
     var dadosLanc = sh.getDataRange().getValues();
-    var finaisLanc = [dadosLanc[0].slice(0, 12)];
+    var finaisLanc = [dadosLanc[0].slice(0, 18)];
     var removidos = 0;
     for (var i = 1; i < dadosLanc.length; i++) {
-      var rowLanc = dadosLanc[i].slice(0, 12);
+      var rowLanc = dadosLanc[i].slice(0, 18);
       var mesmoRec = String(rowLanc[6] || "") === recId;
       var idRow = String(rowLanc[7] || "");
       var dataRow = rowLanc[0] ? isoData_(rowLanc[0]) : "";
@@ -953,8 +953,8 @@ function atualizarLancamentoAvancado(dados, tipoEdicao) {
     }
     if (removidos) {
       var limparLanc = Math.max(sh.getLastRow(), finaisLanc.length);
-      sh.getRange(1, 1, limparLanc, 12).clearContent();
-      sh.getRange(1, 1, finaisLanc.length, 12).setValues(finaisLanc);
+      sh.getRange(1, 1, limparLanc, 18).clearContent();
+      sh.getRange(1, 1, finaisLanc.length, 18).setValues(finaisLanc);
     }
     var minGeracao = dados.data < corteOriginal ? dados.data : corteOriginal;
     limparExcecoesFuturasRecorrencia_(recId, minGeracao);
