@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.11.4</title>
+  <title>Fluxo de Caixa Automatizado 5.11.5</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.11.4">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.11.5">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -232,7 +232,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.11.4</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.11.5</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -763,7 +763,7 @@
     </div>
 
     <div class="alert alert-info py-2 px-3 mt-3 mb-2" style="font-size:11px;">
-      ✅ <b>Modo ativo V5.11.4:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
+      ✅ <b>Modo ativo V5.11.5:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
     </div>
 
     <div id="pluggySyncV5103" class="pluggy-sync-v5103">
@@ -969,7 +969,7 @@
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
-    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS', confirmados: {}, rascunhos: {}, pushCfg: null, oneSignal: null, oneSignalIniciado: false, subscriptionId: '' };
+    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS', confirmados: {}, rascunhos: {}, pushCfg: null, oneSignal: null, oneSignalIniciado: false, subscriptionId: '', pushToken: '', pushVerificado: false };
     
     var mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     var dataPonteiroDash = new Date();
@@ -1827,7 +1827,7 @@
     }
 
 // =========================
-// V5.11.4 - CONCILIAÇÃO BANCÁRIA
+// V5.11.5 - CONCILIAÇÃO BANCÁRIA
 // =========================
 
 
@@ -1857,8 +1857,6 @@ function renderizarAutomacaoV511_(cfg) {
   var ativo = !!monitor.ativo;
   var pushConfigurado = !!(cfg && cfg.configurado);
 
-  var subscriptionRegistrada = !!(cfg && cfg.subscriptionRegistrada);
-
   box.innerHTML =
     '<div><b>🤖 Monitor automático:</b> ' +
       (ativo ? '<span class="text-success fw-bold">ATIVO</span>' : '<span class="text-muted fw-bold">DESATIVADO</span>') +
@@ -1866,9 +1864,7 @@ function renderizarAutomacaoV511_(cfg) {
     '<div id="statusPushV5111" class="mt-1"><b>🔔 Notificações:</b> ' +
       (!pushConfigurado
         ? '<span class="text-danger fw-bold">NÃO CONFIGURADAS</span>'
-        : subscriptionRegistrada
-          ? '<span class="text-success fw-bold">ATIVAS</span>'
-          : '<span class="text-muted fw-bold">VERIFICANDO...</span>') +
+        : '<span class="text-muted fw-bold">VERIFICANDO TOKEN...</span>') +
     '</div>' +
     '<div class="text-muted mt-1">Última verificação: ' +
       escapeHtmlBancoV59_(dataHoraMonitorV511_(monitor.ultimaExecucao)) +
@@ -1889,14 +1885,10 @@ function renderizarAutomacaoV511_(cfg) {
     btnPush.innerText = '🔔 Push não configurado';
     btnPush.style.display = '';
     btnTeste.style.display = 'none';
-  } else if (subscriptionRegistrada) {
-    btnPush.style.display = 'none';
-    btnTeste.style.display = '';
-    btnTeste.disabled = false;
   } else {
-    btnPush.innerText = '🔔 Ativar notificações';
+    btnPush.innerText = '⏳ Verificando token...';
     btnPush.style.display = '';
-    btnPush.disabled = false;
+    btnPush.disabled = true;
     btnTeste.style.display = '';
     btnTeste.disabled = true;
   }
@@ -1928,73 +1920,146 @@ function estadoPermissaoBrowserV5112_() {
   return 'default';
 }
 
-function atualizarEstadoPushV5111_() {
-  var OneSignal = bancoV59.oneSignal;
+function snapshotPushV5115_(OneSignal) {
+  var sub = OneSignal && OneSignal.User && OneSignal.User.PushSubscription
+    ? OneSignal.User.PushSubscription
+    : null;
+
+  return {
+    id: sub && sub.id ? String(sub.id) : '',
+    token: sub && sub.token ? String(sub.token) : '',
+    optedIn: !!(sub && sub.optedIn),
+    permission: !!(OneSignal && OneSignal.Notifications && OneSignal.Notifications.permission)
+  };
+}
+
+function atualizarEstadoPushV5115_() {
   var status = document.getElementById('statusPushV5111');
   var btnPush = document.getElementById('btnPushV511');
   var btnTeste = document.getElementById('btnTestePushV511');
 
   if (!status || !btnPush || !btnTeste) return;
 
-  var registrada = !!(bancoV59.pushCfg && bancoV59.pushCfg.subscriptionRegistrada);
+  var snap = snapshotPushV5115_(bancoV59.oneSignal);
+  bancoV59.subscriptionId = snap.id || '';
+  bancoV59.pushToken = snap.token || '';
 
-  if (registrada) {
-    status.innerHTML = '<b>🔔 Notificações:</b> <span class="text-success fw-bold">ATIVAS</span>';
+  var ativa = snap.permission && snap.optedIn && !!snap.id && !!snap.token;
+
+  if (ativa) {
+    bancoV59.pushVerificado = true;
+    status.innerHTML =
+      '<b>🔔 Notificações:</b> <span class="text-success fw-bold">ATIVAS</span>' +
+      '<div class="text-muted mt-1">Token do aparelho: OK</div>';
     btnPush.style.display = 'none';
     btnTeste.style.display = '';
     btnTeste.disabled = false;
-  } else {
-    status.innerHTML = '<b>🔔 Notificações:</b> <span class="text-muted fw-bold">VERIFICANDO...</span>';
-    btnPush.style.display = '';
-    btnPush.disabled = false;
-    btnPush.innerText = '🔔 Ativar notificações';
-    btnTeste.disabled = true;
+
+    if (snap.id) {
+      registrarSubscriptionAtualV5112_(snap.id).catch(function(){});
+    }
+    return;
   }
 
-  // Se o SDK já hidratou e trouxe uma subscription, grava no backend.
-  try {
-    var sub = OneSignal && OneSignal.User && OneSignal.User.PushSubscription
-      ? OneSignal.User.PushSubscription
-      : null;
-    var subId = sub && sub.id ? String(sub.id) : '';
+  if (!bancoV59.pushVerificado) {
+    status.innerHTML =
+      '<b>🔔 Notificações:</b> <span class="text-muted fw-bold">VERIFICANDO TOKEN...</span>';
+    btnPush.style.display = '';
+    btnPush.disabled = true;
+    btnPush.innerText = '⏳ Verificando token...';
+    btnTeste.disabled = true;
+    return;
+  }
 
-    if (subId) {
-      bancoV59.subscriptionId = subId;
-      if (bancoV59.pushCfg) bancoV59.pushCfg.subscriptionRegistrada = true;
-      registrarSubscriptionAtualV5112_(subId);
-      status.innerHTML = '<b>🔔 Notificações:</b> <span class="text-success fw-bold">ATIVAS</span>';
-      btnPush.style.display = 'none';
-      btnTeste.disabled = false;
-    }
-  } catch (_) {}
+  status.innerHTML =
+    '<b>🔔 Notificações:</b> <span class="text-danger fw-bold">SEM TOKEN</span>' +
+    '<div class="text-muted mt-1">Permissão: ' + (snap.permission ? 'OK' : 'não concedida') +
+    ' • Subscription: ' + (snap.id ? 'OK' : 'não criada') +
+    ' • Token: ' + (snap.token ? 'OK' : 'ausente') + '</div>';
+
+  btnPush.style.display = '';
+  btnPush.disabled = false;
+  btnPush.innerText = '🔧 Reparar notificações';
+  btnTeste.style.display = '';
+  btnTeste.disabled = true;
 }
 
-function aguardarSubscriptionIdV5111_(OneSignal) {
+function aguardarTokenPushV5115_(OneSignal, timeoutMs) {
+  var limite = Number(timeoutMs || 20000);
+
   return new Promise(function(resolve) {
-    var tentativas = 0;
+    var inicio = Date.now();
 
     function conferir() {
-      var sub = OneSignal &&
-        OneSignal.User &&
-        OneSignal.User.PushSubscription
-        ? OneSignal.User.PushSubscription
-        : null;
+      var snap = snapshotPushV5115_(OneSignal);
 
-      if (sub && sub.id) {
-        resolve(String(sub.id));
+      if (snap.permission && snap.optedIn && snap.id && snap.token) {
+        resolve(snap);
         return;
       }
 
-      tentativas++;
-      if (tentativas >= 80) {
-        resolve('');
+      if (Date.now() - inicio >= limite) {
+        resolve(snap);
         return;
       }
 
-      setTimeout(conferir, 250);
+      setTimeout(conferir, 300);
     }
 
     conferir();
+  });
+}
+
+async function repararNotificacoesV5115_() {
+  var OneSignal = bancoV59.oneSignal;
+  if (!OneSignal) throw new Error('OneSignal ainda não inicializou.');
+
+  bancoV59.pushVerificado = false;
+  atualizarEstadoPushV5115_();
+
+  if (!OneSignal.Notifications.permission) {
+    await OneSignal.Notifications.requestPermission();
+  }
+
+  if (!OneSignal.Notifications.permission) {
+    bancoV59.pushVerificado = true;
+    atualizarEstadoPushV5115_();
+    throw new Error('Permissão de notificações não foi concedida no Android.');
+  }
+
+  try {
+    await OneSignal.User.PushSubscription.optOut();
+  } catch (_) {}
+
+  await new Promise(function(resolve){ setTimeout(resolve, 600); });
+
+  await OneSignal.login((bancoV59.pushCfg && bancoV59.pushCfg.externalId) || 'fluxo-caixa-owner');
+  await OneSignal.User.PushSubscription.optIn();
+  await OneSignal.login((bancoV59.pushCfg && bancoV59.pushCfg.externalId) || 'fluxo-caixa-owner');
+
+  var snap = await aguardarTokenPushV5115_(OneSignal, 20000);
+
+  bancoV59.pushVerificado = true;
+
+  if (snap.id && snap.token && snap.optedIn) {
+    await registrarSubscriptionAtualV5112_(snap.id);
+    bancoV59.subscriptionId = snap.id;
+    bancoV59.pushToken = snap.token;
+    atualizarEstadoPushV5115_();
+    return true;
+  }
+
+  atualizarEstadoPushV5115_();
+  return false;
+}
+
+function atualizarEstadoPushV5111_() {
+  atualizarEstadoPushV5115_();
+}
+
+function aguardarSubscriptionIdV5111_(OneSignal) {
+  return aguardarTokenPushV5115_(OneSignal, 20000).then(function(snap) {
+    return snap && snap.id ? snap.id : '';
   });
 }
 
@@ -2057,7 +2122,8 @@ function inicializarOneSignalV511_(cfg) {
 
       if (OneSignal.User && OneSignal.User.PushSubscription) {
         OneSignal.User.PushSubscription.addEventListener('change', function() {
-          atualizarEstadoPushV5111_();
+          bancoV59.pushVerificado = true;
+          atualizarEstadoPushV5115_();
         });
       }
 
@@ -2067,21 +2133,14 @@ function inicializarOneSignalV511_(cfg) {
         });
       }
 
-      var subAtual = await aguardarSubscriptionIdV5111_(OneSignal);
-      if (subAtual) {
-        await registrarSubscriptionAtualV5112_(subAtual);
-      }
-      atualizarEstadoPushV5111_();
+      var snapInicial = await aguardarTokenPushV5115_(OneSignal, 12000);
+      bancoV59.pushVerificado = true;
 
-      setTimeout(async function() {
-        try {
-          var subTardia = await aguardarSubscriptionIdV5111_(OneSignal);
-          if (subTardia) {
-            await registrarSubscriptionAtualV5112_(subTardia);
-          }
-          atualizarEstadoPushV5111_();
-        } catch (_) {}
-      }, 1500);
+      if (snapInicial && snapInicial.id && snapInicial.token && snapInicial.optedIn) {
+        await registrarSubscriptionAtualV5112_(snapInicial.id);
+      }
+
+      atualizarEstadoPushV5115_();
     } catch (e) {
       console.error('OneSignal:', e);
       var status = document.getElementById('statusPushV5111');
@@ -2108,28 +2167,17 @@ function ativarNotificacoesV511() {
 
   (async function() {
     try {
-      var OneSignal = bancoV59.oneSignal;
+      var ok = await repararNotificacoesV5115_();
 
-      if (!OneSignal.Notifications.permission) {
-        await OneSignal.Notifications.requestPermission();
-      }
-
-      if (OneSignal.Notifications.permission) {
-        await OneSignal.User.PushSubscription.optIn();
-        await OneSignal.login((bancoV59.pushCfg && bancoV59.pushCfg.externalId) || 'fluxo-caixa-owner');
-        var subNova = await aguardarSubscriptionIdV5111_(OneSignal);
-        if (subNova) await registrarSubscriptionAtualV5112_(subNova);
-      }
-
-      atualizarEstadoPushV5111_();
-
-      if (bancoV59.subscriptionId) {
-        exibirAvisoNaTela('Notificações ativas neste aparelho.', 'success');
+      if (ok) {
+        exibirAvisoNaTela('Notificações reparadas e token do S24 confirmado.', 'success');
       } else {
-        exibirAvisoNaTela('A permissão existe, mas a subscription ainda não ficou pronta. Aguarde alguns segundos.', 'warning');
+        exibirAvisoNaTela('O Android permitiu notificações, mas o S24 ainda não recebeu um push token.', 'danger');
       }
     } catch (err) {
-      exibirAvisoNaTela('Erro ao ativar notificações: ' + err, 'danger');
+      bancoV59.pushVerificado = true;
+      atualizarEstadoPushV5115_();
+      exibirAvisoNaTela('Erro ao reparar notificações: ' + err, 'danger');
     }
   })();
 }
