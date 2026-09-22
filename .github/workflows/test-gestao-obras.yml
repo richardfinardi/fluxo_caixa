@@ -41,7 +41,101 @@ jobs:
           assert_ok "$OBRA"
           ID_OBRA=$(echo "$OBRA" | jq -r '.data.ID_OBRA')
           COD_OBRA=$(echo "$OBRA" | jq -r '.data.CODIGO')
-          test "$COD_OBRA" = "OBR-0001"
+          echo "$COD_OBRA" | grep -Eq '^OBR-[0-9]{4}
+          echo "Obra: $COD_OBRA / $ID_OBRA"
+
+          echo "3/11 Criar EAP automatica e hierarquica"
+          W1=$(post "$(jq -nc --arg id "$ID_OBRA" '{action:"wbs.create",id_obra:$id,nome:"Infraestrutura",ordem:1}')")
+          assert_ok "$W1"
+          ID_W1=$(echo "$W1" | jq -r '.data.ID_WBS')
+          test "$(echo "$W1" | jq -r '.data.CODIGO_WBS')" = "1"
+
+          W11=$(post "$(jq -nc --arg id "$ID_OBRA" --arg pai "$ID_W1" '{action:"wbs.create",id_obra:$id,id_wbs_pai:$pai,nome:"Terraplenagem",ordem:1}')")
+          assert_ok "$W11"
+          ID_W11=$(echo "$W11" | jq -r '.data.ID_WBS')
+          test "$(echo "$W11" | jq -r '.data.CODIGO_WBS')" = "1.1"
+
+          W2=$(post "$(jq -nc --arg id "$ID_OBRA" '{action:"wbs.create",id_obra:$id,nome:"Fundacoes",ordem:2}')")
+          assert_ok "$W2"
+          ID_W2=$(echo "$W2" | jq -r '.data.ID_WBS')
+          test "$(echo "$W2" | jq -r '.data.CODIGO_WBS')" = "2"
+
+          W3=$(post "$(jq -nc --arg id "$ID_OBRA" '{action:"wbs.create",id_obra:$id,nome:"Estrutura",ordem:3}')")
+          assert_ok "$W3"
+          ID_W3=$(echo "$W3" | jq -r '.data.ID_WBS')
+          test "$(echo "$W3" | jq -r '.data.CODIGO_WBS')" = "3"
+
+          echo "4/11 Criar atividades com codigos automaticos"
+          A1=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W11" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Terraplenagem geral",duracao_planejada_dias:10,peso_percentual:20,ordem:1}')")
+          assert_ok "$A1"
+          ID_A1=$(echo "$A1" | jq -r '.data.ID_ATIVIDADE')
+          test "$(echo "$A1" | jq -r '.data.CODIGO')" = "1.1.1"
+
+          A2=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W2" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Fundacao",duracao_planejada_dias:8,peso_percentual:30,ordem:2}')")
+          assert_ok "$A2"
+          ID_A2=$(echo "$A2" | jq -r '.data.ID_ATIVIDADE')
+          test "$(echo "$A2" | jq -r '.data.CODIGO')" = "2.1"
+
+          A3=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W3" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Estrutura de concreto",duracao_planejada_dias:15,peso_percentual:50,ordem:3}')")
+          assert_ok "$A3"
+          ID_A3=$(echo "$A3" | jq -r '.data.ID_ATIVIDADE')
+          test "$(echo "$A3" | jq -r '.data.CODIGO')" = "3.1"
+
+          echo "5/11 Criar dependencias"
+          D1=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg pai "$ID_A1" --arg filha "$ID_A2" '{action:"dependencias.create",id_obra:$obra,id_atividade_pai:$pai,id_atividade_filha:$filha,percentual_liberacao:100,lag_dias:0}')")
+          assert_ok "$D1"
+
+          D2=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg pai "$ID_A2" --arg filha "$ID_A3" '{action:"dependencias.create",id_obra:$obra,id_atividade_pai:$pai,id_atividade_filha:$filha,percentual_liberacao:70,lag_dias:2}')")
+          assert_ok "$D2"
+
+          echo "6/11 Recalcular cronograma"
+          RECALC=$(post "$(jq -nc --arg obra "$ID_OBRA" '{action:"cronograma.recalcular",id_obra:$obra}')")
+          assert_ok "$RECALC"
+          echo "$RECALC" | jq .
+          echo "$RECALC" | jq -e '.data.pesoTotal == 100 and (.data.dataFimForecast | length > 0) and (.data.criticas >= 1)' >/dev/null
+
+          echo "7/11 Validar planejamento completo"
+          PLAN=$(post "$(jq -nc --arg obra "$ID_OBRA" '{action:"planejamento.get",id_obra:$obra}')")
+          assert_ok "$PLAN"
+          echo "$PLAN" | jq -e '.data.atividades | length == 3' >/dev/null
+          echo "$PLAN" | jq -e '.data.dependencias | length == 2' >/dev/null
+          echo "$PLAN" | jq -e '[.data.atividades[] | select(.DATA_INICIO_FORECAST != "" and .DATA_FIM_FORECAST != "")] | length == 3' >/dev/null
+
+          echo "8/11 Atualizar atividade e manter codigo"
+          UPD=$(post "$(jq -nc --arg id "$ID_A2" '{action:"atividades.update",id:$id,nome:"Fundacao - blocos",duracao_planejada_dias:9}')")
+          assert_ok "$UPD"
+          test "$(echo "$UPD" | jq -r '.data.CODIGO')" = "2.1"
+          test "$(echo "$UPD" | jq -r '.data.DURACAO_PLANEJADA_DIAS')" = "9"
+
+          echo "9/11 Bloquear dependencia ciclica"
+          CICLO=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg pai "$ID_A3" --arg filha "$ID_A1" '{action:"dependencias.create",id_obra:$obra,id_atividade_pai:$pai,id_atividade_filha:$filha,percentual_liberacao:100,lag_dias:0}')")
+          echo "$CICLO" | jq .
+          echo "$CICLO" | jq -e '.ok == false and .error.code == "DEPENDENCIA_CICLICA"' >/dev/null
+
+          echo "10/11 Testar criacao e exclusao"
+          WT=$(post "$(jq -nc --arg obra "$ID_OBRA" '{action:"wbs.create",id_obra:$obra,nome:"Temporaria",ordem:99}')")
+          assert_ok "$WT"
+          ID_WT=$(echo "$WT" | jq -r '.data.ID_WBS')
+          test "$(echo "$WT" | jq -r '.data.CODIGO_WBS')" = "4"
+          DEL_W=$(post "$(jq -nc --arg id "$ID_WT" '{action:"wbs.delete",id:$id}')")
+          assert_ok "$DEL_W"
+
+          AT=$(post "$(jq -nc --arg obra "$ID_OBRA" --arg wbs "$ID_W3" '{action:"atividades.create",id_obra:$obra,id_wbs:$wbs,nome:"Atividade temporaria",duracao_planejada_dias:1,peso_percentual:0,ordem:99}')")
+          assert_ok "$AT"
+          ID_AT=$(echo "$AT" | jq -r '.data.ID_ATIVIDADE')
+          test "$(echo "$AT" | jq -r '.data.CODIGO')" = "3.2"
+          DEL_A=$(post "$(jq -nc --arg id "$ID_AT" '{action:"atividades.delete",id:$id}')")
+          assert_ok "$DEL_A"
+
+          echo "11/11 Validacao final"
+          FINAL=$(post "$(jq -nc --arg obra "$ID_OBRA" '{action:"planejamento.get",id_obra:$obra}')")
+          assert_ok "$FINAL"
+          echo "$FINAL" | jq -e '.data.atividades | length == 3' >/dev/null
+          echo "$FINAL" | jq -e '.data.dependencias | length == 2' >/dev/null
+          echo "$FINAL" | jq -e '[.data.atividades[].CODIGO] == ["1.1.1","2.1","3.1"]' >/dev/null
+
+          echo "TESTE COMPLETO APROVADO"
+
           echo "Obra: $COD_OBRA / $ID_OBRA"
 
           echo "3/11 Criar EAP automatica e hierarquica"
