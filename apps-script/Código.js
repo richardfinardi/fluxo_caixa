@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.11.3";
+var VERSAO_SISTEMA = "5.11.4";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -71,7 +71,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.11.3: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.11.4: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -80,7 +80,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.11.3" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.11.4" }));
     return saida;
   } finally {
     if (lock) {
@@ -2755,20 +2755,22 @@ function obterConfigPushV511() {
   };
 }
 
-function enviarPushOneSignalV511_(titulo, corpo, dados, subscriptionId) {
+function enviarPushOneSignalV511_(titulo, corpo, dados) {
   var props = PropertiesService.getScriptProperties();
   var appId = String(props.getProperty("ONESIGNAL_APP_ID") || "").trim();
   var restKey = String(props.getProperty("ONESIGNAL_REST_API_KEY") || "").trim();
   var externalId = String(props.getProperty("ONESIGNAL_EXTERNAL_ID") || "fluxo-caixa-owner").trim();
-  var subId = String(subscriptionId || "").trim();
-  if (!subId) subId = String(props.getProperty("ONESIGNAL_SUBSCRIPTION_ID") || "").trim();
 
-  if (!appId || !restKey) {
+  if (!appId || !restKey || !externalId) {
     return { enviado: false, motivo: "OneSignal não configurado." };
   }
 
   var payload = {
     app_id: appId,
+    target_channel: "push",
+    include_aliases: {
+      external_id: [externalId]
+    },
     headings: {
       en: String(titulo || "Fluxo de Caixa"),
       pt: String(titulo || "Fluxo de Caixa")
@@ -2780,20 +2782,6 @@ function enviarPushOneSignalV511_(titulo, corpo, dados, subscriptionId) {
     data: dados || {},
     idempotency_key: Utilities.getUuid()
   };
-
-  // Para o teste no aparelho, envia diretamente para a subscription atual.
-  // Para o monitor em background, continua usando o external_id persistente.
-  if (subId) {
-    payload.include_subscription_ids = [subId];
-  } else {
-    if (!externalId) {
-      return { enviado: false, motivo: "External ID não configurado." };
-    }
-    payload.target_channel = "push";
-    payload.include_aliases = {
-      external_id: [externalId]
-    };
-  }
 
   var resp = UrlFetchApp.fetch("https://api.onesignal.com/notifications", {
     method: "post",
@@ -2823,7 +2811,7 @@ function enviarPushOneSignalV511_(titulo, corpo, dados, subscriptionId) {
       enviado: false,
       http: code,
       recipients: json.recipients,
-      erro: json.errors || (semDestinatario ? "Nenhuma subscription recebeu a notificação." : texto) || "OneSignal não criou a notificação."
+      erro: json.errors || (semDestinatario ? "Nenhuma assinatura ativa vinculada ao external_id." : texto) || "OneSignal não criou a notificação."
     };
   }
 
@@ -2834,30 +2822,19 @@ function enviarPushOneSignalV511_(titulo, corpo, dados, subscriptionId) {
   };
 }
 
-function testarPushOneSignalV511(subscriptionId) {
-  var subId = String(subscriptionId || "").trim();
-  if (!subId) {
-    subId = String(PropertiesService.getScriptProperties().getProperty("ONESIGNAL_SUBSCRIPTION_ID") || "").trim();
-  }
-  if (!subId) {
-    throw new Error("Nenhuma subscription do aparelho foi registrada ainda.");
-  }
-
+function testarPushOneSignalV511() {
   var r = enviarPushOneSignalV511_(
     "🏦 Fluxo de Caixa",
-    "Notificações ativas. O monitor do Pluggy está pronto.",
-    { tipo: "TESTE_PUSH" },
-    subId
+    "Teste com o app fechado: push recebido com sucesso.",
+    { tipo: "TESTE_PUSH_FECHADO" }
   );
 
   if (!r.enviado) {
     throw new Error("Push não enviado: " + JSON.stringify(r.erro || r.motivo || r));
   }
 
-  return "Notificação de teste enviada para este aparelho.";
+  return "Notificação de teste enviada para o external_id do Fluxo de Caixa.";
 }
-
-
 
 function quantidadeNovosDaMensagemImportacaoV511_(msg) {
   var m = String(msg || "").match(/(\d+)\s+novo/i);
@@ -3116,7 +3093,7 @@ function obterConciliacaoBancoV59() {
   });
 
   return {
-    versao: "5.11.3",
+    versao: "5.11.4",
     statusPluggy: obterStatusPluggyV5103_(),
     resumo: {
       total: movimentosExibicao.length,
