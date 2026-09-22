@@ -3549,11 +3549,11 @@ function ativarMonitorPluggyV511() {
   props.setProperty("MONITOR_PLUGGY_ULTIMO_ERRO", "");
 
   // Faz uma importação imediatamente ao ativar, mas não dispara push inicial.
-  var msg = importarMovimentosBanco15Dias();
-  var novos = quantidadeNovosDaMensagemImportacaoV511_(msg);
+  var imp = importarTudoPluggyV513();
+  var novos = Number(imp.novosBanco || 0) + Number(imp.novosCartao || 0);
   props.setProperty("MONITOR_PLUGGY_ULTIMOS_NOVOS", String(novos));
 
-  return "Monitor automático ativado: verificação a cada 30 minutos. " + msg;
+  return "Monitor automático ativado: verificação a cada 30 minutos. " + imp.mensagem;
 }
 
 function desativarMonitorPluggyV511() {
@@ -3611,8 +3611,10 @@ function monitorarPluggyAutomaticamenteV511() {
     }
 
     if (mudouSync) {
-      var msg = importarMovimentosBanco15Dias();
-      var novos = quantidadeNovosDaMensagemImportacaoV511_(msg);
+      var imp = importarTudoPluggyV513();
+      var novosBanco = Number(imp.novosBanco || 0);
+      var novosCartao = Number(imp.novosCartao || 0);
+      var novos = novosBanco + novosCartao;
 
       props.setProperty("MONITOR_PLUGGY_ULTIMA_SYNC", syncAtual);
       props.setProperty("MONITOR_PLUGGY_ULTIMOS_NOVOS", String(novos));
@@ -3620,22 +3622,24 @@ function monitorarPluggyAutomaticamenteV511() {
       props.deleteProperty("MONITOR_PLUGGY_ULTIMO_ALERTA_ATRASO");
 
       if (novos > 0) {
-        var texto = novos === 1
-          ? "1 novo movimento disponível para conciliação."
-          : novos + " novos movimentos disponíveis para conciliação.";
+        var partes = [];
+        if (novosBanco) partes.push(novosBanco + " bancário(s)");
+        if (novosCartao) partes.push(novosCartao + " cartão");
 
         enviarPushOneSignalV511_(
-          "🏦 Banco atualizado",
-          texto,
+          "🏦 Fluxo atualizado",
+          partes.join(" • ") + " novo(s) movimento(s).",
           {
             tipo: "NOVOS_MOVIMENTOS",
             quantidade: novos,
+            banco: novosBanco,
+            cartao: novosCartao,
             sync: syncAtual
           }
         );
       }
 
-      return "Monitor: sincronização nova detectada. " + msg;
+      return "Monitor: sincronização nova detectada. " + imp.mensagem;
     }
 
     // Se passou da janela provável (mais recente + 24h30), avisa apenas uma vez
