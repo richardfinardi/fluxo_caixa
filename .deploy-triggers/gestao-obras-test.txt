@@ -1,4 +1,5 @@
 Gestao de Obras - teste completo
 Versao: 0.2.1
-Disparo: 2026-09-22T12:20:00-03:00
-Cenario: codigos automaticos + EAP + atividades + dependencias + cronograma + ciclo + exclusoes
+Disparo: 2026-09-22T12:24:30-03:00
+Tentativa: 2
+Cenario: codigos como texto + EAP + atividades + dependencias + cronograma + ciclo + exclusoes
