@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.12.3";
+var VERSAO_SISTEMA = "5.13.0";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -44,6 +44,10 @@ function doPost(e) {
       marcarEmAbertoBackend: true,
       enviarAlertasFaturamentoSite: true,
       importarMovimentosBanco15Dias: true,
+      importarTudoPluggyV513: true,
+      importarCartaoCreditoV513: true,
+      obterCartaoCreditoV513: true,
+      calibrarSaldoPluggyV513: true,
       atualizarPluggyAgoraV512: true,
       obterConciliacaoBancoV59: true,
       conciliarMovimentoBancoV510: true,
@@ -61,7 +65,7 @@ function doPost(e) {
     if (!permitidas[nomeFuncao]) throw new Error("Função não permitida: " + nomeFuncao);
     if (typeof this[nomeFuncao] !== "function") throw new Error("Função não encontrada: " + nomeFuncao);
 
-    var somenteLeitura = nomeFuncao === "obterDadosIniciais" || nomeFuncao === "enviarAlertasFaturamentoSite" || nomeFuncao === "obterConciliacaoBancoV59" || nomeFuncao === "obterConfigPushV511";
+    var somenteLeitura = nomeFuncao === "obterDadosIniciais" || nomeFuncao === "enviarAlertasFaturamentoSite" || nomeFuncao === "obterConciliacaoBancoV59" || nomeFuncao === "obterCartaoCreditoV513" || nomeFuncao === "obterConfigPushV511";
     if (!somenteLeitura) {
       lock = LockService.getScriptLock();
       lock.waitLock(30000);
@@ -72,7 +76,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.12.2: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.13.0: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -81,7 +85,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.12.2" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.13.0" }));
     return saida;
   } finally {
     if (lock) {
@@ -149,6 +153,11 @@ function garantirEstruturaV58_() {
   var exc = ss.getSheetByName("RecorrenciasExcecoes") || ss.insertSheet("RecorrenciasExcecoes");
   var fer = ss.getSheetByName("Feriados") || ss.insertSheet("Feriados");
   var log = ss.getSheetByName("LOG") || ss.insertSheet("LOG");
+  var movCartao = ss.getSheetByName("MovimentosCartao") || ss.insertSheet("MovimentosCartao");
+  var cartoes = ss.getSheetByName("Cartoes") || ss.insertSheet("Cartoes");
+
+  garantirCabecalhos_(movCartao, ["IdPluggy", "Conta", "Cartao", "AccountId", "Data", "Descricao", "DescricaoOriginal", "Valor", "Tipo", "CategoriaPluggy", "StatusPluggy", "ParcelaAtual", "TotalParcelas", "ValorTotalParcelado", "DataImportacao"]);
+  garantirCabecalhos_(cartoes, ["Conta", "AccountId", "Nome", "Final", "SaldoFatura", "LimiteDisponivel", "LimiteTotal", "Vencimento", "Fechamento", "Bandeira", "Status", "AtualizadoEm"]);
 
   var props = PropertiesService.getScriptProperties();
   var versaoEstrutura = props.getProperty("FLUXO_CAIXA_ESTRUTURA");
@@ -1872,6 +1881,447 @@ function importarMovimentosBanco15Dias() {
   Logger.log('Novos movimentos: ' + novasLinhas.length);
   Logger.log('Período: ' + dateFrom + ' até ' + dateTo);
   return 'Banco atualizado: ' + novasLinhas.length + ' novo(s) movimento(s).';
+}
+
+
+
+/* =========================
+   V5.13 - CARTÃO + CONFERÊNCIA DE SALDO
+   ========================= */
+
+function listarContasPluggyV513_(apiKey, itemId, tipo) {
+  var url = "https://api.pluggy.ai/accounts?itemId=" + encodeURIComponent(itemId);
+  if (tipo) url += "&type=" + encodeURIComponent(tipo);
+
+  var resp = UrlFetchApp.fetch(url, {
+    method: "get",
+    headers: { "X-API-KEY": apiKey },
+    muteHttpExceptions: true
+  });
+
+  var code = resp.getResponseCode();
+  if (code < 200 || code >= 300) {
+    throw new Error("Erro ao buscar contas Pluggy. HTTP " + code);
+  }
+
+  return JSON.parse(resp.getContentText() || "{}").results || [];
+}
+
+function upsertMovimentosCartaoV513_(linhas) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("MovimentosCartao");
+  var headers = ["IdPluggy", "Conta", "Cartao", "AccountId", "Data", "Descricao", "DescricaoOriginal", "Valor", "Tipo", "CategoriaPluggy", "StatusPluggy", "ParcelaAtual", "TotalParcelas", "ValorTotalParcelado", "DataImportacao"];
+  garantirCabecalhos_(sh, headers);
+
+  var atuais = sh.getLastRow() > 1
+    ? sh.getRange(2, 1, sh.getLastRow() - 1, headers.length).getValues()
+    : [];
+  var mapa = {};
+  atuais.forEach(function(r, idx) {
+    if (r[0]) mapa[String(r[0])] = idx;
+  });
+
+  var novos = 0;
+  linhas.forEach(function(linha) {
+    var id = String(linha[0] || "");
+    if (!id) return;
+
+    if (mapa[id] !== undefined) {
+      atuais[mapa[id]] = linha;
+    } else {
+      mapa[id] = atuais.length;
+      atuais.push(linha);
+      novos++;
+    }
+  });
+
+  if (atuais.length) {
+    sh.getRange(2, 1, atuais.length, headers.length).setValues(atuais);
+  }
+
+  return novos;
+}
+
+function gravarCartoesV513_(cartoes) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Cartoes");
+  var headers = ["Conta", "AccountId", "Nome", "Final", "SaldoFatura", "LimiteDisponivel", "LimiteTotal", "Vencimento", "Fechamento", "Bandeira", "Status", "AtualizadoEm"];
+  garantirCabecalhos_(sh, headers);
+
+  if (sh.getLastRow() > 1) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, headers.length).clearContent();
+  }
+  if (!cartoes.length) return;
+
+  var agora = new Date();
+  var rows = cartoes.map(function(c) {
+    return [
+      c.conta,
+      c.accountId,
+      c.nome,
+      c.final,
+      c.saldoFatura,
+      c.limiteDisponivel === null ? "" : c.limiteDisponivel,
+      c.limiteTotal === null ? "" : c.limiteTotal,
+      c.vencimento,
+      c.fechamento,
+      c.bandeira,
+      c.status,
+      agora
+    ];
+  });
+
+  sh.getRange(2, 1, rows.length, headers.length).setValues(rows);
+}
+
+function importarCartaoCreditoV513() {
+  garantirEstruturaV58_();
+
+  var props = PropertiesService.getScriptProperties();
+  var itens = [
+    { conta: "PF", itemId: String(props.getProperty("PLUGGY_ITEM_ID_PF") || "").trim() },
+    { conta: "PJ", itemId: String(props.getProperty("PLUGGY_ITEM_ID_PJ") || "").trim() }
+  ].filter(function(x) { return !!x.itemId; });
+
+  var apiKey = obterApiKeyPluggyV512_();
+  var agora = new Date();
+  var de = new Date();
+  de.setDate(de.getDate() - 120);
+
+  var dateFrom = Utilities.formatDate(de, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  var dateTo = Utilities.formatDate(agora, Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+  var cartoes = [];
+  var movimentos = [];
+  var erros = [];
+
+  itens.forEach(function(item) {
+    try {
+      var contas = listarContasPluggyV513_(apiKey, item.itemId, "CREDIT");
+
+      contas.forEach(function(conta) {
+        var cd = conta.creditData || {};
+        var nome = String(conta.name || conta.marketingName || "Cartão");
+
+        cartoes.push({
+          conta: item.conta,
+          accountId: String(conta.id || ""),
+          nome: nome,
+          final: String(conta.number || ""),
+          saldoFatura: Number(conta.balance || 0),
+          limiteDisponivel: cd.availableCreditLimit === undefined || cd.availableCreditLimit === null ? null : Number(cd.availableCreditLimit),
+          limiteTotal: cd.creditLimit === undefined || cd.creditLimit === null ? null : Number(cd.creditLimit),
+          vencimento: cd.balanceDueDate ? isoData_(cd.balanceDueDate) : "",
+          fechamento: cd.balanceCloseDate ? isoData_(cd.balanceCloseDate) : "",
+          bandeira: String(cd.brand || ""),
+          status: String(cd.status || "")
+        });
+
+        var url =
+          "https://api.pluggy.ai/v2/transactions" +
+          "?accountId=" + encodeURIComponent(conta.id) +
+          "&dateFrom=" + encodeURIComponent(dateFrom) +
+          "&dateTo=" + encodeURIComponent(dateTo);
+
+        while (url) {
+          var resp = UrlFetchApp.fetch(url, {
+            method: "get",
+            headers: { "X-API-KEY": apiKey },
+            muteHttpExceptions: true
+          });
+
+          var code = resp.getResponseCode();
+          if (code < 200 || code >= 300) {
+            throw new Error("Transações do cartão " + nome + ": HTTP " + code);
+          }
+
+          var dados = JSON.parse(resp.getContentText() || "{}");
+          (dados.results || []).forEach(function(t) {
+            var meta = t.creditCardMetadata || {};
+            movimentos.push([
+              String(t.id || ""),
+              item.conta,
+              nome,
+              String(conta.id || ""),
+              t.date ? new Date(t.date) : "",
+              String(t.description || ""),
+              String(t.descriptionRaw || ""),
+              Number(t.amount || 0),
+              String(t.type || ""),
+              String(t.category || ""),
+              String(t.status || ""),
+              Number(meta.installmentNumber || 0),
+              Number(meta.totalInstallments || 0),
+              Number(meta.totalAmount || 0),
+              agora
+            ]);
+          });
+
+          url = dados.next ? ("https://api.pluggy.ai/v2/transactions" + dados.next) : null;
+        }
+      });
+    } catch (e) {
+      erros.push(item.conta + ": " + (e && e.message ? e.message : String(e)));
+    }
+  });
+
+  gravarCartoesV513_(cartoes);
+  var novos = upsertMovimentosCartaoV513_(movimentos);
+
+  registrarLog_(
+    "CARTAO_IMPORTADO",
+    "",
+    novos + " novo(s); cartões=" + cartoes.length + (erros.length ? "; erros=" + erros.join(" | ") : "")
+  );
+
+  return {
+    novos: novos,
+    cartoes: cartoes.length,
+    erros: erros,
+    mensagem: cartoes.length
+      ? ("Cartão atualizado: " + novos + " nova(s) transação(ões).")
+      : ("Nenhum cartão encontrado." + (erros.length ? " " + erros.join(" | ") : ""))
+  };
+}
+
+function lerCartoesV513_() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Cartoes");
+  if (!sh || sh.getLastRow() <= 1) return [];
+
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 12).getValues()
+    .filter(function(r) { return !!r[1]; })
+    .map(function(r) {
+      return {
+        conta: String(r[0] || ""),
+        accountId: String(r[1] || ""),
+        nome: String(r[2] || ""),
+        final: String(r[3] || ""),
+        saldoFatura: Number(r[4] || 0),
+        limiteDisponivel: r[5] === "" ? null : Number(r[5]),
+        limiteTotal: r[6] === "" ? null : Number(r[6]),
+        vencimento: r[7] ? isoData_(r[7]) : "",
+        fechamento: r[8] ? isoData_(r[8]) : "",
+        bandeira: String(r[9] || ""),
+        status: String(r[10] || ""),
+        atualizadoEm: r[11] instanceof Date ? r[11].toISOString() : String(r[11] || "")
+      };
+    });
+}
+
+function lerMovimentosCartaoV513_() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("MovimentosCartao");
+  if (!sh || sh.getLastRow() <= 1) return [];
+
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 15).getValues()
+    .filter(function(r) { return !!r[0]; })
+    .map(function(r) {
+      return {
+        idPluggy: String(r[0] || ""),
+        conta: String(r[1] || ""),
+        cartao: String(r[2] || ""),
+        accountId: String(r[3] || ""),
+        data: r[4] ? isoData_(r[4]) : "",
+        descricao: String(r[5] || ""),
+        descricaoOriginal: String(r[6] || ""),
+        valor: Number(r[7] || 0),
+        tipo: String(r[8] || ""),
+        categoriaPluggy: String(r[9] || ""),
+        statusPluggy: String(r[10] || ""),
+        parcelaAtual: Number(r[11] || 0),
+        totalParcelas: Number(r[12] || 0),
+        valorTotalParcelado: Number(r[13] || 0)
+      };
+    })
+    .sort(function(a, b) {
+      if (a.data === b.data) return Math.abs(b.valor) - Math.abs(a.valor);
+      return a.data < b.data ? 1 : -1;
+    });
+}
+
+function obterCartaoCreditoV513() {
+  garantirEstruturaV58_();
+
+  var cartoes = lerCartoesV513_();
+  var movimentos = lerMovimentosCartaoV513_();
+  var hoje = hojeIso_();
+  var d30 = new Date();
+  d30.setDate(d30.getDate() - 30);
+  var de30 = Utilities.formatDate(d30, Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+  var compras30 = 0;
+  var pagamentos30 = 0;
+  var pendentes = 0;
+
+  movimentos.forEach(function(m) {
+    var tipo = normalizarTextoConciliacao_(m.tipo);
+    var compra = tipo === "DEBIT" || (tipo !== "CREDIT" && m.valor > 0);
+    var pagamento = tipo === "CREDIT" || (tipo !== "DEBIT" && m.valor < 0);
+
+    if (m.data >= de30 && m.data <= hoje) {
+      if (compra) compras30 += Math.abs(m.valor);
+      else if (pagamento) pagamentos30 += Math.abs(m.valor);
+    }
+
+    if (normalizarTextoConciliacao_(m.statusPluggy) === "PENDING") pendentes++;
+  });
+
+  return {
+    versao: VERSAO_SISTEMA,
+    cartoes: cartoes,
+    movimentos: movimentos.slice(0, 300),
+    resumo: {
+      faturaAtual: Number(cartoes.reduce(function(s, x) { return s + Math.max(0, Number(x.saldoFatura || 0)); }, 0).toFixed(2)),
+      limiteDisponivel: Number(cartoes.reduce(function(s, x) { return s + Math.max(0, Number(x.limiteDisponivel || 0)); }, 0).toFixed(2)),
+      compras30: Number(compras30.toFixed(2)),
+      pagamentos30: Number(pagamentos30.toFixed(2)),
+      pendentes: pendentes,
+      vencimento: cartoes.map(function(x) { return x.vencimento; }).filter(Boolean).sort()[0] || ""
+    }
+  };
+}
+
+function saldoRealAppV513_() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Lancamentos");
+  if (!sh || sh.getLastRow() <= 1) return 0;
+
+  var hoje = hojeIso_();
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, 6).getValues();
+  var total = 0;
+
+  rows.forEach(function(r) {
+    if (!r[0]) return;
+    if (normalizarTextoConciliacao_(r[5]) !== "CONSOLIDADO") return;
+    if (isoData_(r[0]) > hoje) return;
+
+    var valor = Number(r[2] || 0);
+    total += normalizarTextoConciliacao_(r[3]) === "RECEITA" ? valor : -valor;
+  });
+
+  return Number(total.toFixed(2));
+}
+
+function saldoBancoPluggyV513_() {
+  var props = PropertiesService.getScriptProperties();
+  var itens = [
+    { conta: "PF", itemId: String(props.getProperty("PLUGGY_ITEM_ID_PF") || "").trim() },
+    { conta: "PJ", itemId: String(props.getProperty("PLUGGY_ITEM_ID_PJ") || "").trim() }
+  ].filter(function(x) { return !!x.itemId; });
+
+  var apiKey = obterApiKeyPluggyV512_();
+  var contas = [];
+
+  itens.forEach(function(item) {
+    listarContasPluggyV513_(apiKey, item.itemId, "BANK").forEach(function(conta) {
+      contas.push({
+        conta: item.conta,
+        accountId: String(conta.id || ""),
+        nome: String(conta.name || ""),
+        saldo: Number(conta.balance || 0)
+      });
+    });
+  });
+
+  return {
+    contas: contas,
+    total: Number(contas.reduce(function(s, x) { return s + Number(x.saldo || 0); }, 0).toFixed(2))
+  };
+}
+
+function obterSaudeSaldosV513_() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var banco = saldoBancoPluggyV513_();
+    var app = saldoRealAppV513_();
+
+    var baseTxt = props.getProperty("SALDO_PLUGGY_BASE_OFFSET_V513");
+    var calibrado = baseTxt !== null && baseTxt !== "";
+    var base = calibrado ? Number(baseTxt || 0) : 0;
+    var appAjustado = Number((app + base).toFixed(2));
+    var diferenca = Number((banco.total - appAjustado).toFixed(2));
+
+    return {
+      calibrado: calibrado,
+      banco: banco.total,
+      app: app,
+      base: Number(base.toFixed(2)),
+      appAjustado: appAjustado,
+      diferenca: diferenca,
+      ok: calibrado && Math.abs(diferenca) <= 0.50,
+      contas: banco.contas,
+      calibradoEm: String(props.getProperty("SALDO_PLUGGY_BASE_EM_V513") || "")
+    };
+  } catch (e) {
+    return { erro: e && e.message ? e.message : String(e) };
+  }
+}
+
+function calibrarSaldoPluggyV513() {
+  var props = PropertiesService.getScriptProperties();
+  var banco = saldoBancoPluggyV513_();
+  var app = saldoRealAppV513_();
+  var offset = Number((banco.total - app).toFixed(2));
+
+  props.setProperty("SALDO_PLUGGY_BASE_OFFSET_V513", String(offset));
+  props.setProperty("SALDO_PLUGGY_BASE_EM_V513", new Date().toISOString());
+
+  registrarLog_("SALDO_CALIBRADO", "", "banco=" + banco.total + " | app=" + app + " | base=" + offset);
+
+  return {
+    mensagem: "Referência de saldo salva.",
+    saude: obterSaudeSaldosV513_()
+  };
+}
+
+function importarTudoPluggyV513() {
+  var msgBanco = importarMovimentosBanco15Dias();
+  var cartao = importarCartaoCreditoV513();
+  var m = String(msgBanco || "").match(/(\d+)\s+novo/i);
+  var novosBanco = m ? Number(m[1] || 0) : 0;
+
+  return {
+    novosBanco: novosBanco,
+    novosCartao: Number(cartao.novos || 0),
+    cartoes: Number(cartao.cartoes || 0),
+    errosCartao: cartao.erros || [],
+    mensagem: "Banco: " + novosBanco + " novo(s) • Cartão: " + Number(cartao.novos || 0) + " nova(s) transação(ões)."
+  };
+}
+
+function parecePagamentoCartaoV513_(mov) {
+  if (!mov || naturezaMovimentoBancoV59_(mov) !== "DEBIT") return false;
+  var txt = textoBancoConciliacaoV59_(mov);
+  return (
+    txt.indexOf("PAGAMENTO DE FATURA") !== -1 ||
+    txt.indexOf("PAGAMENTO FATURA") !== -1 ||
+    txt.indexOf("PAGAMENTO CARTAO") !== -1
+  );
+}
+
+function garantirCategoriaCartaoV513_() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Categorias");
+  if (!sh) return "CARTÃO";
+
+  if (sh.getLastRow() > 1) {
+    var vals = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < vals.length; i++) {
+      if (normalizarTextoConciliacao_(vals[i][0]) === "CARTAO") return String(vals[i][0] || "CARTÃO");
+    }
+  }
+
+  sh.appendRow(["CARTÃO", gerarIdNumerico_()]);
+  return "CARTÃO";
+}
+
+function registrarPagamentoCartaoV513(dados) {
+  dados = dados || {};
+  var mov = encontrarMovimentoBancoLinhaV510_(dados.idPluggy);
+  validarMovimentoNovoV510_(mov);
+
+  return criarLancamentoBancoV510({
+    idPluggy: mov.idPluggy,
+    descricao: "PAGAMENTO CARTÃO",
+    categoria: garantirCategoriaCartaoV513_(),
+    lembrar: true,
+    padraoBanco: "PAGAMENTO DE FATURA"
+  });
 }
 
 
