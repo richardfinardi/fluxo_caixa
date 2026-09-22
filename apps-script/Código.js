@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.12.2";
+var VERSAO_SISTEMA = "5.13.0";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -44,6 +44,10 @@ function doPost(e) {
       marcarEmAbertoBackend: true,
       enviarAlertasFaturamentoSite: true,
       importarMovimentosBanco15Dias: true,
+      importarTudoPluggyV513: true,
+      importarCartaoCreditoV513: true,
+      obterCartaoCreditoV513: true,
+      calibrarSaldoPluggyV513: true,
       atualizarPluggyAgoraV512: true,
       obterConciliacaoBancoV59: true,
       conciliarMovimentoBancoV510: true,
@@ -61,7 +65,7 @@ function doPost(e) {
     if (!permitidas[nomeFuncao]) throw new Error("Função não permitida: " + nomeFuncao);
     if (typeof this[nomeFuncao] !== "function") throw new Error("Função não encontrada: " + nomeFuncao);
 
-    var somenteLeitura = nomeFuncao === "obterDadosIniciais" || nomeFuncao === "enviarAlertasFaturamentoSite" || nomeFuncao === "obterConciliacaoBancoV59" || nomeFuncao === "obterConfigPushV511";
+    var somenteLeitura = nomeFuncao === "obterDadosIniciais" || nomeFuncao === "enviarAlertasFaturamentoSite" || nomeFuncao === "obterConciliacaoBancoV59" || nomeFuncao === "obterCartaoCreditoV513" || nomeFuncao === "obterConfigPushV511";
     if (!somenteLeitura) {
       lock = LockService.getScriptLock();
       lock.waitLock(30000);
@@ -72,7 +76,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.12.2: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.13.0: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -81,7 +85,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.12.2" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.13.0" }));
     return saida;
   } finally {
     if (lock) {
@@ -149,10 +153,12 @@ function garantirEstruturaV58_() {
   var exc = ss.getSheetByName("RecorrenciasExcecoes") || ss.insertSheet("RecorrenciasExcecoes");
   var fer = ss.getSheetByName("Feriados") || ss.insertSheet("Feriados");
   var log = ss.getSheetByName("LOG") || ss.insertSheet("LOG");
+  var movCartao = ss.getSheetByName("MovimentosCartao") || ss.insertSheet("MovimentosCartao");
+  var cartoes = ss.getSheetByName("Cartoes") || ss.insertSheet("Cartoes");
 
   var props = PropertiesService.getScriptProperties();
   var versaoEstrutura = props.getProperty("FLUXO_CAIXA_ESTRUTURA");
-  var precisaMigrar = versaoEstrutura !== "5.10";
+  var precisaMigrar = versaoEstrutura !== "5.13";
 
   if (!precisaMigrar) {
     ESTRUTURA_CACHE_EXECUCAO_ = true;
@@ -167,6 +173,8 @@ function garantirEstruturaV58_() {
   garantirCabecalhos_(exc, ["IdSerie", "ChaveOcorrencia", "DataOcorrencia", "Motivo", "CriadoEm"]);
   garantirCabecalhos_(fer, ["Data", "Descricao", "Ativo"]);
   garantirCabecalhos_(log, ["DataHora", "Acao", "Registro", "Detalhes"]);
+  garantirCabecalhos_(movCartao, ["IdPluggy", "Conta", "Cartao", "AccountId", "Data", "Descricao", "DescricaoOriginal", "Valor", "Tipo", "CategoriaPluggy", "StatusPluggy", "BillId", "ParcelaAtual", "TotalParcelas", "ValorTotalParcelado", "DataImportacao"]);
+  garantirCabecalhos_(cartoes, ["Conta", "AccountId", "Nome", "Final", "SaldoFatura", "LimiteDisponivel", "LimiteTotal", "Vencimento", "Fechamento", "Bandeira", "Status", "AtualizadoEm"]);
 
   if (fer.getLastRow() === 1) {
     fer.getRange(2, 1, 8, 3).setValues([
@@ -264,7 +272,16 @@ function garantirEstruturaV58_() {
   preencherIds(cats, 1, 2);
   preencherIds(cond, 1, 6);
 
-  props.setProperty("FLUXO_CAIXA_ESTRUTURA", "5.10");
+  var temCartao = false;
+  if (cats.getLastRow() > 1) {
+    var nomesCats = cats.getRange(2, 1, cats.getLastRow() - 1, 1).getValues();
+    nomesCats.forEach(function(r) {
+      if (normalizarChave_(r[0]) === normalizarChave_("CARTÃO")) temCartao = true;
+    });
+  }
+  if (!temCartao) cats.appendRow(["CARTÃO", gerarIdNumerico_()]);
+
+  props.setProperty("FLUXO_CAIXA_ESTRUTURA", "5.13");
   ESTRUTURA_CACHE_EXECUCAO_ = true;
 }
 
@@ -3369,7 +3386,7 @@ function obterConciliacaoBancoV59() {
   });
 
   return {
-    versao: "5.12.2",
+    versao: "5.13.0",
     statusPluggy: obterStatusPluggyV5103_(),
     resumo: {
       total: movimentosExibicao.length,
