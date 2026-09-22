@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.12.0</title>
+  <title>Fluxo de Caixa Automatizado 5.12.1</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.12.0">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.12.1">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -232,7 +232,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.12.0</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.12.1</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -764,7 +764,7 @@
     </div>
 
     <div class="alert alert-info py-2 px-3 mt-3 mb-2" style="font-size:11px;">
-      ✅ <b>Modo ativo V5.12.0:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
+      ✅ <b>Modo ativo V5.12.1:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
     </div>
 
     <div id="pluggySyncV5103" class="pluggy-sync-v5103">
@@ -971,7 +971,7 @@
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
-    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS', confirmados: {}, rascunhos: {}, rejeitados: {}, vinculosManuais: {}, vinculoAtualId: '', pushCfg: null, oneSignal: null, oneSignalIniciado: false, subscriptionId: '', pushToken: '', pushVerificado: false };
+    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS', confirmados: {}, rascunhos: {}, rejeitados: {}, vinculosManuais: {}, vinculoAtualId: '', ultimaSincronizacaoManual: null, pushCfg: null, oneSignal: null, oneSignalIniciado: false, subscriptionId: '', pushToken: '', pushVerificado: false };
     
     var mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     var dataPonteiroDash = new Date();
@@ -1829,7 +1829,7 @@
     }
 
 // =========================
-// V5.12.0 - CONCILIAÇÃO BANCÁRIA
+// V5.12.1 - CONCILIAÇÃO BANCÁRIA
 // =========================
 
 
@@ -2313,11 +2313,32 @@ function renderizarStatusPluggyV5103_(statusPluggy) {
     ? '<div class="pluggy-sync-alerta">⚠️ Passou da janela provável de atualização (24h30). Os movimentos mais recentes podem ainda não ter chegado ao Pluggy.</div>'
     : '';
 
+  var manual = bancoV59.ultimaSincronizacaoManual;
+  var manualHtml = '';
+
+  if (manual && Array.isArray(manual.itens) && manual.itens.length) {
+    manualHtml =
+      '<div class="mt-2 pt-2 border-top">' +
+      '<div class="fw-bold" style="font-size:11px;">Última tentativa manual</div>' +
+      manual.itens.map(function(x) {
+        var partes = [];
+        partes.push('<b>' + escapeHtmlBancoV59_(x.conta || '?') + '</b>');
+        if (x.http) partes.push('HTTP ' + escapeHtmlBancoV59_(x.http));
+        if (x.codigo) partes.push(escapeHtmlBancoV59_(x.codigo));
+        if (x.mensagem) partes.push(escapeHtmlBancoV59_(x.mensagem));
+        return '<div style="font-size:10px;" class="' +
+          (x.concluido ? 'text-success' : (x.limite ? 'text-warning' : 'text-danger')) +
+          '">' + partes.join(' • ') + '</div>';
+      }).join('') +
+      '</div>';
+  }
+
   box.innerHTML =
     '<div class="pluggy-sync-titulo">🔄 Sincronização Pluggy</div>' +
     '<div class="pluggy-sync-itens">' + detalhes + '</div>' +
     '<div class="pluggy-sync-proxima">Próxima provável: <b>' + proxima + '</b> <span class="text-muted">(mais recente + 24h30)</span></div>' +
-    alerta;
+    alerta +
+    manualHtml;
 }
 
 
@@ -3141,6 +3162,10 @@ function atualizarPluggyAgoraV512() {
       if (btnImportar) btnImportar.disabled = false;
 
       resp = resp || {};
+      bancoV59.ultimaSincronizacaoManual = {
+        itens: resp.itens || [],
+        mensagem: resp.mensagem || ''
+      };
       if (resp.statusPluggy) renderizarStatusPluggyV5103_(resp.statusPluggy);
 
       var itens = resp.itens || [];
@@ -3160,6 +3185,9 @@ function atualizarPluggyAgoraV512() {
         btn.innerText = '🔄 Sincronizar Pluggy';
       }
       if (btnImportar) btnImportar.disabled = false;
+      bancoV59.ultimaSincronizacaoManual = {
+        itens: [{ conta: 'API', erro: true, mensagem: String(err || 'Erro desconhecido') }]
+      };
       exibirAvisoNaTela('Erro ao sincronizar Pluggy: ' + err, 'danger');
       carregarConciliacaoBancoV59();
     })
