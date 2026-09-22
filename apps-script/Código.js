@@ -3028,6 +3028,8 @@ function processarMovimentosBancoLoteV5102(dados) {
           lembrar: item.lembrar === true,
           padraoBanco: item.padraoBanco
         });
+      } else if (acao === "PAGAMENTO_CARTAO") {
+        mensagem = registrarPagamentoCartaoV513({ idPluggy: item.idPluggy });
       } else {
         throw new Error("Ação não reconhecida: " + acao);
       }
@@ -3599,11 +3601,11 @@ function ativarMonitorPluggyV511() {
   props.setProperty("MONITOR_PLUGGY_ULTIMO_ERRO", "");
 
   // Faz uma importação imediatamente ao ativar, mas não dispara push inicial.
-  var msg = importarMovimentosBanco15Dias();
-  var novos = quantidadeNovosDaMensagemImportacaoV511_(msg);
+  var imp = importarTudoPluggyV513();
+  var novos = Number(imp.novosBanco || 0) + Number(imp.novosCartao || 0);
   props.setProperty("MONITOR_PLUGGY_ULTIMOS_NOVOS", String(novos));
 
-  return "Monitor automático ativado: verificação a cada 30 minutos. " + msg;
+  return "Monitor automático ativado: verificação a cada 30 minutos. " + imp.mensagem;
 }
 
 function desativarMonitorPluggyV511() {
@@ -3661,8 +3663,10 @@ function monitorarPluggyAutomaticamenteV511() {
     }
 
     if (mudouSync) {
-      var msg = importarMovimentosBanco15Dias();
-      var novos = quantidadeNovosDaMensagemImportacaoV511_(msg);
+      var imp = importarTudoPluggyV513();
+      var novosBanco = Number(imp.novosBanco || 0);
+      var novosCartao = Number(imp.novosCartao || 0);
+      var novos = novosBanco + novosCartao;
 
       props.setProperty("MONITOR_PLUGGY_ULTIMA_SYNC", syncAtual);
       props.setProperty("MONITOR_PLUGGY_ULTIMOS_NOVOS", String(novos));
@@ -3670,22 +3674,24 @@ function monitorarPluggyAutomaticamenteV511() {
       props.deleteProperty("MONITOR_PLUGGY_ULTIMO_ALERTA_ATRASO");
 
       if (novos > 0) {
-        var texto = novos === 1
-          ? "1 novo movimento disponível para conciliação."
-          : novos + " novos movimentos disponíveis para conciliação.";
+        var partes = [];
+        if (novosBanco) partes.push(novosBanco + " bancário(s)");
+        if (novosCartao) partes.push(novosCartao + " cartão");
 
         enviarPushOneSignalV511_(
-          "🏦 Banco atualizado",
-          texto,
+          "🏦 Fluxo atualizado",
+          partes.join(" • ") + " novo(s) movimento(s).",
           {
             tipo: "NOVOS_MOVIMENTOS",
             quantidade: novos,
+            banco: novosBanco,
+            cartao: novosCartao,
             sync: syncAtual
           }
         );
       }
 
-      return "Monitor: sincronização nova detectada. " + msg;
+      return "Monitor: sincronização nova detectada. " + imp.mensagem;
     }
 
     // Se passou da janela provável (mais recente + 24h30), avisa apenas uma vez
@@ -3742,6 +3748,16 @@ function obterConciliacaoBancoV59() {
         detalhe: "Par encontrado na conta " + par.conta + " em " + par.data + ".",
         par: par
       };
+      return;
+    }
+
+    if (parecePagamentoCartaoV513_(mov)) {
+      mov.sugestao = {
+        tipo: "PAGAMENTO_CARTAO",
+        titulo: "Pagamento / antecipação de cartão",
+        detalhe: "Saída real da conta. As compras do cartão ficam só no módulo Cartão, sem duplicar a despesa."
+      };
+      sugestoes++;
       return;
     }
 
@@ -3825,8 +3841,9 @@ function obterConciliacaoBancoV59() {
   });
 
   return {
-    versao: "5.12.2",
+    versao: "5.13.0",
     statusPluggy: obterStatusPluggyV5103_(),
+    saudeSaldo: obterSaudeSaldosV513_(),
     resumo: {
       total: movimentosExibicao.length,
       sugestoes: sugestoes,
