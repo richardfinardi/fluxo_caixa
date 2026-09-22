@@ -1,0 +1,62 @@
+name: Teste Batch Gestao Obras V3
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".deploy-triggers/gestao-obras-batch-test.txt"
+
+permissions:
+  contents: read
+
+env:
+  API_URL: https://script.google.com/macros/s/AKfycbw6cRAPlwVzNOURoLNsTJ47xyezz0LStCuZyNpW2wT97f9pj3RADUn1L1MdqTq9Tm_b/exec
+
+jobs:
+  teste:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Testar efetivacao em lote
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          post() {
+            curl --max-time 60 -L --fail --silent --show-error               -H 'Content-Type: text/plain;charset=utf-8'               --data-binary "$1" "$API_URL"
+          }
+
+          HEALTH=$(curl --max-time 30 -L --fail --silent --show-error "$API_URL?action=health")
+          echo "$HEALTH" | jq -e '.ok == true and .data.schemaVersion == "3"' >/dev/null
+
+          OBRA=$(post '{"action":"obras.create","nome":"TESTE BATCH V3 - APAGAR","cliente":"QA","data_inicio_contratual":"2026-09-22","data_fim_contratual":"2026-12-31"}')
+          ID_OBRA=$(echo "$OBRA" | jq -r '.data.ID_OBRA')
+          echo "ID_OBRA=$ID_OBRA"
+
+          PAYLOAD=$(jq -nc --arg obra "$ID_OBRA" '{
+            action:"planejamento.efetivar",
+            id_obra:$obra,
+            rows:[
+              {key:"s1",kind:"ETAPA",parentKey:"",name:"Fundacoes",order:1},
+              {key:"a1",kind:"ATIVIDADE",parentKey:"s1",name:"Escavacao",activityTypeId:"TIP-CIVIL",duration:5,weight:10,restriction:"",order:2,dependencies:[]},
+              {key:"a2",kind:"ATIVIDADE",parentKey:"s1",name:"Concretagem",activityTypeId:"TIP-CIVIL",duration:4,weight:30,restriction:"",order:3,dependencies:[{predecessorKey:"a1",releasePercent:100,lagDays:0}]},
+              {key:"s2",kind:"ETAPA",parentKey:"",name:"Estrutura",order:4},
+              {key:"a3",kind:"ATIVIDADE",parentKey:"s2",name:"Pilares",activityTypeId:"TIP-ESTRUTURA",duration:10,weight:100,restriction:"",order:5,dependencies:[{predecessorKey:"a2",releasePercent:70,lagDays:2}]}
+            ]
+          }')
+
+          START=$(date +%s)
+          RESULT=$(post "$PAYLOAD")
+          END=$(date +%s)
+          SECONDS=$((END-START))
+
+          echo "$RESULT" | jq -e '.ok == true' >/dev/null
+          echo "$RESULT" | jq -e '.data.wbs | length == 2' >/dev/null
+          echo "$RESULT" | jq -e '.data.atividades | length == 3' >/dev/null
+          echo "$RESULT" | jq -e '.data.dependencias | length == 2' >/dev/null
+          echo "$RESULT" | jq -e '([.data.atividades[].PESO_RELATIVO] | add) == 140' >/dev/null
+          echo "$RESULT" | jq -e '[.data.atividades[].CODIGO] == ["1.1","1.2","2.1"]' >/dev/null
+          echo "$RESULT" | jq -e '[.data.atividades[] | select(.DATA_FIM_FORECAST != "")] | length == 3' >/dev/null
+
+          echo "BATCH_SECONDS=$SECONDS"
+          echo "BATCH_TEST_OK"
