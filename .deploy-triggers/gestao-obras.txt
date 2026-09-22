@@ -2,6 +2,6 @@ Gestao de Obras deploy trigger
 Estado: ATIVO
 Versao: 0.2.0
 Schema: V2
-Source commit: c2bc18f2d192f6ba331a2dab47e975a2dd0baee2
-Motivo: planejamento WBS atividades dependencias cronograma
-Disparo: 2026-09-22T12:12:00-03:00
+Source commit: eb18663603faa54d5be9669cc34a8d9681ecb9ac
+Motivo: configurar Web App publico e validar health
+Disparo: 2026-09-22T12:14:00-03:00
