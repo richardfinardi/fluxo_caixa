@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.11.5</title>
+  <title>Fluxo de Caixa Automatizado 5.12.0</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.11.5">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.12.0">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -232,7 +232,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.11.5</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.12.0</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -758,12 +758,13 @@
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <button type="button" class="btn btn-sm btn-success fw-bold" id="btnConciliarConfirmadosV5101" onclick="processarConfirmadosBancoV5102()" disabled>✅ Processar confirmados (0)</button>
-        <button type="button" class="btn btn-sm btn-primary fw-bold" id="btnAtualizarBancoV59" onclick="atualizarBancoV59()">↻ Atualizar Banco</button>
+        <button type="button" class="btn btn-sm btn-primary fw-bold" id="btnSincronizarPluggyV512" onclick="atualizarPluggyAgoraV512()">🔄 Sincronizar Pluggy</button>
+        <button type="button" class="btn btn-sm btn-outline-primary fw-bold" id="btnAtualizarBancoV59" onclick="atualizarBancoV59()">↻ Importar movimentos</button>
       </div>
     </div>
 
     <div class="alert alert-info py-2 px-3 mt-3 mb-2" style="font-size:11px;">
-      ✅ <b>Modo ativo V5.11.5:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
+      ✅ <b>Modo ativo V5.12.0:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
     </div>
 
     <div id="pluggySyncV5103" class="pluggy-sync-v5103">
@@ -899,7 +900,7 @@
               else payload.args = argumentos;
 
               // V5.8: em gravações, o backend já devolve o estado atualizado na mesma resposta.
-              payload.retornarDados = funcaoBackend !== 'obterDadosIniciais' && funcaoBackend !== 'enviarAlertasFaturamentoSite' && funcaoBackend !== 'obterConciliacaoBancoV59' && funcaoBackend !== 'registrarSubscriptionV5112';
+              payload.retornarDados = funcaoBackend !== 'obterDadosIniciais' && funcaoBackend !== 'enviarAlertasFaturamentoSite' && funcaoBackend !== 'obterConciliacaoBancoV59' && funcaoBackend !== 'atualizarPluggyAgoraV512' && funcaoBackend !== 'registrarSubscriptionV5112';
 
               const resposta = await fetch(GOOGLE_API_URL, {
                 method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload)
@@ -945,6 +946,7 @@
           liquidarLancamentoBackend: function(id) { return this.executarGenerico('liquidarLancamentoBackend', id); },
           marcarEmAbertoBackend: function(id, novaData) { return this.executarGenerico('marcarEmAbertoBackend', { argsArray: [id, novaData || ''] }); },
           importarMovimentosBanco15Dias: function() { return this.executarGenerico('importarMovimentosBanco15Dias'); },
+          atualizarPluggyAgoraV512: function() { return this.executarGenerico('atualizarPluggyAgoraV512'); },
           obterConciliacaoBancoV59: function() { return this.executarGenerico('obterConciliacaoBancoV59'); },
           conciliarMovimentoBancoV510: function(dados) { return this.executarGenerico('conciliarMovimentoBancoV510', dados); },
           criarLancamentoBancoV510: function(dados) { return this.executarGenerico('criarLancamentoBancoV510', dados); },
@@ -969,7 +971,7 @@
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
-    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS', confirmados: {}, rascunhos: {}, pushCfg: null, oneSignal: null, oneSignalIniciado: false, subscriptionId: '', pushToken: '', pushVerificado: false };
+    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS', confirmados: {}, rascunhos: {}, rejeitados: {}, vinculosManuais: {}, vinculoAtualId: '', pushCfg: null, oneSignal: null, oneSignalIniciado: false, subscriptionId: '', pushToken: '', pushVerificado: false };
     
     var mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     var dataPonteiroDash = new Date();
@@ -1827,7 +1829,7 @@
     }
 
 // =========================
-// V5.11.5 - CONCILIAÇÃO BANCÁRIA
+// V5.12.0 - CONCILIAÇÃO BANCÁRIA
 // =========================
 
 
@@ -2441,6 +2443,241 @@ function movimentoBancoV5102_(idPluggy) {
   }) || null;
 }
 
+
+function normalizarBancoV512_(texto) {
+  var s = String(texto || '').toUpperCase();
+  try { s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (_) {}
+  return s.replace(/[^A-Z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function diasBancoV512_(a, b) {
+  if (!a || !b) return 9999;
+  var da = new Date(String(a).substring(0,10) + 'T12:00:00');
+  var db = new Date(String(b).substring(0,10) + 'T12:00:00');
+  if (isNaN(da.getTime()) || isNaN(db.getTime())) return 9999;
+  return Math.abs(Math.round((da.getTime() - db.getTime()) / 86400000));
+}
+
+function candidatoManualDeLancamentoV512_(mov, lanc) {
+  if (!lanc) return null;
+  var valorBanco = Math.abs(Number(mov && mov.valor || 0));
+  var valorLanc = Math.abs(Number(lanc.valor || 0));
+  return {
+    idLancamento: String(lanc.id || ''),
+    descricao: String(lanc.descricao || ''),
+    data: String(lanc.data || ''),
+    valor: valorLanc,
+    categoria: String(lanc.categoria || ''),
+    status: String(lanc.status || ''),
+    tipo: String(lanc.tipo || ''),
+    diferenca: Number((valorBanco - valorLanc).toFixed(2)),
+    criterio: 'Vínculo manual',
+    manual: true
+  };
+}
+
+function candidatoEfetivoBancoV512_(mov) {
+  if (!mov) return null;
+  var id = String(mov.idPluggy || '');
+  var manual = (bancoV59.vinculosManuais || {})[id];
+  if (manual && manual.candidato) return manual.candidato;
+  if ((bancoV59.rejeitados || {})[id]) return null;
+  return mov.sugestao && mov.sugestao.candidato ? mov.sugestao.candidato : null;
+}
+
+function rejeitarSugestaoBancoV512(idPluggy) {
+  var id = String(idPluggy || '');
+  bancoV59.rejeitados = bancoV59.rejeitados || {};
+  bancoV59.vinculosManuais = bancoV59.vinculosManuais || {};
+  bancoV59.rejeitados[id] = true;
+  delete bancoV59.vinculosManuais[id];
+  delete bancoV59.confirmados[id];
+  renderizarBancoV59();
+  atualizarBotaoConfirmadosBancoV5102_();
+}
+
+function limparVinculoManualBancoV512(idPluggy) {
+  var id = String(idPluggy || '');
+  bancoV59.rejeitados = bancoV59.rejeitados || {};
+  bancoV59.vinculosManuais = bancoV59.vinculosManuais || {};
+  delete bancoV59.vinculosManuais[id];
+  bancoV59.rejeitados[id] = true;
+  delete bancoV59.confirmados[id];
+  renderizarBancoV59();
+  atualizarBotaoConfirmadosBancoV5102_();
+}
+
+function garantirModalVinculoBancoV512_() {
+  var existente = document.getElementById('modalVinculoBancoV512');
+  if (existente) return existente;
+
+  var wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <div class="modal fade" id="modalVinculoBancoV512" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-dark text-white py-2">
+            <div>
+              <h6 class="modal-title mb-0">🔗 Vincular movimento a lançamento</h6>
+              <small id="vinculoBancoResumoV512" class="text-white-50"></small>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="text" class="form-control form-control-sm mb-2" id="buscaVinculoBancoV512"
+              placeholder="Pesquisar descrição, categoria, data ou valor...">
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="lembrarVinculoBancoV512" checked>
+              <label class="form-check-label" for="lembrarVinculoBancoV512">
+                Lembrar este nome para sugerir o mesmo lançamento nas próximas vezes
+              </label>
+            </div>
+            <div id="listaVinculoBancoV512"></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap.firstElementChild);
+
+  var input = document.getElementById('buscaVinculoBancoV512');
+  input.addEventListener('input', function() { renderizarLancamentosVinculoBancoV512_(); });
+  return document.getElementById('modalVinculoBancoV512');
+}
+
+function abrirVinculoManualBancoV512(idPluggy) {
+  var mov = movimentoBancoV5102_(idPluggy);
+  if (!mov) return;
+
+  bancoV59.vinculoAtualId = String(idPluggy || '');
+  garantirModalVinculoBancoV512_();
+
+  var resumo = document.getElementById('vinculoBancoResumoV512');
+  resumo.innerText =
+    dataBancoV59_(mov.data) + ' • ' +
+    moedaBancoV59_(Math.abs(Number(mov.valor || 0))) + ' • ' +
+    String(mov.descricao || mov.descricaoOriginal || '');
+
+  var busca = document.getElementById('buscaVinculoBancoV512');
+  busca.value = '';
+
+  var lembrar = document.getElementById('lembrarVinculoBancoV512');
+  lembrar.checked = true;
+
+  renderizarLancamentosVinculoBancoV512_();
+
+  var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVinculoBancoV512'));
+  modal.show();
+  setTimeout(function(){ try { busca.focus(); } catch (_) {} }, 250);
+}
+
+function renderizarLancamentosVinculoBancoV512_() {
+  var mov = movimentoBancoV5102_(bancoV59.vinculoAtualId);
+  var box = document.getElementById('listaVinculoBancoV512');
+  var busca = document.getElementById('buscaVinculoBancoV512');
+  if (!mov || !box) return;
+
+  var termo = normalizarBancoV512_(busca ? busca.value : '');
+  var tipoEsperado = String(mov.natureza || '').toUpperCase() === 'CREDIT' ? 'RECEITA' : 'DESPESA';
+  var valorBanco = Math.abs(Number(mov.valor || 0));
+
+  var lista = (state.lancamentos || []).filter(function(l) {
+    if (normalizarBancoV512_(l.tipo) !== tipoEsperado) return false;
+    if (!l.id) return false;
+
+    if (!termo) return true;
+    var texto = normalizarBancoV512_([
+      l.descricao,
+      l.categoria,
+      l.data,
+      Number(l.valor || 0).toFixed(2),
+      l.status
+    ].join(' '));
+    return texto.indexOf(termo) !== -1;
+  });
+
+  lista.sort(function(a,b) {
+    var sa = normalizarStatus(a.status) === 'consolidado' ? 1 : 0;
+    var sb = normalizarStatus(b.status) === 'consolidado' ? 1 : 0;
+    if (sa !== sb) return sa - sb;
+
+    var da = diasBancoV512_(mov.data, a.data);
+    var db = diasBancoV512_(mov.data, b.data);
+    if (da !== db) return da - db;
+
+    var va = Math.abs(valorBanco - Math.abs(Number(a.valor || 0)));
+    var vb = Math.abs(valorBanco - Math.abs(Number(b.valor || 0)));
+    return va - vb;
+  });
+
+  lista = lista.slice(0, 60);
+
+  if (!lista.length) {
+    box.innerHTML = '<div class="text-muted text-center py-4">Nenhum lançamento compatível encontrado.</div>';
+    return;
+  }
+
+  box.innerHTML = lista.map(function(l) {
+    var st = normalizarStatus(l.status);
+    var badge = st === 'consolidado'
+      ? '<span class="badge bg-success">Consolidado</span>'
+      : (st === 'em aberto'
+          ? '<span class="badge bg-warning text-dark">Em Aberto</span>'
+          : '<span class="badge bg-light text-dark border">Projetado</span>');
+
+    return `
+      <button type="button" class="btn btn-light border w-100 text-start mb-2 p-2"
+        onclick="selecionarVinculoManualBancoV512('${String(l.id)}')">
+        <div class="d-flex justify-content-between gap-2">
+          <div>
+            <b>${escapeHtmlBancoV59_(l.descricao || 'Sem descrição')}</b>
+            <div class="text-muted" style="font-size:11px;">
+              ${dataBancoV59_(l.data)} • ${escapeHtmlBancoV59_(l.categoria || 'Sem categoria')}
+            </div>
+          </div>
+          <div class="text-end">
+            <b>${moedaBancoV59_(Math.abs(Number(l.valor || 0)))}</b>
+            <div>${badge}</div>
+          </div>
+        </div>
+      </button>`;
+  }).join('');
+}
+
+function selecionarVinculoManualBancoV512(idLancamento) {
+  var mov = movimentoBancoV5102_(bancoV59.vinculoAtualId);
+  if (!mov) return;
+
+  var lanc = (state.lancamentos || []).find(function(l) {
+    return String(l.id) === String(idLancamento);
+  });
+  if (!lanc) {
+    exibirAvisoNaTela('Lançamento não encontrado.', 'danger');
+    return;
+  }
+
+  var tipoEsperado = String(mov.natureza || '').toUpperCase() === 'CREDIT' ? 'receita' : 'despesa';
+  if (String(lanc.tipo || '').toLowerCase() !== tipoEsperado) {
+    exibirAvisoNaTela('O tipo do lançamento não combina com o movimento bancário.', 'danger');
+    return;
+  }
+
+  var lembrar = !!document.getElementById('lembrarVinculoBancoV512').checked;
+  var id = String(mov.idPluggy || '');
+
+  bancoV59.vinculosManuais[id] = {
+    candidato: candidatoManualDeLancamentoV512_(mov, lanc),
+    lembrar: lembrar
+  };
+  bancoV59.rejeitados[id] = true;
+  delete bancoV59.confirmados[id];
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVinculoBancoV512')).hide();
+  renderizarBancoV59();
+  atualizarBotaoConfirmadosBancoV5102_();
+  exibirAvisoNaTela('Vínculo manual selecionado. Marque Confirmado para processar.', 'success');
+}
+
+
 function atualizarRascunhoBancoV5102(idPluggy) {
   bancoV59.rascunhos = bancoV59.rascunhos || {};
   var sid = idCampoBancoV510_(idPluggy);
@@ -2475,18 +2712,22 @@ function alternarConfirmadoBancoV5102(idPluggy, marcado) {
   }
 
   var s = mov.sugestao || {};
+  var candidato = candidatoEfetivoBancoV512_(mov);
+  var manual = (bancoV59.vinculosManuais || {})[id] || null;
 
-  if (s.tipo === 'TRANSFERENCIA_INTERNA' && s.par) {
+  if (s.tipo === 'TRANSFERENCIA_INTERNA' && s.par && !manual) {
     bancoV59.confirmados[id] = {
       acao: 'TRANSFERENCIA',
       idPluggy: id,
       idPar: String(s.par.idPluggy || '')
     };
-  } else if (s.candidato) {
+  } else if (candidato) {
     bancoV59.confirmados[id] = {
       acao: 'CONCILIAR',
       idPluggy: id,
-      idLancamento: String(s.candidato.idLancamento || '')
+      idLancamento: String(candidato.idLancamento || ''),
+      lembrar: !!(manual && manual.lembrar),
+      padraoBanco: padraoBancoV510_(mov)
     };
   } else {
     atualizarRascunhoBancoV5102(id);
@@ -2541,7 +2782,9 @@ function montarItensConfirmadosBancoV5102_() {
     itens.push({
       acao: 'CONCILIAR',
       idPluggy: id,
-      idLancamento: base.idLancamento
+      idLancamento: base.idLancamento,
+      lembrar: base.lembrar === true,
+      padraoBanco: base.padraoBanco || padraoBancoV510_(mov)
     });
   });
 
@@ -2603,9 +2846,12 @@ function htmlAcoesBancoV510_(mov, sugestao) {
   var id = String(mov.idPluggy || '');
   var sid = idCampoBancoV510_(id);
   var checked = bancoV59.confirmados && bancoV59.confirmados[id] ? ' checked' : '';
+  var candidato = candidatoEfetivoBancoV512_(mov);
+  var manual = !!((bancoV59.vinculosManuais || {})[id]);
+  var rejeitada = !!((bancoV59.rejeitados || {})[id]);
 
   var blocoEdicao = '';
-  if (!s.candidato && s.tipo !== 'TRANSFERENCIA_INTERNA') {
+  if (!candidato && s.tipo !== 'TRANSFERENCIA_INTERNA') {
     var rascunho = (bancoV59.rascunhos || {})[id] || {};
     var desc = rascunho.descricao || descricaoSugeridaBancoV510_(mov, s);
     var categoriaRegra = s.regra && s.regra.categoria ? s.regra.categoria : '';
@@ -2635,6 +2881,17 @@ function htmlAcoesBancoV510_(mov, sugestao) {
       </div>`;
   }
 
+  var botoes = '';
+  if (s.tipo !== 'TRANSFERENCIA_INTERNA') {
+    botoes += '<button type="button" class="btn btn-sm btn-outline-primary" onclick="abrirVinculoManualBancoV512(\'' + id + '\')">🔗 Vincular lançamento</button>';
+
+    if (manual) {
+      botoes += '<button type="button" class="btn btn-sm btn-outline-warning" onclick="limparVinculoManualBancoV512(\'' + id + '\')">✖ Limpar vínculo</button>';
+    } else if (s.candidato && !rejeitada) {
+      botoes += '<button type="button" class="btn btn-sm btn-outline-warning" onclick="rejeitarSugestaoBancoV512(\'' + id + '\')">✖ Não é este</button>';
+    }
+  }
+
   return `
     ${blocoEdicao}
     <div class="banco-confirmar-v5101">
@@ -2643,6 +2900,7 @@ function htmlAcoesBancoV510_(mov, sugestao) {
       <label for="bconfirm_${sid}">Confirmado</label>
     </div>
     <div class="banco-acoes-v510">
+      ${botoes}
       <button type="button" class="btn btn-sm btn-outline-secondary" onclick="ignorarBancoV510('${id}')">Ignorar</button>
     </div>`;
 }
@@ -2708,7 +2966,7 @@ function confirmarTransferenciaBancoV510(idPluggy, idPar) {
 }
 
 
-function htmlCandidatoBancoV59_(mov, candidato) {
+function htmlCandidatoBancoV59_(mov, candidato, manual) {
   if (!candidato) return '';
   var consolidado = String(candidato.status || '').toLowerCase().trim() === 'consolidado';
   var diff = Number(candidato.diferenca || 0);
@@ -2716,7 +2974,8 @@ function htmlCandidatoBancoV59_(mov, candidato) {
 
   return `
     <div class="banco-candidato">
-      ${consolidado ? '<div class="badge bg-warning text-dark mb-1">⚠️ Possível correspondência já consolidada</div>' : ''}
+      ${manual ? '<div class="badge bg-primary mb-1">🔗 Vínculo manual</div>' : ''}
+      ${consolidado ? '<div class="badge bg-warning text-dark mb-1">⚠️ Correspondência já consolidada</div>' : ''}
       <div class="fw-bold">${escapeHtmlBancoV59_(candidato.descricao)}</div>
       <div class="text-muted">${dataBancoV59_(candidato.data)} • ${escapeHtmlBancoV59_(candidato.categoria || 'Sem categoria')} • ${escapeHtmlBancoV59_(candidato.status || '')}</div>
       ${candidato.criterio ? `<div class="text-muted" style="font-size:10px;">Critério: ${escapeHtmlBancoV59_(candidato.criterio)}</div>` : ''}
@@ -2756,10 +3015,7 @@ function renderizarBancoV59() {
 
     var tipoSug = String((m.sugestao && m.sugestao.tipo) || '');
     if (bancoV59.visao === 'TRANSFERENCIAS') return tipoSug === 'TRANSFERENCIA_INTERNA';
-    if (bancoV59.visao === 'SUGESTOES') {
-      return (tipoSug === 'REGRA' || tipoSug === 'CLIENTE' || tipoSug === 'MATCH') &&
-             !!(m.sugestao && m.sugestao.candidato);
-    }
+    if (bancoV59.visao === 'SUGESTOES') return !!candidatoEfetivoBancoV512_(m);
     return true;
   });
 
@@ -2774,15 +3030,28 @@ function renderizarBancoV59() {
   status.innerText = movimentos.length + ' movimento(s) exibido(s).';
 
   lista.innerHTML = movimentos.map(function(m) {
+    var id = String(m.idPluggy || '');
     var natureza = String(m.natureza || '').toUpperCase();
     var entrada = natureza === 'CREDIT';
     var s = m.sugestao || {};
-    var classeSug = classeSugestaoBancoV59_(s.tipo);
-    var candidato = htmlCandidatoBancoV59_(m, s.candidato);
+    var manual = !!((bancoV59.vinculosManuais || {})[id]);
+    var rejeitada = !!((bancoV59.rejeitados || {})[id]) && !manual;
+    var candidatoEfetivo = candidatoEfetivoBancoV512_(m);
+    var classeSug = manual ? 'match' : (rejeitada ? 'nova-despesa' : classeSugestaoBancoV59_(s.tipo));
+    var candidato = htmlCandidatoBancoV59_(m, candidatoEfetivo, manual);
     var detalheTransferencia = '';
+
     if (s.tipo === 'TRANSFERENCIA_INTERNA' && s.par) {
       detalheTransferencia = `<div class="banco-candidato"><b>Par:</b> ${escapeHtmlBancoV59_(s.par.conta)} • ${dataBancoV59_(s.par.data)} • ${moedaBancoV59_(Math.abs(Number(s.par.valor || 0)))}</div>`;
     }
+
+    var titulo = manual
+      ? 'Vínculo manual selecionado'
+      : (rejeitada ? 'Sugestão descartada — escolha outro vínculo ou crie o lançamento' : (s.titulo || 'Sem sugestão'));
+
+    var detalhe = manual
+      ? 'Você escolheu o lançamento. Marque Confirmado para consolidar.'
+      : (rejeitada ? 'O movimento bancário continua NOVO; nada foi ignorado.' : (s.detalhe || ''));
 
     return `
       <div class="banco-mov-card">
@@ -2798,8 +3067,8 @@ function renderizarBancoV59() {
 
         <div class="banco-sugestao ${classeSug}">
           <div class="banco-sugestao-titulo">Sugestão do sistema</div>
-          <div class="fw-bold mt-1">${escapeHtmlBancoV59_(s.titulo || 'Sem sugestão')}</div>
-          ${s.detalhe ? `<div class="banco-sugestao-detalhe">${escapeHtmlBancoV59_(s.detalhe)}</div>` : ''}
+          <div class="fw-bold mt-1">${escapeHtmlBancoV59_(titulo)}</div>
+          ${detalhe ? `<div class="banco-sugestao-detalhe">${escapeHtmlBancoV59_(detalhe)}</div>` : ''}
           ${detalheTransferencia}
           ${candidato}
           ${htmlAcoesBancoV510_(m, s)}
@@ -2811,12 +3080,15 @@ function renderizarBancoV59() {
 function carregarConciliacaoBancoV59() {
   if (!document.getElementById('bancoListaV59')) return;
   document.getElementById('bancoStatusV59').innerText = 'Carregando movimentos bancários...';
+
   google.script.run
     .withSuccessHandler(function(dados) {
       bancoV59.dados = dados || { resumo: {}, movimentos: [] };
       carregarAutomacaoV511();
       bancoV59.confirmados = {};
       bancoV59.rascunhos = {};
+      bancoV59.rejeitados = {};
+      bancoV59.vinculosManuais = {};
       atualizarBotaoConfirmadosBancoV5102_();
       renderizarBancoV59();
     })
@@ -2829,19 +3101,69 @@ function carregarConciliacaoBancoV59() {
 
 function atualizarBancoV59() {
   var btn = document.getElementById('btnAtualizarBancoV59');
-  if (btn) { btn.disabled = true; btn.innerText = '↻ Atualizando...'; }
+  if (btn) { btn.disabled = true; btn.innerText = '↻ Importando...'; }
 
   google.script.run
     .withSuccessHandler(function(msg) {
-      if (btn) { btn.disabled = false; btn.innerText = '↻ Atualizar Banco'; }
-      exibirAvisoNaTela(msg || 'Banco atualizado.', 'success');
+      if (btn) { btn.disabled = false; btn.innerText = '↻ Importar movimentos'; }
+      exibirAvisoNaTela(msg || 'Movimentos importados.', 'success');
       carregarConciliacaoBancoV59();
     })
     .withFailureHandler(function(err) {
-      if (btn) { btn.disabled = false; btn.innerText = '↻ Atualizar Banco'; }
-      exibirAvisoNaTela('Erro ao atualizar banco: ' + err, 'danger');
+      if (btn) { btn.disabled = false; btn.innerText = '↻ Importar movimentos'; }
+      exibirAvisoNaTela('Erro ao importar banco: ' + err, 'danger');
     })
     .importarMovimentosBanco15Dias();
+}
+
+function atualizarPluggyAgoraV512() {
+  var btn = document.getElementById('btnSincronizarPluggyV512');
+  var btnImportar = document.getElementById('btnAtualizarBancoV59');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = '⏳ Sincronizando Pluggy...';
+  }
+  if (btnImportar) btnImportar.disabled = true;
+
+  var box = document.getElementById('pluggySyncV5103');
+  if (box) {
+    box.className = 'pluggy-sync-v5103';
+    box.innerHTML = '<b>🔄 Pluggy:</b> solicitando atualização PF + PJ e aguardando o banco...';
+  }
+
+  google.script.run
+    .withSuccessHandler(function(resp) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = '🔄 Sincronizar Pluggy';
+      }
+      if (btnImportar) btnImportar.disabled = false;
+
+      resp = resp || {};
+      if (resp.statusPluggy) renderizarStatusPluggyV5103_(resp.statusPluggy);
+
+      var itens = resp.itens || [];
+      var limitado = itens.some(function(x){ return x.limite; });
+      var erro = itens.some(function(x){ return x.erro; });
+      var aguardando = itens.some(function(x){
+        return (x.solicitado || x.jaAtualizando) && !x.concluido;
+      });
+
+      var tipo = erro ? 'danger' : ((limitado || aguardando) ? 'warning' : 'success');
+      exibirAvisoNaTela(resp.mensagem || 'Sincronização Pluggy processada.', tipo);
+      carregarConciliacaoBancoV59();
+    })
+    .withFailureHandler(function(err) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = '🔄 Sincronizar Pluggy';
+      }
+      if (btnImportar) btnImportar.disabled = false;
+      exibirAvisoNaTela('Erro ao sincronizar Pluggy: ' + err, 'danger');
+      carregarConciliacaoBancoV59();
+    })
+    .atualizarPluggyAgoraV512();
 }
 
     function calcularFluxoEGráfico() {
