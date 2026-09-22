@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.12.1";
+var VERSAO_SISTEMA = "5.12.2";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -72,7 +72,7 @@ function doPost(e) {
     else if (argumentos !== null && argumentos !== undefined) resultado = this[nomeFuncao](argumentos);
     else resultado = this[nomeFuncao]();
 
-    // V5.12.1: devolve o estado atualizado na MESMA chamada das gravações.
+    // V5.12.2: devolve o estado atualizado na MESMA chamada das gravações.
     // Isso elimina a segunda ida ao Apps Script que deixava a interface lenta após cada ação.
     if (retornarDados && !somenteLeitura) {
       resultado = { mensagem: resultado, dados: obterDadosIniciais() };
@@ -81,7 +81,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify(resultado));
     return saida;
   } catch (erro) {
-    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.12.1" }));
+    saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.12.2" }));
     return saida;
   } finally {
     if (lock) {
@@ -3369,7 +3369,7 @@ function obterConciliacaoBancoV59() {
   });
 
   return {
-    versao: "5.12.1",
+    versao: "5.12.2",
     statusPluggy: obterStatusPluggyV5103_(),
     resumo: {
       total: movimentosExibicao.length,
