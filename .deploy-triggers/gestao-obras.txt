@@ -1,7 +1,6 @@
 Gestao de Obras deploy trigger
 Estado: ATIVO
-Versao: 0.2.1
-Schema: V2
-Source commit: c647d4078a54fbfa06f1ba47da343c58a1e3296f
-Motivo: preservar codigos hierarquicos como texto
-Disparo: 2026-09-22T12:22:00-03:00
+Versao: 0.3.0
+Schema: V3
+Motivo: grade editavel + manual contextual + peso relativo + efetivacao em lote
+Disparo: 2026-09-22T12:50:00-03:00
