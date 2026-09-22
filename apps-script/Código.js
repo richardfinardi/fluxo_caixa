@@ -1886,6 +1886,225 @@ function importarMovimentosBanco15Dias() {
 }
 
 
+
+function listarContasPluggyV513_(apiKey, itemId, tipo) {
+  var url = "https://api.pluggy.ai/accounts?itemId=" + encodeURIComponent(itemId);
+  if (tipo) url += "&type=" + encodeURIComponent(tipo);
+  var resp = UrlFetchApp.fetch(url, {
+    method: "get",
+    headers: { "X-API-KEY": apiKey },
+    muteHttpExceptions: true
+  });
+  if (resp.getResponseCode() < 200 || resp.getResponseCode() >= 300) {
+    throw new Error("Erro ao buscar contas Pluggy. HTTP " + resp.getResponseCode());
+  }
+  return JSON.parse(resp.getContentText() || "{}").results || [];
+}
+
+function garantirCategoriaCartaoV513_() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Categorias");
+  if (!sh) return;
+  if (sh.getLastRow() > 1) {
+    var vals = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < vals.length; i++) {
+      if (normalizarChave_(vals[i][0]) === normalizarChave_("CARTÃO")) return;
+    }
+  }
+  sh.appendRow(["CARTÃO", gerarIdNumerico_()]);
+}
+
+function gravarCartoesV513_(cartoes) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Cartoes") || ss.insertSheet("Cartoes");
+  var headers = ["Conta", "AccountId", "Nome", "Final", "SaldoFatura", "LimiteDisponivel", "LimiteTotal", "Vencimento", "Fechamento", "Bandeira", "Status", "AtualizadoEm"];
+  garantirCabecalhos_(sh, headers);
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, headers.length).clearContent();
+  if (!cartoes.length) return;
+
+  var agora = new Date();
+  var rows = cartoes.map(function(c) {
+    return [
+      c.conta, c.accountId, c.nome, c.final, c.saldoFatura,
+      c.limiteDisponivel === null ? "" : c.limiteDisponivel,
+      c.limiteTotal === null ? "" : c.limiteTotal,
+      c.vencimento, c.fechamento, c.bandeira, c.status, agora
+    ];
+  });
+  sh.getRange(2, 1, rows.length, headers.length).setValues(rows);
+}
+
+function upsertMovimentosCartaoV513_(linhas) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("MovimentosCartao") || ss.insertSheet("MovimentosCartao");
+  var headers = ["IdPluggy", "Conta", "Cartao", "AccountId", "Data", "Descricao", "DescricaoOriginal", "Valor", "Tipo", "CategoriaPluggy", "StatusPluggy", "BillId", "ParcelaAtual", "TotalParcelas", "ValorTotalParcelado", "DataImportacao"];
+  garantirCabecalhos_(sh, headers);
+
+  var atuais = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, headers.length).getValues() : [];
+  var mapa = {};
+  atuais.forEach(function(r, idx) {
+    if (r[0]) mapa[String(r[0])] = idx;
+  });
+
+  var novos = 0;
+  linhas.forEach(function(linha) {
+    var id = String(linha[0] || "");
+    if (!id) return;
+    if (mapa[id] !== undefined) atuais[mapa[id]] = linha;
+    else {
+      mapa[id] = atuais.length;
+      atuais.push(linha);
+      novos++;
+    }
+  });
+
+  if (atuais.length) sh.getRange(2, 1, atuais.length, headers.length).setValues(atuais);
+  return novos;
+}
+
+function sincronizarProjecaoFaturaV513_(cartoes) {
+  garantirCategoriaCartaoV513_();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Lancamentos");
+  if (!sh) return;
+  var hoje = hojeIso_();
+
+  cartoes.forEach(function(cartao) {
+    var accountId = String(cartao.accountId || "");
+    var venc = String(cartao.vencimento || "").substring(0, 10);
+    var saldo = Math.max(0, Number(cartao.saldoFatura || 0));
+    if (!accountId) return;
+
+    var chaveAtual = venc ? ("CARTAO|" + accountId + "|" + venc) : "";
+    var stale = [];
+    if (sh.getLastRow() > 1) {
+      var dados = sh.getRange(2, 1, sh.getLastRow() - 1, 18).getValues();
+      for (var i = 0; i < dados.length; i++) {
+        var origem = String(dados[i][8] || "");
+        var chave = String(dados[i][9] || "");
+        var status = normalizarTextoConciliacao_(dados[i][5]);
+        if (origem !== "CARTAO_PLUGGY" || chave.indexOf("CARTAO|" + accountId + "|") !== 0 || status === "CONSOLIDADO") continue;
+        if (!chaveAtual || chave !== chaveAtual) stale.push(i + 2);
+      }
+    }
+    stale.sort(function(a,b){ return b-a; }).forEach(function(linha){ sh.deleteRow(linha); });
+
+    if (!venc || saldo <= 0.005) {
+      if (chaveAtual && sh.getLastRow() > 1) {
+        var ch0 = sh.getRange(2, 10, sh.getLastRow() - 1, 1).getValues();
+        for (var z = ch0.length - 1; z >= 0; z--) {
+          if (String(ch0[z][0] || "") === chaveAtual) sh.deleteRow(z + 2);
+        }
+      }
+      return;
+    }
+
+    var linhaAtual = -1;
+    if (sh.getLastRow() > 1) {
+      var chaves = sh.getRange(2, 10, sh.getLastRow() - 1, 1).getValues();
+      for (var x = 0; x < chaves.length; x++) {
+        if (String(chaves[x][0] || "") === chaveAtual) {
+          linhaAtual = x + 2;
+          break;
+        }
+      }
+    }
+
+    var descricao = "FATURA " + String(cartao.nome || "CARTÃO");
+    var statusFatura = venc <= hoje ? "Em Aberto" : "Projetado";
+
+    if (linhaAtual > 1) {
+      var row = sh.getRange(linhaAtual, 1, 1, 18).getValues()[0];
+      row[0] = new Date(venc + "T12:00:00");
+      row[1] = descricao;
+      row[2] = saldo;
+      row[3] = "Despesa";
+      row[4] = "CARTÃO";
+      row[5] = statusFatura;
+      row[8] = "CARTAO_PLUGGY";
+      row[9] = chaveAtual;
+      row[10] = venc;
+      row[12] = saldo;
+      row[17] = venc;
+      sh.getRange(linhaAtual, 1, 1, 18).setValues([row]);
+    } else {
+      sh.appendRow([
+        new Date(venc + "T12:00:00"), descricao, saldo, "Despesa", "CARTÃO", statusFatura,
+        "", gerarIdNumerico_(), "CARTAO_PLUGGY", chaveAtual, venc, "", saldo, "", "", "", "", venc
+      ]);
+    }
+  });
+}
+
+function importarCartaoCreditoV513() {
+  garantirEstruturaV58_();
+  var props = PropertiesService.getScriptProperties();
+  var itens = [
+    { conta:"PF", itemId:String(props.getProperty("PLUGGY_ITEM_ID_PF") || "").trim() },
+    { conta:"PJ", itemId:String(props.getProperty("PLUGGY_ITEM_ID_PJ") || "").trim() }
+  ].filter(function(x){ return !!x.itemId; });
+
+  var apiKey = obterApiKeyPluggyV512_();
+  var agora = new Date();
+  var de = new Date(); de.setDate(de.getDate() - 120);
+  var ate = new Date(); ate.setDate(ate.getDate() + 365);
+  var dateFrom = Utilities.formatDate(de, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  var dateTo = Utilities.formatDate(ate, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  var cartoes = [], movimentos = [], erros = [];
+
+  itens.forEach(function(item) {
+    try {
+      listarContasPluggyV513_(apiKey, item.itemId, "CREDIT").forEach(function(conta) {
+        var cd = conta.creditData || {};
+        var nome = String(conta.name || conta.marketingName || "Cartão");
+        cartoes.push({
+          conta:item.conta, accountId:String(conta.id || ""), nome:nome, final:String(conta.number || ""),
+          saldoFatura:Number(conta.balance || 0),
+          limiteDisponivel:cd.availableCreditLimit === undefined || cd.availableCreditLimit === null ? null : Number(cd.availableCreditLimit),
+          limiteTotal:cd.creditLimit === undefined || cd.creditLimit === null ? null : Number(cd.creditLimit),
+          vencimento:String(cd.balanceDueDate || ""), fechamento:String(cd.balanceCloseDate || ""),
+          bandeira:String(cd.brand || ""), status:String(cd.status || "")
+        });
+
+        var url = "https://api.pluggy.ai/v2/transactions?accountId=" + encodeURIComponent(conta.id) +
+          "&dateFrom=" + encodeURIComponent(dateFrom) + "&dateTo=" + encodeURIComponent(dateTo);
+
+        while (url) {
+          var resp = UrlFetchApp.fetch(url, { method:"get", headers:{ "X-API-KEY":apiKey }, muteHttpExceptions:true });
+          if (resp.getResponseCode() < 200 || resp.getResponseCode() >= 300) {
+            throw new Error("Transações do cartão " + nome + ": HTTP " + resp.getResponseCode());
+          }
+          var json = JSON.parse(resp.getContentText() || "{}");
+          (json.results || []).forEach(function(t) {
+            var meta = t.creditCardMetadata || {};
+            movimentos.push([
+              String(t.id || ""), item.conta, nome, String(conta.id || ""),
+              t.date ? new Date(t.date) : "", String(t.description || ""), String(t.descriptionRaw || ""),
+              Number(t.amount || 0), String(t.type || ""), String(t.category || ""), String(t.status || ""),
+              String(t.billId || ""), Number(meta.installmentNumber || 0), Number(meta.totalInstallments || 0),
+              Number(meta.totalAmount || 0), agora
+            ]);
+          });
+          url = json.next ? ("https://api.pluggy.ai/v2/transactions" + json.next) : null;
+        }
+      });
+    } catch (e) {
+      erros.push(item.conta + ": " + (e && e.message ? e.message : String(e)));
+    }
+  });
+
+  gravarCartoesV513_(cartoes);
+  var novos = upsertMovimentosCartaoV513_(movimentos);
+  sincronizarProjecaoFaturaV513_(cartoes);
+  registrarLog_("CARTAO_IMPORTADO", "", novos + " novo(s); cartões=" + cartoes.length + (erros.length ? "; erros=" + erros.join(" | ") : ""));
+
+  return {
+    novos:novos, cartoes:cartoes.length, erros:erros,
+    mensagem:cartoes.length ? ("Cartão atualizado: " + novos + " nova(s) transação(ões).") :
+      ("Nenhum cartão de crédito encontrado." + (erros.length ? " " + erros.join(" | ") : ""))
+  };
+}
+
+
 // =========================
 // V5.10.3 - CONCILIAÇÃO BANCÁRIA
 // =========================
