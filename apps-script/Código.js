@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.13.1";
+var VERSAO_SISTEMA = "5.13.3";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -1972,6 +1972,168 @@ function gravarCartoesV513_(cartoes) {
   sh.getRange(2, 1, rows.length, headers.length).setValues(rows);
 }
 
+
+function adicionarMesIsoV513_(iso, qtdMeses) {
+  var p = String(iso || "").substring(0, 10).split("-");
+  if (p.length !== 3) return "";
+
+  var ano = Number(p[0]);
+  var mes = Number(p[1]);
+  var dia = Number(p[2]);
+  if (!ano || !mes || !dia) return "";
+
+  var base = new Date(ano, mes - 1 + Number(qtdMeses || 0), 1, 12, 0, 0);
+  var ultimoDia = new Date(base.getFullYear(), base.getMonth() + 1, 0, 12, 0, 0).getDate();
+  base.setDate(Math.min(dia, ultimoDia));
+
+  return Utilities.formatDate(base, Session.getScriptTimeZone(), "yyyy-MM-dd");
+}
+
+function movimentoEhPagamentoCartaoV513_(linha) {
+  var tipo = normalizarTextoConciliacao_(linha[8]);
+  var descricao = normalizarTextoConciliacao_([linha[5], linha[6], linha[9]].join(" "));
+
+  return tipo === "CREDIT" && (
+    descricao.indexOf("CREDIT CARD PAYMENT") !== -1 ||
+    descricao.indexOf("PAGAMENTO RECEBIDO") !== -1 ||
+    descricao.indexOf("PAGAMENTO DE FATURA") !== -1 ||
+    descricao.indexOf("PAGAMENTO FATURA") !== -1
+  );
+}
+
+function ajustarVencimentoCartaoV513_(vencimentoRaw, accountId, saldoFatura, movimentos) {
+  var venc = String(vencimentoRaw || "").substring(0, 10);
+  var hoje = hojeIso_();
+
+  if (!venc || venc > hoje) return venc;
+  if (Number(saldoFatura || 0) <= 0.005) return venc;
+
+  // O Meu Pluggy pode manter o vencimento da fatura já paga.
+  // Só avançamos o ciclo quando existe evidência de pagamento do cartão.
+  var limiteInicio = new Date(venc + "T12:00:00");
+  limiteInicio.setDate(limiteInicio.getDate() - 15);
+  var inicioIso = Utilities.formatDate(limiteInicio, Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+  var houvePagamento = (movimentos || []).some(function(linha) {
+    if (String(linha[3] || "") !== String(accountId || "")) return false;
+    var data = linha[4] ? isoData_(linha[4]) : "";
+    return data >= inicioIso && data <= hoje && movimentoEhPagamentoCartaoV513_(linha);
+  });
+
+  if (!houvePagamento) return venc;
+
+  while (venc <= hoje) {
+    venc = adicionarMesIsoV513_(venc, 1);
+    if (!venc) break;
+  }
+
+  return venc;
+}
+
+function sincronizarProjecaoFaturaV513_(cartoes) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Lancamentos");
+  if (!sh) return [];
+
+  var categoria = garantirCategoriaCartaoV513_();
+  var resultados = [];
+
+  (cartoes || []).forEach(function(cartao) {
+    var accountId = String(cartao.accountId || "");
+    var vencimento = String(cartao.vencimento || "").substring(0, 10);
+    var saldo = Math.max(0, Number(cartao.saldoFatura || 0));
+
+    if (!accountId) return;
+
+    var prefixo = "CARTAO|" + accountId + "|";
+    var candidatos = [];
+
+    if (sh.getLastRow() > 1) {
+      var dados = sh.getRange(2, 1, sh.getLastRow() - 1, 18).getValues();
+      for (var i = 0; i < dados.length; i++) {
+        var origem = String(dados[i][8] || "");
+        var chave = String(dados[i][9] || "");
+        var status = normalizarTextoConciliacao_(dados[i][5]);
+
+        if (
+          origem === "CARTAO_PLUGGY" &&
+          chave.indexOf(prefixo) === 0 &&
+          status !== "CONSOLIDADO"
+        ) {
+          candidatos.push({
+            linha: i + 2,
+            id: String(dados[i][7] || "")
+          });
+        }
+      }
+    }
+
+    // Sem saldo: remove apenas a projeção automática ainda não consolidada.
+    if (!vencimento || saldo <= 0.005) {
+      candidatos.sort(function(a,b){ return b.linha - a.linha; }).forEach(function(x) {
+        sh.deleteRow(x.linha);
+      });
+      resultados.push({ accountId: accountId, removida: true, saldo: saldo });
+      return;
+    }
+
+    var chave = prefixo + vencimento;
+    var descricao = "FATURA CARTÃO " + String(cartao.nome || "").trim();
+    var statusNovo = vencimento <= hojeIso_() ? "Em Aberto" : "Projetado";
+
+    var idLancamento = candidatos.length && candidatos[0].id
+      ? candidatos[0].id
+      : gerarIdNumerico_();
+
+    var linhaNova = [
+      new Date(vencimento + "T12:00:00"),
+      descricao,
+      saldo,
+      "Despesa",
+      categoria,
+      statusNovo,
+      "",
+      idLancamento,
+      "CARTAO_PLUGGY",
+      chave,
+      vencimento,
+      "AUTO",
+      saldo,
+      "",
+      "",
+      "",
+      "",
+      vencimento
+    ];
+
+    if (candidatos.length) {
+      var principal = candidatos[0].linha;
+      sh.getRange(principal, 1, 1, 18).setValues([linhaNova]);
+
+      candidatos.slice(1)
+        .sort(function(a,b){ return b.linha - a.linha; })
+        .forEach(function(x) {
+          // Recalcula a linha apenas se ela estiver depois da principal.
+          // Como removemos de baixo para cima, a principal permanece válida.
+          sh.deleteRow(x.linha);
+        });
+    } else {
+      sh.getRange(sh.getLastRow() + 1, 1, 1, 18).setValues([linhaNova]);
+    }
+
+    resultados.push({
+      accountId: accountId,
+      vencimento: vencimento,
+      saldo: saldo,
+      status: statusNovo,
+      chave: chave
+    });
+  });
+
+  return resultados;
+}
+
+
 function importarCartaoCreditoV513() {
   garantirEstruturaV58_();
 
@@ -2063,21 +2225,32 @@ function importarCartaoCreditoV513() {
     }
   });
 
+  cartoes.forEach(function(cartao) {
+    cartao.vencimento = ajustarVencimentoCartaoV513_(
+      cartao.vencimento,
+      cartao.accountId,
+      cartao.saldoFatura,
+      movimentos
+    );
+  });
+
   gravarCartoesV513_(cartoes);
   var novos = upsertMovimentosCartaoV513_(movimentos);
+  var projecoes = sincronizarProjecaoFaturaV513_(cartoes);
 
   registrarLog_(
     "CARTAO_IMPORTADO",
     "",
-    novos + " novo(s); cartões=" + cartoes.length + (erros.length ? "; erros=" + erros.join(" | ") : "")
+    novos + " novo(s); cartões=" + cartoes.length + "; projeções=" + projecoes.length + (erros.length ? "; erros=" + erros.join(" | ") : "")
   );
 
   return {
     novos: novos,
     cartoes: cartoes.length,
     erros: erros,
+    projecoes: projecoes,
     mensagem: cartoes.length
-      ? ("Cartão atualizado: " + novos + " nova(s) transação(ões).")
+      ? ("Cartão atualizado: " + novos + " nova(s) transação(ões) • fatura projetada no fluxo.")
       : ("Nenhum cartão encontrado." + (erros.length ? " " + erros.join(" | ") : ""))
   };
 }
