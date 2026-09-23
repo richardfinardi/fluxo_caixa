@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.13.0";
+var VERSAO_SISTEMA = "5.13.1";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
