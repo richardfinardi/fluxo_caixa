@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.13.3</title>
+  <title>Fluxo de Caixa Automatizado 5.13.4</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.13.3">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.13.4">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -318,13 +318,62 @@
   .cartao-mov-valor-v513 { font-size:13px; }
 }
 
+
+/* V5.13.4 - bloqueio biométrico local no celular */
+#bioLockV5134 {
+  position:fixed;
+  inset:0;
+  z-index:99999;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+  background:#17212b;
+  color:#fff;
+}
+#bioLockV5134.ativo { display:flex; }
+.bio-lock-card-v5134 {
+  width:min(420px,100%);
+  background:#22303d;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:18px;
+  padding:24px 18px;
+  text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);
+}
+.bio-lock-icon-v5134 { font-size:46px; line-height:1; margin-bottom:12px; }
+.bio-lock-card-v5134 h5 { margin:0 0 6px; font-weight:800; }
+.bio-lock-card-v5134 p { margin:0 0 16px; font-size:12px; color:#c9d4df; }
+.bio-lock-card-v5134 .btn { min-height:44px; font-weight:800; }
+.bio-lock-status-v5134 { min-height:18px; margin-top:10px; font-size:11px; color:#c9d4df; }
+.bio-lock-reset-v5134 {
+  border:0;
+  background:transparent;
+  color:#9fb0bf;
+  font-size:10px;
+  text-decoration:underline;
+  margin-top:10px;
+}
+
 </style>
 </head>
 <body>
 
+  <div id="bioLockV5134" aria-live="polite">
+    <div class="bio-lock-card-v5134">
+      <div class="bio-lock-icon-v5134">🔐</div>
+      <h5>Fluxo de Caixa bloqueado</h5>
+      <p id="bioLockTextoV5134">Use a digital para abrir o app.</p>
+      <button type="button" class="btn btn-light w-100" id="btnBioUnlockV5134" onclick="acaoBiometriaV5134()">☝️ Desbloquear com digital</button>
+      <div class="bio-lock-status-v5134" id="bioLockStatusV5134"></div>
+      <button type="button" class="bio-lock-reset-v5134 d-none" id="btnBioResetV5134" onclick="reconfigurarBiometriaV5134()">Reconfigurar biometria neste aparelho</button>
+    </div>
+  </div>
+
+
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.13.3</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.13.4</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -900,7 +949,7 @@
     </div>
 
     <div class="alert alert-info py-2 px-3 mt-3 mb-2" style="font-size:11px;">
-      ✅ <b>Modo ativo V5.13.3:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
+      ✅ <b>Modo ativo V5.13.4:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
     </div>
 
     <div id="pluggySyncV5103" class="pluggy-sync-v5103">
@@ -1169,6 +1218,258 @@
       modalConfirmBS.show();
     }
 
+
+    // V5.13.4 - trava biométrica local do PWA no celular.
+    // A credencial fica vinculada ao domínio/aparelho via WebAuthn.
+    var bioEstadoV5134 = {
+      dadosCarregados: false,
+      desbloqueado: false,
+      ocultouEm: 0,
+      tentando: false
+    };
+
+    function ehCelularV5134_() {
+      var ua = navigator.userAgent || '';
+      var mobileUa = /Android|iPhone|iPad|iPod/i.test(ua);
+      var touchCompacto = (navigator.maxTouchPoints || 0) > 0 && Math.min(window.innerWidth || 9999, window.innerHeight || 9999) < 900;
+      return mobileUa || touchCompacto;
+    }
+
+    function suportaBiometriaV5134_() {
+      return !!(
+        window.PublicKeyCredential &&
+        navigator.credentials &&
+        window.crypto &&
+        window.crypto.getRandomValues
+      );
+    }
+
+    function bytesParaBase64UrlV5134_(bytes) {
+      var bin = '';
+      var arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      for (var i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i]);
+      return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    }
+
+    function base64UrlParaBytesV5134_(texto) {
+      var s = String(texto || '').replace(/-/g,'+').replace(/_/g,'/');
+      while (s.length % 4) s += '=';
+      var bin = atob(s);
+      var out = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+
+    function credencialBiometricaV5134_() {
+      return localStorage.getItem('FLUXO_BIO_CREDENTIAL_V5134') || '';
+    }
+
+    function mostrarBloqueioV5134_(mensagem) {
+      var box = document.getElementById('bioLockV5134');
+      var st = document.getElementById('bioLockStatusV5134');
+      if (box) box.classList.add('ativo');
+      if (st) st.innerText = mensagem || '';
+      bioEstadoV5134.desbloqueado = false;
+    }
+
+    function liberarAppV5134_() {
+      var box = document.getElementById('bioLockV5134');
+      if (box) box.classList.remove('ativo');
+      bioEstadoV5134.desbloqueado = true;
+      bioEstadoV5134.ocultouEm = 0;
+
+      if (!bioEstadoV5134.dadosCarregados) {
+        bioEstadoV5134.dadosCarregados = true;
+        recarregarDadosGlobais();
+      }
+    }
+
+    async function cadastrarBiometriaV5134_() {
+      if (bioEstadoV5134.tentando) return;
+      bioEstadoV5134.tentando = true;
+
+      var btn = document.getElementById('btnBioUnlockV5134');
+      var st = document.getElementById('bioLockStatusV5134');
+      var txt = document.getElementById('bioLockTextoV5134');
+      try {
+        if (btn) { btn.disabled = true; btn.innerText = '⏳ Ativando...'; }
+        if (st) st.innerText = 'Confirme no leitor biométrico do aparelho.';
+
+        var challenge = crypto.getRandomValues(new Uint8Array(32));
+        var userId = crypto.getRandomValues(new Uint8Array(32));
+
+        var cred = await navigator.credentials.create({
+          publicKey: {
+            challenge: challenge,
+            rp: { name: 'Fluxo de Caixa' },
+            user: {
+              id: userId,
+              name: 'fluxo-caixa-owner@' + location.hostname,
+              displayName: 'Fluxo de Caixa'
+            },
+            pubKeyCredParams: [
+              { type:'public-key', alg:-7 },
+              { type:'public-key', alg:-257 }
+            ],
+            authenticatorSelection: {
+              authenticatorAttachment:'platform',
+              residentKey:'preferred',
+              requireResidentKey:false,
+              userVerification:'required'
+            },
+            timeout:60000,
+            attestation:'none'
+          }
+        });
+
+        if (!cred || !cred.rawId) throw new Error('Credencial biométrica não criada.');
+
+        localStorage.setItem('FLUXO_BIO_CREDENTIAL_V5134', bytesParaBase64UrlV5134_(cred.rawId));
+        localStorage.setItem('FLUXO_BIO_ATIVO_V5134', '1');
+
+        if (txt) txt.innerText = 'Digital ativada neste aparelho.';
+        if (st) st.innerText = 'Acesso liberado.';
+        liberarAppV5134_();
+      } catch (e) {
+        console.error('Biometria cadastro:', e);
+        if (st) st.innerText = e && e.name === 'NotAllowedError'
+          ? 'Ativação cancelada. Toque novamente quando quiser.'
+          : 'Não consegui ativar a biometria: ' + (e.message || e);
+      } finally {
+        bioEstadoV5134.tentando = false;
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = credencialBiometricaV5134_() ? '☝️ Desbloquear com digital' : '☝️ Ativar digital neste aparelho';
+        }
+      }
+    }
+
+    async function autenticarBiometriaV5134_() {
+      if (bioEstadoV5134.tentando) return;
+      var id = credencialBiometricaV5134_();
+      if (!id) return cadastrarBiometriaV5134_();
+
+      bioEstadoV5134.tentando = true;
+      var btn = document.getElementById('btnBioUnlockV5134');
+      var st = document.getElementById('bioLockStatusV5134');
+      var reset = document.getElementById('btnBioResetV5134');
+
+      try {
+        if (btn) { btn.disabled = true; btn.innerText = '⏳ Verificando...'; }
+        if (st) st.innerText = 'Encoste a digital no leitor.';
+
+        var assertion = await navigator.credentials.get({
+          publicKey: {
+            challenge: crypto.getRandomValues(new Uint8Array(32)),
+            allowCredentials: [{
+              id: base64UrlParaBytesV5134_(id),
+              type:'public-key',
+              transports:['internal']
+            }],
+            userVerification:'required',
+            timeout:60000
+          }
+        });
+
+        if (!assertion) throw new Error('Biometria não confirmada.');
+        if (st) st.innerText = 'Acesso liberado.';
+        if (reset) reset.classList.add('d-none');
+        liberarAppV5134_();
+      } catch (e) {
+        console.error('Biometria login:', e);
+        mostrarBloqueioV5134_(
+          e && e.name === 'NotAllowedError'
+            ? 'Leitura cancelada. Toque no botão para tentar novamente.'
+            : 'Não consegui validar a digital.'
+        );
+        if (reset) reset.classList.remove('d-none');
+      } finally {
+        bioEstadoV5134.tentando = false;
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = '☝️ Desbloquear com digital';
+        }
+      }
+    }
+
+    function acaoBiometriaV5134() {
+      if (!credencialBiometricaV5134_()) cadastrarBiometriaV5134_();
+      else autenticarBiometriaV5134_();
+    }
+
+    function reconfigurarBiometriaV5134() {
+      localStorage.removeItem('FLUXO_BIO_CREDENTIAL_V5134');
+      localStorage.removeItem('FLUXO_BIO_ATIVO_V5134');
+      var reset = document.getElementById('btnBioResetV5134');
+      var txt = document.getElementById('bioLockTextoV5134');
+      var btn = document.getElementById('btnBioUnlockV5134');
+      if (reset) reset.classList.add('d-none');
+      if (txt) txt.innerText = 'Ative a digital uma vez neste aparelho.';
+      if (btn) btn.innerText = '☝️ Ativar digital neste aparelho';
+      cadastrarBiometriaV5134_();
+    }
+
+    async function iniciarBloqueioBiometricoV5134_() {
+      // PC continua abrindo normalmente. O bloqueio é exclusivo do celular/PWA.
+      if (!ehCelularV5134_()) {
+        liberarAppV5134_();
+        return;
+      }
+
+      if (!suportaBiometriaV5134_()) {
+        // Não trava um aparelho incompatível para evitar perder acesso.
+        liberarAppV5134_();
+        return;
+      }
+
+      var disponivel = true;
+      try {
+        if (PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+          disponivel = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        }
+      } catch (_) {}
+
+      if (!disponivel) {
+        liberarAppV5134_();
+        return;
+      }
+
+      var temCredencial = !!credencialBiometricaV5134_();
+      var txt = document.getElementById('bioLockTextoV5134');
+      var btn = document.getElementById('btnBioUnlockV5134');
+      if (txt) txt.innerText = temCredencial
+        ? 'Use a digital para abrir o app.'
+        : 'Na primeira vez, ative a digital neste aparelho.';
+      if (btn) btn.innerText = temCredencial
+        ? '☝️ Desbloquear com digital'
+        : '☝️ Ativar digital neste aparelho';
+
+      mostrarBloqueioV5134_('');
+      if (temCredencial) {
+        // Tenta abrir o prompt imediatamente. Se o navegador exigir gesto,
+        // o botão permanece disponível.
+        setTimeout(function(){ autenticarBiometriaV5134_(); }, 250);
+      }
+    }
+
+    document.addEventListener('visibilitychange', function() {
+      if (!ehCelularV5134_() || !credencialBiometricaV5134_()) return;
+
+      if (document.hidden) {
+        bioEstadoV5134.ocultouEm = Date.now();
+        return;
+      }
+
+      if (
+        bioEstadoV5134.desbloqueado &&
+        bioEstadoV5134.ocultouEm &&
+        (Date.now() - bioEstadoV5134.ocultouEm) >= 30000
+      ) {
+        mostrarBloqueioV5134_('Use a digital para voltar ao app.');
+        setTimeout(function(){ autenticarBiometriaV5134_(); }, 200);
+      }
+    });
+
     window.addEventListener('load', function() { 
       modalBS = new bootstrap.Modal(document.getElementById('modalDetalhes'));
       modalConfirmBS = new bootstrap.Modal(document.getElementById('modalConfirmacao'));
@@ -1185,7 +1486,7 @@
       document.getElementById('simData').value = hojeStr;
 
       atualizarLabelBarraMesDash();
-      recarregarDadosGlobais(); 
+      iniciarBloqueioBiometricoV5134_();
     });
 
     function aplicarDadosGlobais(dadosPlanilha) {
@@ -1196,7 +1497,21 @@
       state.recorrenciasConfig = dadosPlanilha.recorrenciasConfig || [];
       if (dadosPlanilha.versao) {
         var marca = document.querySelector('.navbar-brand');
-        if (marca) marca.innerText = 'FLUXO DE CAIXA V' + dadosPlanilha.versao;
+        if (marca) {
+          var front = '5.13.4';
+          var back = String(dadosPlanilha.versao || '');
+          var parseV = function(v) { return String(v).split('.').map(function(x){ return Number(x) || 0; }); };
+          var maiorOuIgual = function(a,b) {
+            var pa=parseV(a), pb=parseV(b);
+            for (var vi=0; vi<Math.max(pa.length,pb.length); vi++) {
+              var aa=pa[vi]||0, bb=pb[vi]||0;
+              if (aa>bb) return true;
+              if (aa<bb) return false;
+            }
+            return true;
+          };
+          marca.innerText = 'FLUXO DE CAIXA V' + (maiorOuIgual(front, back) ? front : back);
+        }
       }
 
       lancamentosSimulados = null;
@@ -1972,7 +2287,7 @@
     }
 
 // =========================
-// V5.13.3 - CONCILIAÇÃO BANCÁRIA
+// V5.13.4 - CONCILIAÇÃO BANCÁRIA
 // =========================
 
 
