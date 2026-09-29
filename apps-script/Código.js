@@ -1,4 +1,4 @@
-var VERSAO_SISTEMA = "5.13.3";
+var VERSAO_SISTEMA = "5.14.0";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -60,12 +60,18 @@ function doPost(e) {
       ativarMonitorPluggyV511: true,
       desativarMonitorPluggyV511: true,
       testarPushOneSignalV511: true,
-      registrarSubscriptionV5112: true
+      registrarSubscriptionV5112: true,
+      obterRelatoriosHoras: true,
+      salvarRelatorioHoras: true,
+      salvarHoraRelatorio: true,
+      excluirHoraRelatorio: true,
+      sincronizarPrevisaoRelatorioHoras: true,
+      gerarPdfRelatorioHoras: true
     };
     if (!permitidas[nomeFuncao]) throw new Error("Função não permitida: " + nomeFuncao);
     if (typeof this[nomeFuncao] !== "function") throw new Error("Função não encontrada: " + nomeFuncao);
 
-    var somenteLeitura = nomeFuncao === "obterDadosIniciais" || nomeFuncao === "enviarAlertasFaturamentoSite" || nomeFuncao === "obterConciliacaoBancoV59" || nomeFuncao === "obterCartaoCreditoV513" || nomeFuncao === "obterConfigPushV511";
+    var somenteLeitura = nomeFuncao === "obterDadosIniciais" || nomeFuncao === "enviarAlertasFaturamentoSite" || nomeFuncao === "obterConciliacaoBancoV59" || nomeFuncao === "obterCartaoCreditoV513" || nomeFuncao === "obterConfigPushV511" || nomeFuncao === "obterRelatoriosHoras" || nomeFuncao === "gerarPdfRelatorioHoras";
     if (!somenteLeitura) {
       lock = LockService.getScriptLock();
       lock.waitLock(30000);
@@ -155,9 +161,13 @@ function garantirEstruturaV58_() {
   var log = ss.getSheetByName("LOG") || ss.insertSheet("LOG");
   var movCartao = ss.getSheetByName("MovimentosCartao") || ss.insertSheet("MovimentosCartao");
   var cartoes = ss.getSheetByName("Cartoes") || ss.insertSheet("Cartoes");
+  var relHoras = ss.getSheetByName("RelatoriosHoras") || ss.insertSheet("RelatoriosHoras");
+  var horasPrestadas = ss.getSheetByName("HorasPrestadas") || ss.insertSheet("HorasPrestadas");
 
   garantirCabecalhos_(movCartao, ["IdPluggy", "Conta", "Cartao", "AccountId", "Data", "Descricao", "DescricaoOriginal", "Valor", "Tipo", "CategoriaPluggy", "StatusPluggy", "ParcelaAtual", "TotalParcelas", "ValorTotalParcelado", "DataImportacao"]);
   garantirCabecalhos_(cartoes, ["Conta", "AccountId", "Nome", "Final", "SaldoFatura", "LimiteDisponivel", "LimiteTotal", "Vencimento", "Fechamento", "Bandeira", "Status", "AtualizadoEm"]);
+  garantirCabecalhos_(relHoras, ["IdRelatorio", "Cliente", "PeriodoInicio", "PeriodoFim", "Vencimento", "ValorHora", "Categoria", "LancamentoId", "CriadoEm", "AtualizadoEm"]);
+  garantirCabecalhos_(horasPrestadas, ["IdHora", "IdRelatorio", "Data", "HoraEntrada", "HoraSaida", "Observacao", "TotalHoras", "CriadoEm"]);
 
   var props = PropertiesService.getScriptProperties();
   var versaoEstrutura = props.getProperty("FLUXO_CAIXA_ESTRUTURA");
@@ -4055,4 +4065,323 @@ function prepararRegrasConciliacao() {
   sheet.setFrozenRows(1);
 
   Logger.log('✅ Estrutura RegrasConciliacao criada.');
+}
+
+// =========================================================
+// V5.14.0 - RELATÓRIO DE HORAS / PREVISÃO / PDF
+// =========================================================
+function formatarDataBrHorasV514_(iso) {
+  iso = String(iso || "");
+  if (!iso) return "";
+  var p = iso.substring(0, 10).split("-");
+  return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : iso;
+}
+
+function formatarDataCurtaHorasV514_(iso) {
+  iso = String(iso || "");
+  if (!iso) return "";
+  var p = iso.substring(0, 10).split("-");
+  return p.length === 3 ? p[2] + "/" + p[1] : iso;
+}
+
+function formatarNumeroBrHorasV514_(valor) {
+  var n = Number(valor || 0);
+  var partes = n.toFixed(2).split(".");
+  partes[0] = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return partes[0] + "," + partes[1];
+}
+
+function nomeArquivoHorasV514_(texto) {
+  return String(texto || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function horasEntreV514_(entrada, saida) {
+  var pe = String(entrada || "").split(":");
+  var ps = String(saida || "").split(":");
+  if (pe.length < 2 || ps.length < 2) throw new Error("Informe hora de entrada e saída no formato HH:MM.");
+  var minE = Number(pe[0]) * 60 + Number(pe[1]);
+  var minS = Number(ps[0]) * 60 + Number(ps[1]);
+  if (!isFinite(minE) || !isFinite(minS)) throw new Error("Horário inválido.");
+  if (minS <= minE) throw new Error("A hora de saída deve ser maior que a hora de entrada.");
+  return Math.round(((minS - minE) / 60) * 100) / 100;
+}
+
+function obterRelatorioHorasPorIdV514_(idRelatorio) {
+  garantirEstruturaV58_();
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RelatoriosHoras");
+  var linha = encontrarLinhaPorId_(sh, idRelatorio, 1);
+  if (linha <= 1) throw new Error("Relatório de horas não encontrado.");
+  var r = sh.getRange(linha, 1, 1, 10).getValues()[0];
+  return {
+    linha: linha,
+    id: Number(r[0]),
+    cliente: String(r[1] || ""),
+    periodoInicio: isoData_(r[2]),
+    periodoFim: isoData_(r[3]),
+    vencimento: isoData_(r[4]),
+    valorHora: Number(r[5] || 0),
+    categoria: String(r[6] || "Consultoria"),
+    lancamentoId: r[7] ? Number(r[7]) : 0
+  };
+}
+
+function obterHorasDoRelatorioV514_(idRelatorio) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("HorasPrestadas");
+  if (!sh || sh.getLastRow() <= 1) return [];
+  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, 8).getValues();
+  var idAlvo = String(idRelatorio);
+  var lista = [];
+  vals.forEach(function(r) {
+    if (String(r[1]) !== idAlvo) return;
+    lista.push({
+      id: Number(r[0]),
+      idRelatorio: Number(r[1]),
+      data: isoData_(r[2]),
+      horaEntrada: String(r[3] || ""),
+      horaSaida: String(r[4] || ""),
+      observacao: String(r[5] || ""),
+      totalHoras: Number(r[6] || 0)
+    });
+  });
+  lista.sort(function(a, b) {
+    if (a.data !== b.data) return a.data < b.data ? -1 : 1;
+    return a.horaEntrada < b.horaEntrada ? -1 : (a.horaEntrada > b.horaEntrada ? 1 : 0);
+  });
+  return lista;
+}
+
+function obterRelatoriosHoras() {
+  garantirEstruturaV58_();
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RelatoriosHoras");
+  if (!sh || sh.getLastRow() <= 1) return { relatorios: [] };
+
+  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, 10).getValues();
+  var relatorios = [];
+  vals.forEach(function(r) {
+    if (!r[0]) return;
+    var id = Number(r[0]);
+    var itens = obterHorasDoRelatorioV514_(id);
+    var totalHoras = itens.reduce(function(s, x) { return s + Number(x.totalHoras || 0); }, 0);
+    var valorHora = Number(r[5] || 0);
+    relatorios.push({
+      id: id,
+      cliente: String(r[1] || ""),
+      periodoInicio: isoData_(r[2]),
+      periodoFim: isoData_(r[3]),
+      vencimento: isoData_(r[4]),
+      valorHora: valorHora,
+      categoria: String(r[6] || "Consultoria"),
+      lancamentoId: r[7] ? Number(r[7]) : 0,
+      totalHoras: Math.round(totalHoras * 100) / 100,
+      valorTotal: Math.round(totalHoras * valorHora * 100) / 100,
+      horas: itens
+    });
+  });
+
+  relatorios.sort(function(a, b) {
+    if (a.periodoInicio !== b.periodoInicio) return a.periodoInicio < b.periodoInicio ? 1 : -1;
+    return b.id - a.id;
+  });
+  return { relatorios: relatorios };
+}
+
+function salvarRelatorioHoras(dados) {
+  garantirEstruturaV58_();
+  dados = dados || {};
+  var cliente = String(dados.cliente || "").trim();
+  var inicio = String(dados.periodoInicio || "").substring(0, 10);
+  var fim = String(dados.periodoFim || "").substring(0, 10);
+  var venc = String(dados.vencimento || "").substring(0, 10);
+  var valorHora = Number(dados.valorHora || 0);
+  var categoria = String(dados.categoria || "Consultoria").trim() || "Consultoria";
+
+  if (!cliente) throw new Error("Informe o cliente.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio) || !/^\d{4}-\d{2}-\d{2}$/.test(fim) || !/^\d{4}-\d{2}-\d{2}$/.test(venc)) {
+    throw new Error("Informe início, fim do período e vencimento.");
+  }
+  if (fim < inicio) throw new Error("O fim do período não pode ser anterior ao início.");
+  if (valorHora <= 0) throw new Error("Informe um valor/hora maior que zero.");
+
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RelatoriosHoras");
+  var agora = new Date();
+  var id = Number(dados.id || 0);
+  if (id) {
+    var linha = encontrarLinhaPorId_(sh, id, 1);
+    if (linha <= 1) throw new Error("Relatório não encontrado.");
+    var lancamentoId = sh.getRange(linha, 8).getValue();
+    var criadoEm = sh.getRange(linha, 9).getValue() || agora;
+    sh.getRange(linha, 1, 1, 10).setValues([[
+      id, cliente, new Date(inicio + "T12:00:00"), new Date(fim + "T12:00:00"),
+      new Date(venc + "T12:00:00"), valorHora, categoria, lancamentoId, criadoEm, agora
+    ]]);
+    if (lancamentoId) sincronizarPrevisaoRelatorioHoras(id);
+    registrarLog_("ATUALIZAR_RELATORIO_HORAS", id, cliente + " | " + inicio + " a " + fim);
+    return "Período atualizado!";
+  }
+
+  id = gerarIdNumerico_();
+  sh.appendRow([
+    id, cliente, new Date(inicio + "T12:00:00"), new Date(fim + "T12:00:00"),
+    new Date(venc + "T12:00:00"), valorHora, categoria, "", agora, agora
+  ]);
+  registrarLog_("CRIAR_RELATORIO_HORAS", id, cliente + " | " + inicio + " a " + fim);
+  return "Período de horas criado!";
+}
+
+function salvarHoraRelatorio(dados) {
+  garantirEstruturaV58_();
+  dados = dados || {};
+  var idRel = Number(dados.idRelatorio || 0);
+  var rel = obterRelatorioHorasPorIdV514_(idRel);
+  var data = String(dados.data || "").substring(0, 10);
+  var entrada = String(dados.horaEntrada || "").trim();
+  var saida = String(dados.horaSaida || "").trim();
+  var obs = String(dados.observacao || "").trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) throw new Error("Informe a data do serviço.");
+  if (data < rel.periodoInicio || data > rel.periodoFim) {
+    throw new Error("A data deve estar dentro do período " + formatarDataBrHorasV514_(rel.periodoInicio) + " a " + formatarDataBrHorasV514_(rel.periodoFim) + ".");
+  }
+  var total = horasEntreV514_(entrada, saida);
+  var idHora = gerarIdNumerico_();
+  SpreadsheetApp.getActiveSpreadsheet().getSheetByName("HorasPrestadas").appendRow([
+    idHora, idRel, new Date(data + "T12:00:00"), entrada, saida, obs, total, new Date()
+  ]);
+  registrarLog_("CRIAR_HORA", idHora, rel.cliente + " | " + data + " | " + total + "h");
+  if (rel.lancamentoId) sincronizarPrevisaoRelatorioHoras(idRel);
+  return "Hora adicionada!";
+}
+
+function excluirHoraRelatorio(idHora) {
+  garantirEstruturaV58_();
+  idHora = Number(idHora || 0);
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("HorasPrestadas");
+  var linha = encontrarLinhaPorId_(sh, idHora, 1);
+  if (linha <= 1) throw new Error("Apontamento não encontrado.");
+  var idRel = Number(sh.getRange(linha, 2).getValue() || 0);
+  sh.deleteRow(linha);
+  registrarLog_("EXCLUIR_HORA", idHora, "Relatório " + idRel);
+  var rel = obterRelatorioHorasPorIdV514_(idRel);
+  if (rel.lancamentoId) sincronizarPrevisaoRelatorioHoras(idRel);
+  return "Apontamento removido!";
+}
+
+function sincronizarPrevisaoRelatorioHoras(idRelatorio) {
+  garantirEstruturaV58_();
+  var rel = obterRelatorioHorasPorIdV514_(Number(idRelatorio || 0));
+  var itens = obterHorasDoRelatorioV514_(rel.id);
+  var totalHoras = itens.reduce(function(s, x) { return s + Number(x.totalHoras || 0); }, 0);
+  totalHoras = Math.round(totalHoras * 100) / 100;
+  var valorTotal = Math.round(totalHoras * rel.valorHora * 100) / 100;
+
+  if (!rel.lancamentoId && valorTotal <= 0) {
+    throw new Error("Inclua pelo menos um apontamento antes de lançar a previsão.");
+  }
+
+  var shLanc = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Lancamentos");
+  var idLanc = Number(rel.lancamentoId || 0);
+  var linhaLanc = idLanc ? encontrarLinhaPorId_(shLanc, idLanc, COL_LANC_ID) : -1;
+  var descricao = "HORAS " + rel.cliente + " - " + formatarDataCurtaHorasV514_(rel.periodoInicio) + " A " + formatarDataCurtaHorasV514_(rel.periodoFim);
+  var dataVenc = new Date(rel.vencimento + "T12:00:00");
+  var chave = "HORAS|" + rel.id;
+
+  if (linhaLanc > 1) {
+    shLanc.getRange(linhaLanc, 1, 1, 6).setValues([[
+      dataVenc, descricao, valorTotal, "Receita", rel.categoria || "Consultoria", "Projetado"
+    ]]);
+    shLanc.getRange(linhaLanc, COL_LANC_ORIGEM).setValue("HORAS");
+    shLanc.getRange(linhaLanc, COL_LANC_CHAVE).setValue(chave);
+  } else {
+    idLanc = gerarIdNumerico_();
+    shLanc.appendRow([
+      dataVenc, descricao, valorTotal, "Receita", rel.categoria || "Consultoria", "Projetado",
+      "", idLanc, "HORAS", chave, "", ""
+    ]);
+    SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RelatoriosHoras").getRange(rel.linha, 8).setValue(idLanc);
+  }
+
+  registrarLog_("SINCRONIZAR_PREVISAO_HORAS", rel.id, descricao + " | R$ " + valorTotal);
+  return "Previsão sincronizada no fluxo: R$ " + formatarNumeroBrHorasV514_(valorTotal) + ".";
+}
+
+function gerarPdfRelatorioHoras(idRelatorio) {
+  garantirEstruturaV58_();
+  var rel = obterRelatorioHorasPorIdV514_(Number(idRelatorio || 0));
+  var itens = obterHorasDoRelatorioV514_(rel.id);
+  if (!itens.length) throw new Error("O relatório ainda não possui horas lançadas.");
+
+  var totalHoras = itens.reduce(function(s, x) { return s + Number(x.totalHoras || 0); }, 0);
+  totalHoras = Math.round(totalHoras * 100) / 100;
+  var valorTotal = Math.round(totalHoras * rel.valorHora * 100) / 100;
+
+  var doc = DocumentApp.create("TMP_RELATORIO_HORAS_" + rel.id);
+  var body = doc.getBody();
+  body.setMarginTop(28).setMarginBottom(28).setMarginLeft(28).setMarginRight(28);
+
+  var cab = body.appendTable([[
+    "CONSULTORIA.RF",
+    "RELATÓRIO DE HORAS\n" + rel.cliente,
+    "Período:\n" + formatarDataCurtaHorasV514_(rel.periodoInicio) + " a " + formatarDataCurtaHorasV514_(rel.periodoFim)
+  ]]);
+  cab.setBorderWidth(1);
+  for (var hc = 0; hc < 3; hc++) cab.getCell(0, hc).getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  cab.getCell(0, 0).editAsText().setBold(true).setFontSize(12);
+  cab.getCell(0, 1).editAsText().setBold(true).setFontSize(10);
+  cab.getCell(0, 2).editAsText().setFontSize(9);
+
+  body.appendParagraph("");
+  var linhas = [["DATA", "HR ENT.", "HR SAÍDA", "OBS", "TOTAL"]];
+  itens.forEach(function(x) {
+    linhas.push([
+      formatarDataCurtaHorasV514_(x.data), x.horaEntrada, x.horaSaida, x.observacao,
+      formatarNumeroBrHorasV514_(x.totalHoras)
+    ]);
+  });
+  linhas.push(["", "", "", "TOTAL", formatarNumeroBrHorasV514_(totalHoras)]);
+
+  var tabela = body.appendTable(linhas);
+  tabela.setBorderWidth(1);
+  for (var tc = 0; tc < 5; tc++) tabela.getCell(0, tc).editAsText().setBold(true).setFontSize(8);
+  for (var tr = 1; tr < tabela.getNumRows(); tr++) {
+    for (var tcc = 0; tcc < 5; tcc++) tabela.getCell(tr, tcc).editAsText().setFontSize(8);
+  }
+  tabela.getCell(tabela.getNumRows() - 1, 3).editAsText().setBold(true);
+  tabela.getCell(tabela.getNumRows() - 1, 4).editAsText().setBold(true);
+
+  body.appendParagraph("");
+  var resumo = body.appendTable([
+    ["Valor/hora", "R$ " + formatarNumeroBrHorasV514_(rel.valorHora)],
+    ["Vencimento", formatarDataBrHorasV514_(rel.vencimento)],
+    ["VALOR TOTAL", "R$ " + formatarNumeroBrHorasV514_(valorTotal)]
+  ]);
+  resumo.setBorderWidth(1);
+  resumo.getCell(2, 0).editAsText().setBold(true);
+  resumo.getCell(2, 1).editAsText().setBold(true);
+
+  body.appendParagraph("");
+  body.appendParagraph(
+    "Segue relatório de horas da prestação de serviço, referente ao período de " +
+    formatarDataCurtaHorasV514_(rel.periodoInicio) + " a " + formatarDataCurtaHorasV514_(rel.periodoFim) +
+    ", no valor de R$ " + formatarNumeroBrHorasV514_(valorTotal) +
+    ", a ser pago através de boleto bancário."
+  ).setFontSize(9);
+
+  doc.saveAndClose();
+
+  var arquivoDoc = DriveApp.getFileById(doc.getId());
+  var nomePdf = "Relatorio_Horas_" + nomeArquivoHorasV514_(rel.cliente) + "_" +
+    rel.periodoInicio.replace(/-/g, "") + "_" + rel.periodoFim.replace(/-/g, "") + ".pdf";
+  var pdf = arquivoDoc.getAs(MimeType.PDF).setName(nomePdf);
+  arquivoDoc.setTrashed(true);
+
+  return {
+    nome: nomePdf,
+    mimeType: "application/pdf",
+    base64: Utilities.base64Encode(pdf.getBytes()),
+    totalHoras: totalHoras,
+    valorTotal: valorTotal
+  };
 }
