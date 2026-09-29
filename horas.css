@@ -1,0 +1,35 @@
+/* V5.14.0 - módulo de relatório de horas */
+.horas-v514-layout{display:grid;grid-template-columns:minmax(280px,.82fr) minmax(0,1.55fr);gap:12px}
+.horas-v514-lista{display:grid;gap:8px}
+.horas-v514-card{border:1px solid #e1e5e9;border-radius:10px;padding:10px;background:#fff;cursor:pointer;transition:.15s ease}
+.horas-v514-card:hover{box-shadow:0 2px 7px rgba(0,0,0,.07)}
+.horas-v514-card.ativo{border-color:#0d6efd;box-shadow:0 0 0 2px rgba(13,110,253,.08)}
+.horas-v514-card-topo{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.horas-v514-cliente{font-weight:800;font-size:13px}
+.horas-v514-periodo{font-size:10px;color:#6c757d;margin-top:2px}
+.horas-v514-valores{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:8px}
+.horas-v514-kpi{background:#f8f9fa;border-radius:8px;padding:6px;text-align:center}
+.horas-v514-kpi small{display:block;font-size:8px;color:#6c757d;font-weight:800}
+.horas-v514-kpi strong{display:block;font-size:12px;margin-top:1px}
+.horas-v514-acoes{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.horas-v514-detalhe-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.horas-v514-resumo{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:10px 0}
+.horas-v514-resumo>div{background:#f8f9fa;border-radius:8px;padding:7px;text-align:center}
+.horas-v514-resumo small{display:block;font-size:8px;color:#6c757d;font-weight:800}
+.horas-v514-resumo strong{display:block;font-size:13px;margin-top:2px}
+.horas-v514-form-hora{display:grid;grid-template-columns:110px 92px 92px minmax(170px,1fr) auto;gap:6px;align-items:end}
+.horas-v514-vazio{padding:22px;text-align:center;color:#6c757d;font-size:12px}
+.horas-v514-badge-prev{font-size:9px}
+.horas-v514-table{font-size:11px}
+.horas-v514-table th,.horas-v514-table td{padding:5px 4px;vertical-align:middle}
+@media(max-width:900px){
+  .horas-v514-layout{grid-template-columns:1fr}
+}
+@media(max-width:576px){
+  .horas-v514-valores{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .horas-v514-resumo{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .horas-v514-form-hora{grid-template-columns:1fr 1fr}
+  .horas-v514-form-hora .horas-v514-obs{grid-column:1/-1}
+  .horas-v514-form-hora .horas-v514-submit{grid-column:1/-1}
+  .horas-v514-form-hora .btn{width:100%}
+}
