@@ -1224,7 +1224,7 @@
               const textoResposta = await resposta.text();
               let resultado = null;
               try { resultado = JSON.parse(textoResposta); } catch(e) { resultado = textoResposta; }
-              if (resultado && resultado.erro) throw new Error(resultado.erro);
+              if (resultado && resultado.erro) { var erroBackend = new Error(resultado.erro); erroBackend.isBackend = true; throw erroBackend; }
 
               let retornoHandler = resultado;
               if (resultado && resultado.dados) {
@@ -1239,8 +1239,8 @@
               return retornoHandler;
             } catch (err) {
               console.error("Erro na requisição:", err);
-              document.getElementById('status-conexao').innerText = "🔴 Erro de Conexão";
-              document.getElementById('status-conexao').className = "badge bg-danger";
+              document.getElementById('status-conexao').innerText = err && err.isBackend ? "🟠 Erro na operação" : "🔴 Erro de Conexão";
+              document.getElementById('status-conexao').className = err && err.isBackend ? "badge bg-warning text-dark" : "badge bg-danger";
               if (onFailure) onFailure(err.message || String(err));
               return null;
             }
