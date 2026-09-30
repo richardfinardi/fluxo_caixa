@@ -83,10 +83,24 @@ jobs:
         env:
           WEBAPP_URL: ${{ steps.ids.outputs.webapp_url }}
         run: |
-          BODY=$(curl --max-time 20 -L --silent --show-error -w "\nHTTP_STATUS:%{http_code}\n" "$WEBAPP_URL?acao=ping" || true)
-          echo "$BODY"
-          if echo "$BODY" | grep -q '"ok":true'; then
-            echo "API Neosonics respondendo."
-          else
-            echo "::warning::Backend atualizado, mas o Web App ainda nao esta publico. Ajuste o acesso do deployment para ANYONE_ANONYMOUS no Apps Script."
-          fi
+          echo "== PING =="
+          PING=$(curl --max-time 20 -L --fail --silent --show-error "$WEBAPP_URL?acao=ping")
+          echo "$PING"
+          echo "$PING" | grep -q '"ok":true'
+          echo "$PING" | grep -q '"NEOSONICS"'
+
+          echo "== BOOTSTRAP =="
+          BOOTSTRAP=$(curl --max-time 30 -L --fail --silent --show-error "$WEBAPP_URL?acao=bootstrap")
+          echo "$BOOTSTRAP" | head -c 1500
+          echo
+          echo "$BOOTSTRAP" | grep -q '"ok":true'
+          echo "$BOOTSTRAP" | grep -q '"parametro_versao_ativa"'
+          echo "$BOOTSTRAP" | grep -q '"custos_hora_ativos"'
+
+          echo "== ORCAMENTOS =="
+          ORCAMENTOS=$(curl --max-time 30 -L --fail --silent --show-error "$WEBAPP_URL?acao=orcamentos")
+          echo "$ORCAMENTOS" | head -c 1500
+          echo
+          echo "$ORCAMENTOS" | grep -q '"ok":true'
+
+          echo "API Neosonics + banco respondendo."
