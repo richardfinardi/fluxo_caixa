@@ -277,30 +277,108 @@ function sincronizarPrevisaoHorasV514() {
 function baixarPdfHorasV514() {
   var r = relatorioSelecionadoHorasV514_();
   if (!r) return;
+
   var btn = document.getElementById('btnPdfHorasV514');
   btn.disabled = true;
   btn.innerText = '⏳ Gerando PDF...';
 
-  executarHorasV514_('gerarPdfRelatorioHoras', Number(r.id), function(resp) {
-    btn.disabled = false;
-    btn.innerText = '📄 Gerar PDF';
-    if (!resp || !resp.base64) {
-      exibirAvisoNaTela('Não foi possível gerar o PDF.', 'danger');
-      return;
+  try {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      throw new Error('Biblioteca de PDF não carregou. Atualize a página e tente novamente.');
     }
 
-    var bin = atob(resp.base64);
-    var bytes = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    var blob = new Blob([bytes], { type: resp.mimeType || 'application/pdf' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = resp.nome || 'Relatorio_Horas.pdf';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    var itens = r.horas || [];
+    var totalHoras = Number(r.totalHoras || 0);
+    var valorTotal = Number(r.valorTotal || 0);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('CONSULTORIA.RF', 14, 16);
+
+    doc.setFontSize(11);
+    doc.text('RELATÓRIO DE HORAS', 105, 15, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text(String(r.cliente || '').toUpperCase(), 105, 21, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(
+      'Período: ' + dataBrHorasV514_(r.periodoInicio) + ' a ' + dataBrHorasV514_(r.periodoFim),
+      196, 15, { align: 'right' }
+    );
+
+    var linhas = itens.map(function(h) {
+      return [
+        dataCurtaHorasV514_(h.data),
+        h.horaEntrada || '',
+        h.horaSaida || '',
+        h.observacao || '',
+        numeroHorasV514_(h.totalHoras)
+      ];
+    });
+
+    doc.autoTable({
+      startY: 28,
+      head: [['DATA', 'HR ENT.', 'HR SAÍDA', 'OBSERVAÇÃO', 'TOTAL']],
+      body: linhas,
+      foot: [['', '', '', 'TOTAL', numeroHorasV514_(totalHoras)]],
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 2.2, valign: 'middle' },
+      headStyles: { fontStyle: 'bold' },
+      footStyles: { fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: 22 },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 92 },
+        4: { cellWidth: 25, halign: 'right' }
+      },
+      margin: { left: 14, right: 14 }
+    });
+
+    var y = (doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : 45) + 8;
+
+    doc.autoTable({
+      startY: y,
+      body: [
+        ['Valor/hora', moedaHorasV514_(r.valorHora)],
+        ['Vencimento', dataBrHorasV514_(r.vencimento)],
+        ['VALOR TOTAL', moedaHorasV514_(valorTotal)]
+      ],
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 9, cellPadding: 2.5 },
+      columnStyles: {
+        0: { cellWidth: 45, fontStyle: 'bold' },
+        1: { cellWidth: 55, halign: 'right' }
+      },
+      margin: { left: 14 }
+    });
+
+    y = (doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : y + 20) + 10;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    var texto = 'Segue relatório de horas da prestação de serviço, referente ao período de ' +
+      dataCurtaHorasV514_(r.periodoInicio) + ' a ' + dataCurtaHorasV514_(r.periodoFim) +
+      ', no valor de ' + moedaHorasV514_(valorTotal) +
+      ', a ser pago através de boleto bancário.';
+    var quebrado = doc.splitTextToSize(texto, 180);
+    doc.text(quebrado, 14, y);
+
+    var nome = 'Relatorio_Horas_' + String(r.cliente || 'Cliente')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_-]+/g, '_') +
+      '_' + String(r.periodoInicio || '').replace(/-/g, '') +
+      '_' + String(r.periodoFim || '').replace(/-/g, '') + '.pdf';
+
+    doc.save(nome);
     exibirAvisoNaTela('PDF gerado com sucesso.', 'success');
-  });
+  } catch (err) {
+    console.error('Erro ao gerar PDF local:', err);
+    exibirAvisoNaTela('Erro ao gerar PDF: ' + (err.message || err), 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '📄 Gerar PDF';
+  }
 }
