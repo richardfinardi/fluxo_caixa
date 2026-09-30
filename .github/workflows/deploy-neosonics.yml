@@ -1,0 +1,92 @@
+name: Deploy Neosonics API
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".deploy-triggers/neosonics.txt"
+      - ".github/workflows/deploy-neosonics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout controle de deploy
+        uses: actions/checkout@v4
+
+      - name: Carregar IDs
+        id: ids
+        run: |
+          test -f .deploy/neosonics.env || (echo "Arquivo .deploy/neosonics.env nao encontrado" && exit 1)
+          source .deploy/neosonics.env
+          echo "script_id=$APPS_SCRIPT_ID" >> "$GITHUB_OUTPUT"
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "webapp_url=$WEBAPP_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Neosonics
+        uses: actions/checkout@v4
+        with:
+          repository: richardfinardi/neosonics
+          ref: main
+          path: neosonics
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install clasp
+        run: npm install -g @google/clasp@3.4.1
+
+      - name: Configurar autorizacao Google
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          test -n "$CLASPRC_JSON" || (echo "Secret CLASPRC_JSON nao configurado no fluxo_caixa" && exit 1)
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+
+      - name: Configurar projeto Apps Script
+        working-directory: neosonics/apps-script
+        env:
+          APPS_SCRIPT_ID: ${{ steps.ids.outputs.script_id }}
+        run: |
+          cat > .clasp.json <<EOF
+          {
+            "scriptId": "$APPS_SCRIPT_ID",
+            "rootDir": "",
+            "scriptExtensions": [".js", ".gs"],
+            "htmlExtensions": [".html"],
+            "jsonExtensions": [".json"],
+            "filePushOrder": [],
+            "skipSubdirectories": false
+          }
+          EOF
+
+      - name: Enviar backend
+        working-directory: neosonics/apps-script
+        run: clasp push --force
+
+      - name: Atualizar deployment
+        working-directory: neosonics/apps-script
+        env:
+          DEPLOYMENT_ID: ${{ steps.ids.outputs.deployment_id }}
+        run: clasp update-deployment "$DEPLOYMENT_ID" --description "Deploy automatico Neosonics ${{ github.sha }}"
+
+      - name: Testar API
+        env:
+          WEBAPP_URL: ${{ steps.ids.outputs.webapp_url }}
+        run: |
+          BODY=$(curl --max-time 20 -L --silent --show-error -w "\nHTTP_STATUS:%{http_code}\n" "$WEBAPP_URL?acao=ping" || true)
+          echo "$BODY"
+          if echo "$BODY" | grep -q '"ok":true'; then
+            echo "API Neosonics respondendo."
+          else
+            echo "::warning::Backend atualizado, mas o Web App ainda nao esta publico. Ajuste o acesso do deployment para ANYONE_ANONYMOUS no Apps Script."
+          fi
