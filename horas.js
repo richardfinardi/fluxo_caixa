@@ -1,4 +1,4 @@
-/* V5.14.0 - relatório de horas */
+/* V5.14.1 - relatório de horas */
 var horasV514 = { relatorios: [], selecionado: 0 };
 
 function escapeHorasV514_(v) {
@@ -187,7 +187,7 @@ function renderizarDetalheHorasV514_() {
   document.getElementById('detalheHorasPrevisaoV514').innerText = r.lancamentoId ? 'Ativa' : 'Não lançada';
 
   var btnPrev = document.getElementById('btnPrevisaoHorasV514');
-  btnPrev.innerText = r.lancamentoId ? '↻ Atualizar previsão' : '📈 Lançar previsão';
+  btnPrev.innerText = '↻ Sincronizar previsão';
 
   var dataInput = document.getElementById('horaDataV514');
   var hoje = hojeIsoJs();
