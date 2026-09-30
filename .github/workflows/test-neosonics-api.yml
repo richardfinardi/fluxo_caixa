@@ -39,4 +39,17 @@ jobs:
           echo
           echo "$ORC" | grep -q '"ok":true'
 
+          echo "== CLIENTES =="
+          CLI=$(curl --max-time 30 -L --fail --silent --show-error "$API?acao=clientes")
+          echo "$CLI" | head -c 1200
+          echo
+          echo "$CLI" | grep -q '"ok":true'
+
+          echo "== MAP_CLIENTES =="
+          MAP=$(curl --max-time 30 -L --fail --silent --show-error "$API?acao=map_clientes")
+          echo "$MAP" | head -c 1200
+          echo
+          echo "$MAP" | grep -q '"ok":true'
+          echo "$MAP" | grep -q '"STATUS_MAPEAMENTO"'
+
           echo "NEOSONICS_API_OK"
