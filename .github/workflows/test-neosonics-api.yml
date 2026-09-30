@@ -1,0 +1,42 @@
+name: Test Neosonics API
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/test-neosonics-api.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Testar endpoints
+        env:
+          API: https://script.google.com/macros/s/AKfycbzIK1DMOScjbly8BguctT2-1fiZYTIOOa0nVEAvHKCkvFnCFNd9tgO3wZTwBSAlp9kT/exec
+        run: |
+          echo "== PING =="
+          PING=$(curl --max-time 20 -L --fail --silent --show-error "$API?acao=ping")
+          echo "$PING"
+          echo "$PING" | grep -q '"ok":true'
+          echo "$PING" | grep -q '"versao":"0.4.1"'
+
+          echo "== BOOTSTRAP =="
+          BOOT=$(curl --max-time 30 -L --fail --silent --show-error "$API?acao=bootstrap")
+          echo "$BOOT" | head -c 2000
+          echo
+          echo "$BOOT" | grep -q '"ok":true'
+          echo "$BOOT" | grep -q '"parametro_versao_ativa"'
+          echo "$BOOT" | grep -q '"custos_hora_ativos"'
+
+          echo "== ORCAMENTOS =="
+          ORC=$(curl --max-time 30 -L --fail --silent --show-error "$API?acao=orcamentos")
+          echo "$ORC" | head -c 2000
+          echo
+          echo "$ORC" | grep -q '"ok":true'
+
+          echo "NEOSONICS_API_OK"
