@@ -1,6 +1,6 @@
 // REDEPLOY V5.14.0 - token clasp renovado 2026-09-30
 // DEPLOY V5.14.0 - 2026-09-30
-var VERSAO_SISTEMA = "5.14.1";
+var VERSAO_SISTEMA = "5.14.2";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -315,8 +315,26 @@ function registrarLog_(acao, registro, detalhes) {
   } catch (e) {}
 }
 
+function sincronizarPrevisoesHorasPendentesV514_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var shRel = ss.getSheetByName("RelatoriosHoras");
+  if (!shRel || shRel.getLastRow() <= 1) return;
+
+  var vals = shRel.getRange(2, 1, shRel.getLastRow() - 1, 10).getValues();
+  vals.forEach(function(r) {
+    var idRel = Number(r[0] || 0);
+    var lancamentoId = Number(r[7] || 0);
+    if (!idRel || lancamentoId) return;
+
+    var itens = obterHorasDoRelatorioV514_(idRel);
+    var totalHoras = itens.reduce(function(s, x) { return s + Number(x.totalHoras || 0); }, 0);
+    if (totalHoras > 0) sincronizarPrevisaoRelatorioHoras(idRel);
+  });
+}
+
 function obterDadosIniciais() {
   garantirEstruturaV58_();
+  sincronizarPrevisoesHorasPendentesV514_();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheetLancamentos = ss.getSheetByName("Lancamentos");
   var sheetRegras = ss.getSheetByName("RegrasClientes");
