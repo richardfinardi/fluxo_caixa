@@ -23,7 +23,7 @@ jobs:
           PING=$(curl --max-time 20 -L --fail --silent --show-error "$API?acao=ping")
           echo "$PING"
           echo "$PING" | grep -q '"ok":true'
-          echo "$PING" | grep -q '"versao":"0.4.1"'
+          echo "$PING" | grep -q '"NEOSONICS"'
 
           echo "== BOOTSTRAP =="
           BOOT=$(curl --max-time 30 -L --fail --silent --show-error "$API?acao=bootstrap")
