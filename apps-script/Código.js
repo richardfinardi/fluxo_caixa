@@ -1,3 +1,4 @@
+// REDEPLOY V5.14.0 - token clasp renovado 2026-09-30
 // DEPLOY V5.14.0 - 2026-09-30
 var VERSAO_SISTEMA = "5.14.0";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
