@@ -274,7 +274,35 @@ function sincronizarPrevisaoHorasV514() {
   });
 }
 
-function baixarPdfHorasV514() {
+function carregarLogoPdfHorasV514_() {
+  return new Promise(function(resolve) {
+    var img = new Image();
+    img.onload = function() {
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        resolve({
+          dataUrl: canvas.toDataURL('image/png'),
+          width: canvas.width,
+          height: canvas.height
+        });
+      } catch (e) {
+        console.warn('Não foi possível converter o logo para o PDF:', e);
+        resolve(null);
+      }
+    };
+    img.onerror = function() {
+      console.warn('Logo não encontrado para o PDF.');
+      resolve(null);
+    };
+    img.src = './LOGO%20APLICACAO%20FUNDO%20BRANCO.png?v=5144';
+  });
+}
+
+async function baixarPdfHorasV514() {
   var r = relatorioSelecionadoHorasV514_();
   if (!r) return;
 
@@ -293,21 +321,54 @@ function baixarPdfHorasV514() {
     var totalHoras = Number(r.totalHoras || 0);
     var valorTotal = Number(r.valorTotal || 0);
 
+    // Paleta CONSULTORIA.RF / Fluxo de Caixa
+    var COR_NAVY = [44, 62, 80];
+    var COR_AZUL = [52, 152, 219];
+    var COR_LARANJA = [243, 156, 18];
+    var COR_CINZA = [108, 117, 125];
+    var COR_CLARA = [244, 246, 249];
+
+    // Cabeçalho com identidade visual
+    doc.setFillColor(COR_CLARA[0], COR_CLARA[1], COR_CLARA[2]);
+    doc.roundedRect(10, 9, 190, 24, 2, 2, 'F');
+
+    var logo = await carregarLogoPdfHorasV514_();
+    if (logo && logo.dataUrl) {
+      var maxW = 48;
+      var maxH = 15;
+      var proporcao = logo.width / logo.height;
+      var w = maxW;
+      var h = w / proporcao;
+      if (h > maxH) {
+        h = maxH;
+        w = h * proporcao;
+      }
+      doc.addImage(logo.dataUrl, 'PNG', 14, 13, w, h);
+    }
+
+    doc.setTextColor(COR_NAVY[0], COR_NAVY[1], COR_NAVY[2]);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
-    doc.text('CONSULTORIA.RF', 14, 16);
+    doc.text('RELATÓRIO DE HORAS', 105, 17, { align: 'center' });
 
-    doc.setFontSize(11);
-    doc.text('RELATÓRIO DE HORAS', 105, 15, { align: 'center' });
-    doc.setFontSize(10);
-    doc.text(String(r.cliente || '').toUpperCase(), 105, 21, { align: 'center' });
+    doc.setTextColor(COR_AZUL[0], COR_AZUL[1], COR_AZUL[2]);
+    doc.setFontSize(10.5);
+    doc.text(String(r.cliente || '').toUpperCase(), 105, 23, { align: 'center' });
 
+    doc.setTextColor(COR_CINZA[0], COR_CINZA[1], COR_CINZA[2]);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.text(
-      'Período: ' + dataBrHorasV514_(r.periodoInicio) + ' a ' + dataBrHorasV514_(r.periodoFim),
-      196, 15, { align: 'right' }
+      dataBrHorasV514_(r.periodoInicio) + ' a ' + dataBrHorasV514_(r.periodoFim),
+      195, 17, { align: 'right' }
     );
+    doc.setTextColor(COR_LARANJA[0], COR_LARANJA[1], COR_LARANJA[2]);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Venc. ' + dataBrHorasV514_(r.vencimento), 195, 23, { align: 'right' });
+
+    doc.setDrawColor(COR_LARANJA[0], COR_LARANJA[1], COR_LARANJA[2]);
+    doc.setLineWidth(1.1);
+    doc.line(10, 35, 200, 35);
 
     var linhas = itens.map(function(h) {
       return [
@@ -320,43 +381,69 @@ function baixarPdfHorasV514() {
     });
 
     doc.autoTable({
-      startY: 28,
+      startY: 40,
       head: [['DATA', 'HR ENT.', 'HR SAÍDA', 'OBSERVAÇÃO', 'TOTAL']],
       body: linhas,
       foot: [['', '', '', 'TOTAL', numeroHorasV514_(totalHoras)]],
       theme: 'grid',
-      styles: { font: 'helvetica', fontSize: 8, cellPadding: 2.2, valign: 'middle' },
-      headStyles: { fontStyle: 'bold' },
-      footStyles: { fontStyle: 'bold' },
+      styles: {
+        font: 'helvetica',
+        fontSize: 8.5,
+        cellPadding: 2.4,
+        valign: 'middle',
+        lineColor: [220, 225, 230],
+        lineWidth: 0.15,
+        textColor: COR_NAVY
+      },
+      headStyles: {
+        fillColor: COR_NAVY,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      footStyles: {
+        fillColor: COR_LARANJA,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      alternateRowStyles: {
+        fillColor: COR_CLARA
+      },
       columnStyles: {
-        0: { cellWidth: 22 },
-        1: { cellWidth: 22 },
-        2: { cellWidth: 22 },
+        0: { cellWidth: 22, halign: 'center' },
+        1: { cellWidth: 22, halign: 'center' },
+        2: { cellWidth: 22, halign: 'center' },
         3: { cellWidth: 92 },
-        4: { cellWidth: 25, halign: 'right' }
+        4: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }
       },
       margin: { left: 14, right: 14 }
     });
 
-    var y = (doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : 45) + 8;
+    var y = (doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : 55) + 8;
 
-    doc.autoTable({
-      startY: y,
-      body: [
-        ['Valor/hora', moedaHorasV514_(r.valorHora)],
-        ['Vencimento', dataBrHorasV514_(r.vencimento)],
-        ['VALOR TOTAL', moedaHorasV514_(valorTotal)]
-      ],
-      theme: 'grid',
-      styles: { font: 'helvetica', fontSize: 9, cellPadding: 2.5 },
-      columnStyles: {
-        0: { cellWidth: 45, fontStyle: 'bold' },
-        1: { cellWidth: 55, halign: 'right' }
-      },
-      margin: { left: 14 }
-    });
+    // Resumo financeiro
+    doc.setFillColor(COR_NAVY[0], COR_NAVY[1], COR_NAVY[2]);
+    doc.roundedRect(14, y, 182, 22, 2, 2, 'F');
 
-    y = (doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : y + 20) + 10;
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text('TOTAL DE HORAS', 37, y + 7, { align: 'center' });
+    doc.text('VALOR/HORA', 105, y + 7, { align: 'center' });
+    doc.text('VALOR TOTAL', 172, y + 7, { align: 'center' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(numeroHorasV514_(totalHoras) + ' h', 37, y + 15, { align: 'center' });
+    doc.text(moedaHorasV514_(r.valorHora), 105, y + 15, { align: 'center' });
+
+    doc.setTextColor(COR_LARANJA[0], COR_LARANJA[1], COR_LARANJA[2]);
+    doc.setFontSize(12);
+    doc.text(moedaHorasV514_(valorTotal), 172, y + 15, { align: 'center' });
+
+    y += 31;
+
+    doc.setTextColor(COR_NAVY[0], COR_NAVY[1], COR_NAVY[2]);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     var texto = 'Segue relatório de horas da prestação de serviço, referente ao período de ' +
@@ -365,6 +452,15 @@ function baixarPdfHorasV514() {
       ', a ser pago através de boleto bancário.';
     var quebrado = doc.splitTextToSize(texto, 180);
     doc.text(quebrado, 14, y);
+
+    // Rodapé discreto
+    doc.setDrawColor(COR_AZUL[0], COR_AZUL[1], COR_AZUL[2]);
+    doc.setLineWidth(0.4);
+    doc.line(14, 282, 196, 282);
+    doc.setTextColor(COR_CINZA[0], COR_CINZA[1], COR_CINZA[2]);
+    doc.setFontSize(7);
+    doc.text('CONSULTORIA.RF', 14, 287);
+    doc.text('Relatório gerado pelo Fluxo de Caixa', 196, 287, { align: 'right' });
 
     var nome = 'Relatorio_Horas_' + String(r.cliente || 'Cliente')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
