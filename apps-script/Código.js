@@ -1,6 +1,6 @@
 // REDEPLOY V5.14.0 - token clasp renovado 2026-09-30
 // DEPLOY V5.14.0 - 2026-09-30
-var VERSAO_SISTEMA = "5.14.0";
+var VERSAO_SISTEMA = "5.14.1";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -4130,6 +4130,17 @@ function obterRelatorioHorasPorIdV514_(idRelatorio) {
   };
 }
 
+function formatarHoraV514_(valor) {
+  if (valor === null || valor === undefined || valor === "") return "";
+  if (Object.prototype.toString.call(valor) === "[object Date]" && !isNaN(valor.getTime())) {
+    return Utilities.formatDate(valor, Session.getScriptTimeZone() || "America/Sao_Paulo", "HH:mm");
+  }
+  var s = String(valor).trim();
+  var m = s.match(/\b(\d{1,2}):(\d{2})\b/);
+  if (m) return String(m[1]).padStart(2, "0") + ":" + m[2];
+  return s;
+}
+
 function obterHorasDoRelatorioV514_(idRelatorio) {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("HorasPrestadas");
   if (!sh || sh.getLastRow() <= 1) return [];
@@ -4142,8 +4153,8 @@ function obterHorasDoRelatorioV514_(idRelatorio) {
       id: Number(r[0]),
       idRelatorio: Number(r[1]),
       data: isoData_(r[2]),
-      horaEntrada: String(r[3] || ""),
-      horaSaida: String(r[4] || ""),
+      horaEntrada: formatarHoraV514_(r[3]),
+      horaSaida: formatarHoraV514_(r[4]),
       observacao: String(r[5] || ""),
       totalHoras: Number(r[6] || 0)
     });
@@ -4219,7 +4230,8 @@ function salvarRelatorioHoras(dados) {
       id, cliente, new Date(inicio + "T12:00:00"), new Date(fim + "T12:00:00"),
       new Date(venc + "T12:00:00"), valorHora, categoria, lancamentoId, criadoEm, agora
     ]]);
-    if (lancamentoId) sincronizarPrevisaoRelatorioHoras(id);
+    var horasExistentes = obterHorasDoRelatorioV514_(id);
+    if (horasExistentes.length) sincronizarPrevisaoRelatorioHoras(id);
     registrarLog_("ATUALIZAR_RELATORIO_HORAS", id, cliente + " | " + inicio + " a " + fim);
     return "Período atualizado!";
   }
@@ -4253,8 +4265,8 @@ function salvarHoraRelatorio(dados) {
     idHora, idRel, new Date(data + "T12:00:00"), entrada, saida, obs, total, new Date()
   ]);
   registrarLog_("CRIAR_HORA", idHora, rel.cliente + " | " + data + " | " + total + "h");
-  if (rel.lancamentoId) sincronizarPrevisaoRelatorioHoras(idRel);
-  return "Hora adicionada!";
+  sincronizarPrevisaoRelatorioHoras(idRel);
+  return "Hora adicionada e previsão atualizada automaticamente!";
 }
 
 function excluirHoraRelatorio(idHora) {
