@@ -1,1 +1,1 @@
-deploy 2026-10-01 - cadastro de segmentacoes e limpeza visual
+deploy 2026-10-01 - lucro DV DF historico e regras fiscais orcamento
