@@ -1,1 +1,1 @@
-deploy 2026-10-01 - helper autorizacao consulta CNPJ
+deploy 2026-10-01 - visao executiva real sobre VENDAS
