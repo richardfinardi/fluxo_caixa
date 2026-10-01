@@ -1,1 +1,1 @@
-deploy 2026-10-01 - indicadores solicitados cliente e vendas dentro fora estado
+deploy 2026-10-01 - modal pedidos tema claro indicadores e status
