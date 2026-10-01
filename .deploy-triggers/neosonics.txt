@@ -1,1 +1,1 @@
-deploy 2026-10-01 - feedback aprovacao modal pedido status e congelamento orcamento
+deploy 2026-10-01 - indicadores solicitados cliente e vendas dentro fora estado
