@@ -1,1 +1,1 @@
-deploy 2026-10-01 - restaura servicos 8.02 e 14.01
+deploy 2026-10-01 - consulta CNPJ no cadastro de clientes
