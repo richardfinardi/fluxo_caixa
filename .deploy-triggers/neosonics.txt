@@ -1,1 +1,1 @@
-deploy 2026-10-01 - pedidos historicos e aprovacao automatica
+deploy 2026-10-01 - feedback aprovacao modal pedido status e congelamento orcamento
