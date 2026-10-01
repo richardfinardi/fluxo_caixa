@@ -1,0 +1,26 @@
+name: Test Neosonics CNPJ Lookup
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/test-neosonics-cnpj.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consultar CNPJ pelo backend
+        env:
+          API: https://script.google.com/macros/s/AKfycbzIK1DMOScjbly8BguctT2-1fiZYTIOOa0nVEAvHKCkvFnCFNd9tgO3wZTwBSAlp9kT/exec
+        run: |
+          BODY=$(curl --max-time 30 -L --fail --silent --show-error "$API?acao=consultar_cnpj&cnpj=19131243000197")
+          echo "$BODY"
+          echo "$BODY" | grep -q '"ok":true'
+          echo "$BODY" | grep -q '"razao_social"'
+          echo "$BODY" | grep -q '"fonte"'
+          echo "CNPJ_LOOKUP_OK"
