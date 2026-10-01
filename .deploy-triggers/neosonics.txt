@@ -1,1 +1,1 @@
-deploy 2026-10-01 - lucro DV DF historico e regras fiscais orcamento
+deploy 2026-10-01 - restaura servicos 8.02 e 14.01
