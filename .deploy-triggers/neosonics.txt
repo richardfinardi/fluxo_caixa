@@ -1,1 +1,1 @@
-deploy 2026-10-01 - consulta CNPJ no cadastro de clientes
+deploy 2026-10-01 - valida CNPJ no save e front usa APIs publicas
