@@ -1,1 +1,1 @@
-deploy 2026-10-01 - visao executiva real sobre VENDAS
+deploy 2026-10-01 - pedidos historicos e aprovacao automatica
