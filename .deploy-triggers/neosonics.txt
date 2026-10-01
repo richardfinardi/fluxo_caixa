@@ -1,1 +1,1 @@
-deploy 2026-10-01 - corrige CNPJ proxy e somenteDigitos
+deploy 2026-10-01 - helper autorizacao consulta CNPJ
