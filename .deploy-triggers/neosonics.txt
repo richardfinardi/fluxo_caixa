@@ -1,1 +1,1 @@
-deploy 2026-10-01 - segmentacoes FINAL e NEO oficiais
+deploy 2026-10-01 - cadastro de segmentacoes e limpeza visual
