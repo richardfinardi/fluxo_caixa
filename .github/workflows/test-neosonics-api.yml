@@ -45,6 +45,14 @@ jobs:
           echo
           echo "$CLI" | grep -q '"ok":true'
 
+          echo "== CONSULTA CNPJ =="
+          CNPJ=$(curl --max-time 30 -L --fail --silent --show-error "$API?acao=consultar_cnpj&cnpj=31485809000184")
+          echo "$CNPJ" | head -c 1600
+          echo
+          echo "$CNPJ" | grep -q '"ok":true'
+          echo "$CNPJ" | grep -q '"razao_social"'
+          echo "$CNPJ" | grep -q '"fonte"'
+
           echo "== MAP_CLIENTES =="
           MAP=$(curl --max-time 30 -L --fail --silent --show-error "$API?acao=map_clientes")
           echo "$MAP" | head -c 1200
