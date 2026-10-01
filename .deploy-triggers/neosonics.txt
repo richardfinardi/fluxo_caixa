@@ -1,1 +1,1 @@
-deploy 2026-10-01 - modal pedidos tema claro indicadores e status
+deploy 2026-10-01 - inclui pedidos gerados nos indicadores
