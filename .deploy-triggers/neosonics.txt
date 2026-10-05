@@ -1,2 +1,2 @@
-deploy 2026-10-05 - pedido rapido
-source neosonics commit c63846a0e40e280f08fa516f0167bcdc941fed7b
+deploy 2026-10-05 - read model endpoints
+source neosonics commit 707a0b7600af76bff6ad2a7194584dc4fc0854bc
