@@ -2,13 +2,13 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.14.4</title>
+  <title>Fluxo de Caixa Automatizado 5.15.0</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.14.4">
+  <meta name="apple-mobile-web-app-title" content="Finanças V5.15.0">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -320,7 +320,7 @@
 }
 
 
-/* V5.14.4 - bloqueio biométrico local no celular */
+/* V5.15.0 - bloqueio biométrico local no celular */
 #bioLockV5134 {
   position:fixed;
   inset:0;
@@ -356,6 +356,17 @@
   margin-top:10px;
 }
 
+
+/* V5.15.0 - conciliação bancária N:N */
+.conciliacao-grupo-lista-v515{max-height:52vh;overflow:auto;border:1px solid #e5e7eb;border-radius:10px;padding:6px;background:#f8f9fa}
+.conciliacao-grupo-item-v515{display:flex;align-items:flex-start;gap:9px;padding:9px;border-radius:8px;background:#fff;border:1px solid #e9ecef;margin-bottom:6px;cursor:pointer}
+.conciliacao-grupo-item-v515:hover{box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.conciliacao-grupo-item-v515 small{display:block;color:#6c757d;font-size:10px;margin-top:2px}
+.conciliacao-grupo-item-v515 strong{white-space:nowrap}
+.conciliacao-grupo-resumo-v515{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:10px;border:1px solid #dee2e6;border-radius:10px;background:#fff}
+.conciliacao-grupo-resumo-v515 div{display:flex;flex-direction:column;gap:2px}
+.conciliacao-grupo-resumo-v515 small{font-size:9px;color:#6c757d;font-weight:700}
+@media(max-width:767px){.conciliacao-grupo-resumo-v515{grid-template-columns:1fr}.conciliacao-grupo-lista-v515{max-height:34vh}}
 </style>
 </head>
 <body>
@@ -374,7 +385,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.14.4</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.15.0</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -792,7 +803,7 @@
       </script>
 
 
-      <!-- TAB RELATÓRIO DE HORAS V5.14.4 -->
+      <!-- TAB RELATÓRIO DE HORAS V5.15.0 -->
       <div class="tab-pane fade" id="horas" role="tabpanel">
         <div class="horas-v514-layout">
           <div class="card">
@@ -1068,6 +1079,9 @@
         <button type="button" class="btn btn-sm btn-success fw-bold" id="btnConciliarConfirmadosV5101" onclick="processarConfirmadosBancoV5102()" disabled>
           ✅ <span class="rotulo-desktop">Processar confirmados (0)</span><span class="rotulo-mobile">Processar (0)</span>
         </button>
+        <button type="button" class="btn btn-sm btn-outline-success fw-bold" onclick="abrirConciliacaoMultiplaV515()">
+          🧩 <span class="rotulo-desktop">Conciliação múltipla</span><span class="rotulo-mobile">Agrupar</span>
+        </button>
         <button type="button" class="btn btn-sm btn-primary fw-bold" onclick="abrirMeuPluggyV5122()">
           🌐 <span class="rotulo-desktop">Atualizar no Meu Pluggy</span><span class="rotulo-mobile">Meu Pluggy</span>
         </button>
@@ -1078,7 +1092,7 @@
     </div>
 
     <div class="alert alert-info py-2 px-3 mt-3 mb-2" style="font-size:11px;">
-      ✅ <b>Modo ativo V5.14.4:</b> nenhuma ação é automática. O sistema só altera o fluxo depois da sua confirmação.
+      ✅ <b>Modo ativo V5.15.0:</b> conciliação 1:1 ou múltipla N:N. Nenhuma ação é automática.
     </div>
 
     <div id="pluggySyncV5103" class="pluggy-sync-v5103">
@@ -1268,6 +1282,7 @@
           calibrarSaldoPluggyV513: function() { return this.executarGenerico('calibrarSaldoPluggyV513'); },
           obterConciliacaoBancoV59: function() { return this.executarGenerico('obterConciliacaoBancoV59'); },
           conciliarMovimentoBancoV510: function(dados) { return this.executarGenerico('conciliarMovimentoBancoV510', dados); },
+          conciliarGrupoBancoV515: function(dados) { return this.executarGenerico('conciliarGrupoBancoV515', dados); },
           criarLancamentoBancoV510: function(dados) { return this.executarGenerico('criarLancamentoBancoV510', dados); },
           ignorarMovimentoBancoV510: function(id) { return this.executarGenerico('ignorarMovimentoBancoV510', id); },
           confirmarTransferenciaBancoV510: function(dados) { return this.executarGenerico('confirmarTransferenciaBancoV510', dados); },
@@ -1290,7 +1305,7 @@
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
-    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS', confirmados: {}, rascunhos: {}, rejeitados: {}, vinculosManuais: {}, vinculoAtualId: '', pushCfg: null, oneSignal: null, oneSignalIniciado: false, subscriptionId: '', pushToken: '', pushVerificado: false };
+    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS', confirmados: {}, rascunhos: {}, rejeitados: {}, vinculosManuais: {}, vinculoAtualId: '', grupoV515: { banco: {}, fluxo: {} }, pushCfg: null, oneSignal: null, oneSignalIniciado: false, subscriptionId: '', pushToken: '', pushVerificado: false };
     var cartaoV513 = { dados: null, filtro: 'TODOS' };
     
     var mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -1348,7 +1363,7 @@
     }
 
 
-    // V5.14.4 - trava biométrica local do PWA no celular.
+    // V5.15.0 - trava biométrica local do PWA no celular.
     // A credencial fica vinculada ao domínio/aparelho via WebAuthn.
     var bioEstadoV5134 = {
       dadosCarregados: false,
@@ -1627,7 +1642,7 @@
       if (dadosPlanilha.versao) {
         var marca = document.querySelector('.navbar-brand');
         if (marca) {
-          var front = '5.14.4';
+          var front = '5.15.0';
           var back = String(dadosPlanilha.versao || '');
           var parseV = function(v) { return String(v).split('.').map(function(x){ return Number(x) || 0; }); };
           var maiorOuIgual = function(a,b) {
@@ -2416,7 +2431,7 @@
     }
 
 // =========================
-// V5.14.4 - CONCILIAÇÃO BANCÁRIA
+// V5.15.0 - CONCILIAÇÃO BANCÁRIA
 // =========================
 
 
@@ -3118,6 +3133,255 @@ function limparVinculoManualBancoV512(idPluggy) {
   atualizarBotaoConfirmadosBancoV5102_();
 }
 
+
+function garantirModalConciliacaoMultiplaV515_() {
+  var existente = document.getElementById('modalConciliacaoMultiplaV515');
+  if (existente) return existente;
+
+  var wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <div class="modal fade" id="modalConciliacaoMultiplaV515" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-dark text-white py-2">
+            <div>
+              <h6 class="modal-title mb-0">🧩 Conciliação múltipla</h6>
+              <small class="text-white-50">Selecione 1 ou mais movimentos do banco e 1 ou mais lançamentos do fluxo.</small>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-12 col-lg-6">
+                <div class="fw-bold mb-2">🏦 Banco</div>
+                <input type="text" id="buscaBancoGrupoV515" class="form-control form-control-sm mb-2"
+                  placeholder="Pesquisar movimento bancário..." oninput="renderizarConciliacaoMultiplaV515_()">
+                <div id="listaBancoGrupoV515" class="conciliacao-grupo-lista-v515"></div>
+              </div>
+              <div class="col-12 col-lg-6">
+                <div class="fw-bold mb-2">💰 Fluxo</div>
+                <input type="text" id="buscaFluxoGrupoV515" class="form-control form-control-sm mb-2"
+                  placeholder="Pesquisar lançamento do fluxo..." oninput="renderizarConciliacaoMultiplaV515_()">
+                <div id="listaFluxoGrupoV515" class="conciliacao-grupo-lista-v515"></div>
+              </div>
+            </div>
+            <div id="resumoGrupoV515" class="conciliacao-grupo-resumo-v515 mt-3"></div>
+          </div>
+          <div class="modal-footer py-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-sm btn-success fw-bold" id="btnConfirmarGrupoV515"
+              onclick="conciliarGrupoSelecionadoV515()" disabled>Conciliar grupo</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  return document.getElementById('modalConciliacaoMultiplaV515');
+}
+
+function bancoGrupoSelecionadosV515_() {
+  var mapa = (bancoV59.grupoV515 && bancoV59.grupoV515.banco) || {};
+  var movimentos = (bancoV59.dados && bancoV59.dados.movimentos) || [];
+  return movimentos.filter(function(m) { return !!mapa[String(m.idPluggy || '')]; });
+}
+
+function fluxoGrupoSelecionadosV515_() {
+  var mapa = (bancoV59.grupoV515 && bancoV59.grupoV515.fluxo) || {};
+  return (state.lancamentos || []).filter(function(l) { return !!mapa[String(l.id || '')]; });
+}
+
+function naturezaGrupoV515_() {
+  var bancoSel = bancoGrupoSelecionadosV515_();
+  if (!bancoSel.length) return '';
+  return String(bancoSel[0].natureza || '').toUpperCase() === 'CREDIT' ? 'RECEITA' : 'DESPESA';
+}
+
+function abrirConciliacaoMultiplaV515(idPluggyInicial) {
+  bancoV59.grupoV515 = { banco: {}, fluxo: {} };
+  if (idPluggyInicial) bancoV59.grupoV515.banco[String(idPluggyInicial)] = true;
+
+  garantirModalConciliacaoMultiplaV515_();
+  var buscaBanco = document.getElementById('buscaBancoGrupoV515');
+  var buscaFluxo = document.getElementById('buscaFluxoGrupoV515');
+  if (buscaBanco) buscaBanco.value = '';
+  if (buscaFluxo) buscaFluxo.value = '';
+
+  renderizarConciliacaoMultiplaV515_();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConciliacaoMultiplaV515')).show();
+}
+
+function alternarBancoGrupoV515(idPluggy, marcado) {
+  bancoV59.grupoV515 = bancoV59.grupoV515 || { banco: {}, fluxo: {} };
+  var id = String(idPluggy || '');
+  var mov = movimentoBancoV5102_(id);
+  if (!mov) return;
+
+  if (marcado) {
+    var atuais = bancoGrupoSelecionadosV515_();
+    if (atuais.length) {
+      var natAtual = String(atuais[0].natureza || '').toUpperCase();
+      var natNovo = String(mov.natureza || '').toUpperCase();
+      if (natAtual !== natNovo) {
+        exibirAvisoNaTela('Não misture entrada e saída na mesma conciliação.', 'warning');
+        renderizarConciliacaoMultiplaV515_();
+        return;
+      }
+    }
+    bancoV59.grupoV515.banco[id] = true;
+  } else {
+    delete bancoV59.grupoV515.banco[id];
+  }
+
+  var natureza = naturezaGrupoV515_();
+  if (natureza) {
+    Object.keys(bancoV59.grupoV515.fluxo || {}).forEach(function(idFluxo) {
+      var l = (state.lancamentos || []).find(function(x) { return String(x.id) === String(idFluxo); });
+      if (l && normalizarBancoV512_(l.tipo) !== natureza) delete bancoV59.grupoV515.fluxo[idFluxo];
+    });
+  }
+  renderizarConciliacaoMultiplaV515_();
+}
+
+function alternarFluxoGrupoV515(idLancamento, marcado) {
+  bancoV59.grupoV515 = bancoV59.grupoV515 || { banco: {}, fluxo: {} };
+  var id = String(idLancamento || '');
+  var lanc = (state.lancamentos || []).find(function(l) { return String(l.id) === id; });
+  if (!lanc) return;
+
+  var natureza = naturezaGrupoV515_();
+  if (marcado && natureza && normalizarBancoV512_(lanc.tipo) !== natureza) {
+    exibirAvisoNaTela('O tipo desse lançamento não combina com os movimentos bancários selecionados.', 'warning');
+    renderizarConciliacaoMultiplaV515_();
+    return;
+  }
+
+  if (marcado) bancoV59.grupoV515.fluxo[id] = true;
+  else delete bancoV59.grupoV515.fluxo[id];
+
+  renderizarConciliacaoMultiplaV515_();
+}
+
+function renderizarConciliacaoMultiplaV515_() {
+  var boxBanco = document.getElementById('listaBancoGrupoV515');
+  var boxFluxo = document.getElementById('listaFluxoGrupoV515');
+  var resumo = document.getElementById('resumoGrupoV515');
+  var btn = document.getElementById('btnConfirmarGrupoV515');
+  if (!boxBanco || !boxFluxo || !resumo || !btn) return;
+
+  var buscaBanco = normalizarBancoV512_((document.getElementById('buscaBancoGrupoV515') || {}).value || '');
+  var buscaFluxo = normalizarBancoV512_((document.getElementById('buscaFluxoGrupoV515') || {}).value || '');
+  var mapaBanco = bancoV59.grupoV515.banco || {};
+  var mapaFluxo = bancoV59.grupoV515.fluxo || {};
+
+  var movimentos = ((bancoV59.dados && bancoV59.dados.movimentos) || []).filter(function(m) {
+    var tipoSug = String((m.sugestao && m.sugestao.tipo) || '');
+    if (tipoSug === 'TRANSFERENCIA_INTERNA' || tipoSug === 'PAGAMENTO_CARTAO') return false;
+    if (!buscaBanco) return true;
+    return normalizarBancoV512_([m.conta,m.data,m.descricao,m.descricaoOriginal,m.valor].join(' ')).indexOf(buscaBanco) !== -1;
+  });
+
+  boxBanco.innerHTML = movimentos.length ? movimentos.map(function(m) {
+    var id = String(m.idPluggy || '');
+    var marcado = !!mapaBanco[id];
+    var natureza = String(m.natureza || '').toUpperCase() === 'CREDIT' ? 'Entrada' : 'Saída';
+    return `
+      <label class="conciliacao-grupo-item-v515">
+        <input class="form-check-input mt-1" type="checkbox" ${marcado ? 'checked' : ''}
+          onchange="alternarBancoGrupoV515('${id}',this.checked)">
+        <span class="flex-grow-1">
+          <b>${escapeHtmlBancoV59_(m.descricao || m.descricaoOriginal || 'Sem descrição')}</b>
+          <small>${escapeHtmlBancoV59_(m.conta || '')} • ${dataBancoV59_(m.data)} • ${natureza}</small>
+        </span>
+        <strong>${moedaBancoV59_(Math.abs(Number(m.valor || 0)))}</strong>
+      </label>`;
+  }).join('') : '<div class="text-muted text-center py-3">Nenhum movimento disponível.</div>';
+
+  var natureza = naturezaGrupoV515_();
+  var lancamentos = (state.lancamentos || []).filter(function(l) {
+    if (!l.id) return false;
+    if (natureza && normalizarBancoV512_(l.tipo) !== natureza) return false;
+    if (!buscaFluxo) return true;
+    return normalizarBancoV512_([l.descricao,l.categoria,l.data,l.valor,l.status].join(' ')).indexOf(buscaFluxo) !== -1;
+  });
+
+  lancamentos.sort(function(a,b) {
+    var aSel = mapaFluxo[String(a.id)] ? 0 : 1;
+    var bSel = mapaFluxo[String(b.id)] ? 0 : 1;
+    if (aSel !== bSel) return aSel - bSel;
+    return String(a.data || '').localeCompare(String(b.data || ''));
+  });
+  lancamentos = lancamentos.slice(0, 100);
+
+  boxFluxo.innerHTML = lancamentos.length ? lancamentos.map(function(l) {
+    var id = String(l.id || '');
+    var marcado = !!mapaFluxo[id];
+    return `
+      <label class="conciliacao-grupo-item-v515">
+        <input class="form-check-input mt-1" type="checkbox" ${marcado ? 'checked' : ''}
+          onchange="alternarFluxoGrupoV515('${id}',this.checked)">
+        <span class="flex-grow-1">
+          <b>${escapeHtmlBancoV59_(l.descricao || 'Sem descrição')}</b>
+          <small>${dataBancoV59_(l.data)} • ${escapeHtmlBancoV59_(l.categoria || 'Sem categoria')} • ${escapeHtmlBancoV59_(l.status || '')}</small>
+        </span>
+        <strong>${moedaBancoV59_(Math.abs(Number(l.valor || 0)))}</strong>
+      </label>`;
+  }).join('') : '<div class="text-muted text-center py-3">Nenhum lançamento compatível.</div>';
+
+  var bancoSel = bancoGrupoSelecionadosV515_();
+  var fluxoSel = fluxoGrupoSelecionadosV515_();
+  var totalBanco = bancoSel.reduce(function(s,m){ return s + Math.abs(Number(m.valor || 0)); }, 0);
+  var totalFluxo = fluxoSel.reduce(function(s,l){ return s + Math.abs(Number(l.valor || 0)); }, 0);
+  var diff = Number((totalBanco - totalFluxo).toFixed(2));
+  var fechou = bancoSel.length > 0 && fluxoSel.length > 0 && Math.abs(diff) <= 0.01;
+
+  resumo.innerHTML =
+    '<div><small>BANCO</small><strong>' + bancoSel.length + ' item(ns) • ' + moedaBancoV59_(totalBanco) + '</strong></div>' +
+    '<div><small>FLUXO</small><strong>' + fluxoSel.length + ' item(ns) • ' + moedaBancoV59_(totalFluxo) + '</strong></div>' +
+    '<div><small>DIFERENÇA</small><strong class="' + (fechou ? 'text-success' : 'text-danger') + '">' + moedaBancoV59_(diff) + '</strong></div>';
+
+  btn.disabled = !fechou;
+}
+
+function conciliarGrupoSelecionadoV515() {
+  var bancoSel = bancoGrupoSelecionadosV515_();
+  var fluxoSel = fluxoGrupoSelecionadosV515_();
+  var totalBanco = bancoSel.reduce(function(s,m){ return s + Math.abs(Number(m.valor || 0)); }, 0);
+  var totalFluxo = fluxoSel.reduce(function(s,l){ return s + Math.abs(Number(l.valor || 0)); }, 0);
+  var diff = Number((totalBanco - totalFluxo).toFixed(2));
+
+  if (!bancoSel.length || !fluxoSel.length || Math.abs(diff) > 0.01) {
+    exibirAvisoNaTela('A conciliação múltipla só pode ser concluída quando Banco e Fluxo fecharem em R$ 0,00 de diferença.', 'warning');
+    return;
+  }
+
+  exibirModalConfirmacao(
+    'Conciliar ' + bancoSel.length + ' movimento(s) do banco com ' + fluxoSel.length + ' lançamento(s) do fluxo?',
+    function() {
+      var btn = document.getElementById('btnConfirmarGrupoV515');
+      if (btn) { btn.disabled = true; btn.innerText = '⏳ Conciliando...'; }
+
+      google.script.run
+        .withSuccessHandler(function(msg) {
+          bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConciliacaoMultiplaV515')).hide();
+          bancoV59.grupoV515 = { banco: {}, fluxo: {} };
+          exibirAvisoNaTela(msg || 'Conciliação múltipla concluída.', 'success');
+          carregarConciliacaoBancoV59();
+          carregarDados();
+        })
+        .withFailureHandler(function(err) {
+          if (btn) { btn.innerText = 'Conciliar grupo'; }
+          renderizarConciliacaoMultiplaV515_();
+          exibirAvisoNaTela('Erro na conciliação múltipla: ' + err, 'danger');
+        })
+        .conciliarGrupoBancoV515({
+          banco: bancoSel.map(function(m){ return { idPluggy: String(m.idPluggy || '') }; }),
+          fluxo: fluxoSel.map(function(l){ return { idLancamento: String(l.id || '') }; }),
+          observacao: 'Conciliação múltipla manual'
+        });
+    }
+  );
+}
+
 function garantirModalVinculoBancoV512_() {
   var existente = document.getElementById('modalVinculoBancoV512');
   if (existente) return existente;
@@ -3508,6 +3772,7 @@ function htmlAcoesBancoV510_(mov, sugestao) {
   var botoes = '';
   if (s.tipo !== 'TRANSFERENCIA_INTERNA' && s.tipo !== 'PAGAMENTO_CARTAO') {
     botoes += '<button type="button" class="btn btn-sm btn-outline-primary" onclick="abrirVinculoManualBancoV512(\'' + id + '\')">🔗 Vincular lançamento</button>';
+    botoes += '<button type="button" class="btn btn-sm btn-outline-success" onclick="abrirConciliacaoMultiplaV515(\'' + id + '\')">🧩 Agrupar</button>';
 
     if (manual) {
       botoes += '<button type="button" class="btn btn-sm btn-outline-warning" onclick="limparVinculoManualBancoV512(\'' + id + '\')">✖ Limpar vínculo</button>';
