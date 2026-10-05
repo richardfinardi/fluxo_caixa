@@ -103,4 +103,12 @@ jobs:
           echo
           echo "$ORCAMENTOS" | grep -q '"ok":true'
 
+          echo "== DASHBOARD =="
+          DASHBOARD=$(curl --max-time 60 -L --fail --silent --show-error "$WEBAPP_URL?acao=dashboard")
+          echo "$DASHBOARD" | head -c 4000
+          echo
+          echo "$DASHBOARD" | grep -q '"ok":true'
+          echo "$DASHBOARD" | grep -q '"filtros"'
+          echo "$DASHBOARD" | grep -q '"clientes"'
+
           echo "API Neosonics + banco respondendo."
