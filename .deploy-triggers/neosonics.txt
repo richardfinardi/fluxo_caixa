@@ -1,2 +1,2 @@
-deploy 2026-10-05 - fechar escopo BI aprovado
-source neosonics commit 4bf5045806dea8f93593571f24ec879e2c8ed572
+deploy 2026-10-05 - remover comparativo automatico inventado
+source neosonics commit 950a34e70d20f7ce7eeff76f53feaa35cc5773bc
