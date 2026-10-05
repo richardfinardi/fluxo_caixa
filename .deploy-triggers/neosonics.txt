@@ -1,2 +1,2 @@
-deploy 2026-10-05 - performance dashboard cache backend
-source neosonics commit 50d684d0ee708559216e54919192c20fe01d6e05
+deploy 2026-10-05 - performance sistema inteiro
+source neosonics commit 27dae9281e5b898aaf3614274febf01475acc999
