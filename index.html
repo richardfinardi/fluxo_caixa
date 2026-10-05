@@ -3366,7 +3366,7 @@ function conciliarGrupoSelecionadoV515() {
           bancoV59.grupoV515 = { banco: {}, fluxo: {} };
           exibirAvisoNaTela(msg || 'Conciliação múltipla concluída.', 'success');
           carregarConciliacaoBancoV59();
-          carregarDados();
+          recarregarDadosGlobais(true);
         })
         .withFailureHandler(function(err) {
           if (btn) { btn.innerText = 'Conciliar grupo'; }
