@@ -1888,7 +1888,8 @@ function importarMovimentosBanco15Dias() {
             conta.id,
             'NOVO',
             '',
-            new Date()
+            new Date(),
+            ''
           ]);
 
           idsExistentes.add(String(t.id));
