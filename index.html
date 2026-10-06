@@ -4263,6 +4263,11 @@ function abrirMeuPluggyV5122() {
       fonteDadosParaFluxo.forEach(function(l) {
         var valor = Number(l.valor || 0);
         var st = normalizarStatus(l.status);
+
+        // V5.16.2: despesa paga no cartão já foi transferida para a fatura.
+        // Mantém no histórico, mas não impacta saldo real, projeção, gráfico ou detalhe diário.
+        if (st === 'pago no cartao') return;
+
         var sinal = l.tipo === 'Receita' ? valor : -valor;
         var dataFluxo = l.data;
 
