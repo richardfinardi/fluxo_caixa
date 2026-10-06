@@ -44,6 +44,7 @@ function doPost(e) {
       sincronizarCalendarBackend: true,
       faturamentoImediatoFila: true,
       liquidarLancamentoBackend: true,
+      pagarLancamentoComCartaoV516: true,
       marcarEmAbertoBackend: true,
       enviarAlertasFaturamentoSite: true,
       importarMovimentosBanco15Dias: true,
@@ -170,6 +171,7 @@ function garantirEstruturaV58_() {
   var movBanco = ss.getSheetByName("MovimentosBanco") || ss.insertSheet("MovimentosBanco");
   var concBanco = ss.getSheetByName("ConciliacoesBanco") || ss.insertSheet("ConciliacoesBanco");
   var concBancoItens = ss.getSheetByName("ConciliacaoBancoItens") || ss.insertSheet("ConciliacaoBancoItens");
+  var pagCartaoFluxo = ss.getSheetByName("PagamentosCartaoFluxo") || ss.insertSheet("PagamentosCartaoFluxo");
 
   garantirCabecalhos_(movCartao, ["IdPluggy", "Conta", "Cartao", "AccountId", "Data", "Descricao", "DescricaoOriginal", "Valor", "Tipo", "CategoriaPluggy", "StatusPluggy", "ParcelaAtual", "TotalParcelas", "ValorTotalParcelado", "DataImportacao"]);
   garantirCabecalhos_(cartoes, ["Conta", "AccountId", "Nome", "Final", "SaldoFatura", "LimiteDisponivel", "LimiteTotal", "Vencimento", "Fechamento", "Bandeira", "Status", "AtualizadoEm"]);
@@ -178,6 +180,7 @@ function garantirEstruturaV58_() {
   garantirCabecalhos_(movBanco, ["IdPluggy", "Conta", "Data", "Descricao", "DescricaoOriginal", "Valor", "Tipo", "CategoriaPluggy", "StatusBanco", "AccountId", "StatusConciliacao", "IdLancamento", "DataImportacao", "IdConciliacao"]);
   garantirCabecalhos_(concBanco, ["IdConciliacao", "DataCriacao", "Status", "Tipo", "TotalBanco", "TotalFluxo", "Diferenca", "Observacao"]);
   garantirCabecalhos_(concBancoItens, ["IdConciliacao", "Origem", "IdOrigem", "ValorVinculado", "CriadoEm"]);
+  garantirCabecalhos_(pagCartaoFluxo, ["IdLancamento", "DataPagamento", "AccountId", "Cartao", "Parcelas", "Valor", "CriadoEm"]);
 
   var props = PropertiesService.getScriptProperties();
   var versaoEstrutura = props.getProperty("FLUXO_CAIXA_ESTRUTURA");
@@ -2028,6 +2031,35 @@ function adicionarMesIsoV513_(iso, qtdMeses) {
   base.setDate(Math.min(dia, ultimoDia));
 
   return Utilities.formatDate(base, Session.getScriptTimeZone(), "yyyy-MM-dd");
+}
+
+function pagarLancamentoComCartaoV516(dados) {
+  garantirEstruturaV58_();
+  dados = dados || {};
+  var id = Number(dados.idLancamento || 0);
+  if (!id) throw new Error("Lancamento invalido.");
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Lancamentos");
+  var linha = encontrarLinhaPorId_(sh, id, COL_LANC_ID);
+  if (linha < 2) throw new Error("Lancamento nao encontrado.");
+
+  var r = sh.getRange(linha, 1, 1, 18).getValues()[0];
+  if (String(r[3] || "").toLowerCase() !== "despesa") throw new Error("Pagamento via cartao so vale para despesas.");
+  if (String(r[5] || "").toLowerCase().trim() === "consolidado") throw new Error("Lancamento ja consolidado no caixa.");
+
+  var accountId = String(dados.accountId || "").trim();
+  var nomeCartao = String(dados.cartao || "Cartao de credito").trim();
+  var parcelas = Math.max(1, Number(dados.parcelas || 1));
+  var dataPagamento = String(dados.dataPagamento || hojeIso_()).substring(0, 10);
+
+  sh.getRange(linha, 6).setValue("Pago no cartao");
+  sh.getRange(linha, 12).setValue("CARTAO");
+
+  var hist = ss.getSheetByName("PagamentosCartaoFluxo");
+  hist.appendRow([id, new Date(dataPagamento + "T12:00:00"), accountId, nomeCartao, parcelas, Number(r[2] || 0), new Date()]);
+  registrarLog_("PAGO_CARTAO", id, nomeCartao + " | " + dataPagamento + " | " + parcelas + "x");
+  return "Despesa quitada via cartao. O caixa ocorrera somente no pagamento da fatura.";
 }
 
 function movimentoEhPagamentoCartaoV513_(linha) {
