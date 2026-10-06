@@ -1323,6 +1323,7 @@
       var s = String(status || 'Projetado').toLowerCase().trim();
       if (s === 'consolidado') return 'consolidado';
       if (s === 'em aberto' || s === 'em_aberto') return 'em aberto';
+      if (s === 'pago no cartao' || s === 'pago no cartão') return 'pago no cartao';
       return 'projetado';
     }
 
@@ -1339,6 +1340,7 @@
       var st = normalizarStatus(status);
       if (st === 'consolidado') return '<span class="badge bg-success text-white badge-data ms-1" style="font-size:9px;">🔒 Consolidado</span>';
       if (st === 'em aberto') return '<span class="badge bg-warning text-dark badge-data ms-1" style="font-size:9px;">🟠 Em Aberto</span>';
+      if (st === 'pago no cartao') return '<span class="badge bg-primary text-white badge-data ms-1" style="font-size:9px;">💳 Pago no cartão</span>';
       return '<span class="badge bg-light text-secondary border badge-data ms-1" style="font-size:9px;">⏳ Projetado</span>';
     }
 
@@ -1780,6 +1782,7 @@
         if (!dentro) return;
 
         var st = normalizarStatus(l.status);
+        if (st === 'pago no cartao') return;
         if (l.tipo === "Receita") {
           totalReceitas += l.valor;
           if (st === 'consolidado') realReceitas += l.valor;
@@ -2097,7 +2100,8 @@
     function renderizarPendenciasHoje() {
       var hojeStr = hojeIsoJs();
       var pendentes = state.lancamentos.filter(function(l) {
-        return normalizarStatus(l.status) !== 'consolidado' && l.data <= hojeStr;
+        var st = normalizarStatus(l.status);
+        return st !== 'consolidado' && st !== 'pago no cartao' && l.data <= hojeStr;
       }).sort(function(a,b) { return a.data.localeCompare(b.data) || a.descricao.localeCompare(b.descricao); });
 
       var receber = pendentes.filter(function(l){ return l.tipo === 'Receita'; });
