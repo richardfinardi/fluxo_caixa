@@ -1274,6 +1274,7 @@
           sincronizarCalendarBackend: function() { return this.executarGenerico('sincronizarCalendarBackend'); },
           faturamentoImediatoFila: function(id) { return this.executarGenerico('faturamentoImediatoFila', id); },
           liquidarLancamentoBackend: function(id) { return this.executarGenerico('liquidarLancamentoBackend', id); },
+          pagarLancamentoComCartaoV516: function(dados) { return this.executarGenerico('pagarLancamentoComCartaoV516', dados); },
           marcarEmAbertoBackend: function(id, novaData) { return this.executarGenerico('marcarEmAbertoBackend', { argsArray: [id, novaData || ''] }); },
           importarMovimentosBanco15Dias: function() { return this.executarGenerico('importarMovimentosBanco15Dias'); },
           importarTudoPluggyV513: function() { return this.executarGenerico('importarTudoPluggyV513'); },
@@ -2137,6 +2138,7 @@
           <td class="td-hj-valor text-end fw-bold ${item.tipo === 'Receita' ? 'text-success' : 'text-danger'}">R$ ${Number(item.valor || 0).toFixed(2)}</td>
           <td class="td-hj-acoes text-center">
             <button type="button" class="btn btn-sm ${item.tipo === 'Receita' ? 'btn-success' : 'btn-danger'} py-1 px-2" onclick="liquidarLancamentoHoje(${item.id})">${acaoIcone} ${acaoTexto}</button>
+            ${item.tipo === 'Despesa' ? `<button type="button" class="btn btn-sm btn-outline-primary py-1 px-2" onclick="pagarComCartaoV516(${item.id})">💳 Cartão</button>` : ''}
             <button type="button" class="btn btn-sm btn-outline-warning py-1 px-2" onclick="abrirModalPendencia(${item.id})">Não / Adiar</button>
           </td>
         </tr>`;
@@ -2163,6 +2165,29 @@
           .withSuccessHandler(function(msg){ exibirAvisoNaTela(msg || 'Liquidado!', 'success'); recarregarDadosGlobais(); })
           .withFailureHandler(function(err){ exibirAvisoNaTela('Erro ao liquidar: ' + err, 'danger'); })
           .liquidarLancamentoBackend(Number(id));
+      });
+    }
+
+    function pagarComCartaoV516(id) {
+      var item = state.lancamentos.find(function(l){ return Number(l.id) === Number(id); });
+      if (!item) return;
+      var nomeCartao = prompt('Qual cartão foi usado?\n\nEx.: Nubank, Itaú, Inter');
+      if (nomeCartao === null) return;
+      nomeCartao = String(nomeCartao || '').trim() || 'Cartão de crédito';
+      var parcelasRaw = prompt('Em quantas parcelas?', '1');
+      if (parcelasRaw === null) return;
+      var parcelas = Math.max(1, parseInt(parcelasRaw, 10) || 1);
+
+      exibirModalConfirmacao('Confirmar pagamento de "' + item.descricao + '" via ' + nomeCartao + ' em ' + parcelas + 'x? O saldo bancário NÃO será baixado agora.', function() {
+        google.script.run
+          .withSuccessHandler(function(msg){ exibirAvisoNaTela(msg || 'Pago no cartão!', 'success'); recarregarDadosGlobais(); carregarCartaoV513(); })
+          .withFailureHandler(function(err){ exibirAvisoNaTela('Erro ao pagar com cartão: ' + err, 'danger'); })
+          .pagarLancamentoComCartaoV516({
+            idLancamento: Number(id),
+            cartao: nomeCartao,
+            parcelas: parcelas,
+            dataPagamento: hojeIsoJs()
+          });
       });
     }
 
