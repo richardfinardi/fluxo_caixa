@@ -1,7 +1,7 @@
 // REDEPLOY V5.14.0 - token clasp renovado 2026-09-30
 // DEPLOY V5.14.0 - 2026-09-30
 // V5.15.0 - conciliação bancária N:N
-var VERSAO_SISTEMA = "5.15.0";
+var VERSAO_SISTEMA = "5.16.0";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
