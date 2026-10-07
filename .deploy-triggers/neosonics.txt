@@ -1,2 +1,2 @@
 deploy 2026-10-07 - termos proposta, perder orcamento e excluir pedidos do sistema
-source neosonics commit 6615f62f7287beb90ecb88780efb29336ff59f07
+source neosonics commit 18281e62b37221e44adcc7fb0c9eaf1a964e5191
