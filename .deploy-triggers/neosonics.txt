@@ -1,2 +1,2 @@
-deploy 2026-10-05 - read model endpoints
-source neosonics commit 707a0b7600af76bff6ad2a7194584dc4fc0854bc
+deploy 2026-10-07 - termos proposta, perder orcamento e excluir pedidos do sistema
+source neosonics commit 6615f62f7287beb90ecb88780efb29336ff59f07
