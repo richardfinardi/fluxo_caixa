@@ -2329,7 +2329,7 @@
     function verDetalhesDoDia(dataStr, tipoFiltro) {
       var bancoDeDadosOrigem = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;
       var hojeStrFluxo = hojeIsoJs();
-      var listaFiltrada = bancoDeDadosOrigem.filter(function(l) { return dataEfetivaFluxo(l, hojeStrFluxo) === dataStr.trim() && l.tipo === tipoFiltro; });
+      var listaFiltrada = bancoDeDadosOrigem.filter(function(l) { return normalizarStatus(l.status) !== 'pago no cartao' && dataEfetivaFluxo(l, hojeStrFluxo) === dataStr.trim() && l.tipo === tipoFiltro; });
       if (listaFiltrada.length === 0) return;
       
       var htmlModal = "";
