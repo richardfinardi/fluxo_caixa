@@ -81,10 +81,10 @@ body.v6-more-kpis #cockpitFinanceiro > div:nth-child(n+4) {display:block;}
 .card {padding:16px!important;}
 .card h6,.card h5,.banco-v59-kpi strong,.cartao-kpi-v513 strong {color:var(--v6-text);}
 #chartFluxo {max-height:280px;}
-#lancamentos .col-md-4 {display:none;}
-#lancamentos .col-md-8 {width:100%;max-width:100%;}
-#lancamentos.v6-form-visible .col-md-4 {display:block;}
-#lancamentos.v6-form-visible .col-md-8 {width:66.6666667%;max-width:66.6666667%;}
+#v6-panel-extrato > .row > .col-md-4 {display:none;}
+#v6-panel-extrato > .row > .col-md-8 {width:100%;max-width:100%;}
+#lancamentos.v6-form-visible #v6-panel-extrato > .row > .col-md-4 {display:block;}
+#lancamentos.v6-form-visible #v6-panel-extrato > .row > .col-md-8 {width:66.6666667%;max-width:66.6666667%;}
 #lancamentos .table-container {max-height:62vh;}
 #v6FiltrosExtrato {display:none;}
 #v6FiltrosExtrato.v6-filtros-abertos {display:flex;}
@@ -148,8 +148,12 @@ html[data-bs-theme="dark"] .bar-navegacao-mes {background:#254877;}
   #cockpitFinanceiro > div:first-child {grid-column:1/-1;}
   #cockpitFinanceiro .cockpit-card {min-height:78px;padding:12px!important;}
   #cockpitFinanceiro .cockpit-card h5 {font-size:18px;}
-  #lancamentos.v6-form-visible .col-md-4,#lancamentos.v6-form-visible .col-md-8 {display:block;width:100%;max-width:100%;}
+  #lancamentos.v6-form-visible #v6-panel-extrato > .row > .col-md-4,#lancamentos.v6-form-visible #v6-panel-extrato > .row > .col-md-8 {display:block;width:100%;max-width:100%;}
   #lancamentos .card {padding:11px!important;}
   #v6Pendencias .row > div {margin-bottom:6px;}
   .v6-btn-primary {padding:8px 10px;}
 }
+
+body.v6-other-view #cockpitFinanceiro {display:none!important;}
+body.v6-other-view #v6KpisToggle {display:none!important;}
+html[data-bs-theme='dark'] .nav-tabs .nav-link {color:var(--v6-muted);}
