@@ -157,3 +157,21 @@ html[data-bs-theme="dark"] .bar-navegacao-mes {background:#254877;}
 body.v6-other-view #cockpitFinanceiro {display:none!important;}
 body.v6-other-view #v6KpisToggle {display:none!important;}
 html[data-bs-theme='dark'] .nav-tabs .nav-link {color:var(--v6-muted);}
+
+/* Preservar os sinais financeiros de alerta: o visual clean nao esconde saldo negativo. */
+#cockpitFinanceiro #cardSaldoContainer.status-negativo,
+#cockpitFinanceiro #cardMenorSaldoContainer.status-negativo {background:#fff0f2!important;border-color:#e55a68!important;}
+#cockpitFinanceiro #cardSaldoContainer.status-negativo h5,
+#cockpitFinanceiro #cardMenorSaldoContainer.status-negativo h5 {color:#b42338!important;}
+#cockpitFinanceiro #cardSaldoContainer.status-baixo,
+#cockpitFinanceiro #cardMenorSaldoContainer.status-baixo {background:#fff8e6!important;border-color:#e6c15e!important;}
+#cockpitFinanceiro #cardSaldoContainer.status-baixo h5,
+#cockpitFinanceiro #cardMenorSaldoContainer.status-baixo h5 {color:#865c08!important;}
+html[data-bs-theme="dark"] #cockpitFinanceiro #cardSaldoContainer.status-negativo,
+html[data-bs-theme="dark"] #cockpitFinanceiro #cardMenorSaldoContainer.status-negativo {background:#482632!important;border-color:#d75a72!important;}
+html[data-bs-theme="dark"] #cockpitFinanceiro #cardSaldoContainer.status-negativo h5,
+html[data-bs-theme="dark"] #cockpitFinanceiro #cardMenorSaldoContainer.status-negativo h5 {color:#ffb5bf!important;}
+html[data-bs-theme="dark"] #cockpitFinanceiro #cardSaldoContainer.status-baixo,
+html[data-bs-theme="dark"] #cockpitFinanceiro #cardMenorSaldoContainer.status-baixo {background:#41371f!important;border-color:#a5873c!important;}
+html[data-bs-theme="dark"] #cockpitFinanceiro #cardSaldoContainer.status-baixo h5,
+html[data-bs-theme="dark"] #cockpitFinanceiro #cardMenorSaldoContainer.status-baixo h5 {color:#ffe1a2!important;}
