@@ -1428,7 +1428,8 @@
 
       if (!bioEstadoV5134.dadosCarregados) {
         bioEstadoV5134.dadosCarregados = true;
-        v6CarregarComCache();
+        if (typeof v6CarregarComCache === 'function') v6CarregarComCache();
+        else recarregarDadosGlobais();
       }
     }
 
@@ -4060,9 +4061,9 @@ function renderizarBancoV59() {
 
 function carregarConciliacaoBancoV59() {
   if (!document.getElementById('bancoListaV59')) return;
-  document.getElementById('bancoStatusV59').innerText = 'Carregando movimentos bancários...';
+  if (!bancoV59.dados) document.getElementById('bancoStatusV59').innerText = 'Carregando movimentos bancários...';
 
-  google.script.run
+  return google.script.run
     .withSuccessHandler(function(dados) {
       bancoV59.dados = dados || { resumo: {}, movimentos: [] };
       if (window.v6GuardarCache) v6GuardarCache('banco', bancoV59.dados);
@@ -4195,9 +4196,9 @@ function renderizarCartaoV513() {
 
 function carregarCartaoV513() {
   var resumo = document.getElementById('cartaoResumoV513');
-  if (resumo) resumo.innerText = 'Carregando cartão...';
+  if (resumo && !cartaoV513.dados) resumo.innerText = 'Carregando cartão...';
 
-  google.script.run
+  return google.script.run
     .withSuccessHandler(function(dados) {
       cartaoV513.dados = dados || { resumo:{}, cartoes:[], movimentos:[] };
       if (window.v6GuardarCache) v6GuardarCache('cartao', cartaoV513.dados);
