@@ -2,7 +2,7 @@
 <html> 
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa Automatizado 5.15.0</title>
+  <title>Fluxo de Caixa V6</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
   <meta name="mobile-web-app-capable" content="yes">
@@ -368,6 +368,7 @@
 .conciliacao-grupo-resumo-v515 small{font-size:9px;color:#6c757d;font-weight:700}
 @media(max-width:767px){.conciliacao-grupo-resumo-v515{grid-template-columns:1fr}.conciliacao-grupo-lista-v515{max-height:34vh}}
 </style>
+  <link rel="stylesheet" href="./v6.css?v=6.0.0">
 </head>
 <body>
 
@@ -1427,7 +1428,8 @@
 
       if (!bioEstadoV5134.dadosCarregados) {
         bioEstadoV5134.dadosCarregados = true;
-        recarregarDadosGlobais();
+        if (typeof v6CarregarComCache === 'function') v6CarregarComCache();
+        else recarregarDadosGlobais();
       }
     }
 
@@ -1645,7 +1647,7 @@
       if (dadosPlanilha.versao) {
         var marca = document.querySelector('.navbar-brand');
         if (marca) {
-          var front = '5.15.0';
+          var front = '6.0.0';
           var back = String(dadosPlanilha.versao || '');
           var parseV = function(v) { return String(v).split('.').map(function(x){ return Number(x) || 0; }); };
           var maiorOuIgual = function(a,b) {
@@ -1657,7 +1659,7 @@
             }
             return true;
           };
-          marca.innerText = 'FLUXO DE CAIXA V' + (maiorOuIgual(front, back) ? front : back);
+          marca.innerText = 'FLUXO DE CAIXA · V' + (maiorOuIgual(front, back) ? front : back);
         }
       }
 
@@ -1671,6 +1673,7 @@
       calcularFluxoEGráfico();
       renderizarDashboardMensal();
       renderizarPendenciasHoje();
+      if (window.v6GuardarCache) v6GuardarCache('global', dadosPlanilha);
     }
 
     function recarregarDadosGlobais(forcar = false) {
@@ -1679,7 +1682,7 @@
         pularProximoRecarregamento = false;
         return;
       }
-      google.script.run
+      return google.script.run
         .withSuccessHandler(function(dadosPlanilha) { aplicarDadosGlobais(dadosPlanilha); })
         .obterDadosIniciais();
     }
@@ -2378,6 +2381,8 @@
       if (tabBtn) {
         var tabBS = bootstrap.Tab.getOrCreateInstance(tabBtn);
         tabBS.show();
+        if (window.v6MostrarFormulario) v6MostrarFormulario(true);
+        if (window.v6Navegar) v6Navegar('lancamentos');
       }
 
       document.getElementById('cardFormLancamento').scrollIntoView({ behavior: 'smooth' });
@@ -4056,11 +4061,12 @@ function renderizarBancoV59() {
 
 function carregarConciliacaoBancoV59() {
   if (!document.getElementById('bancoListaV59')) return;
-  document.getElementById('bancoStatusV59').innerText = 'Carregando movimentos bancários...';
+  if (!bancoV59.dados) document.getElementById('bancoStatusV59').innerText = 'Carregando movimentos bancários...';
 
-  google.script.run
+  return google.script.run
     .withSuccessHandler(function(dados) {
       bancoV59.dados = dados || { resumo: {}, movimentos: [] };
+      if (window.v6GuardarCache) v6GuardarCache('banco', bancoV59.dados);
       carregarAutomacaoV511();
       bancoV59.confirmados = {};
       bancoV59.rascunhos = {};
@@ -4190,11 +4196,12 @@ function renderizarCartaoV513() {
 
 function carregarCartaoV513() {
   var resumo = document.getElementById('cartaoResumoV513');
-  if (resumo) resumo.innerText = 'Carregando cartão...';
+  if (resumo && !cartaoV513.dados) resumo.innerText = 'Carregando cartão...';
 
-  google.script.run
+  return google.script.run
     .withSuccessHandler(function(dados) {
       cartaoV513.dados = dados || { resumo:{}, cartoes:[], movimentos:[] };
+      if (window.v6GuardarCache) v6GuardarCache('cartao', cartaoV513.dados);
       renderizarCartaoV513();
     })
     .withFailureHandler(function(err) {
@@ -4400,5 +4407,6 @@ function abrirMeuPluggyV5122() {
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="./horas.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="./v6.js?v=6.0.0"></script>
 </body>
 </html>
