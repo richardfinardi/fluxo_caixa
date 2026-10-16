@@ -90,11 +90,13 @@
     if (aberto) return;
     aberto = true;
     await Promise.all([restaurarGlobal(), restaurarBanco(), restaurarCartao()]);
+    if (bancoV59.dados) renderizarBancoV59();
     v6SincronizarGlobal(true);
   };
   function temEdicaoAtiva() {
     if (document.hidden) return true;
     if (document.querySelector('.modal.show')) return true;
+    if (id('lancamentos') && id('lancamentos').classList.contains('v6-form-visible')) return true;
     if (typeof lancamentosSimulados !== 'undefined' && lancamentosSimulados) return true;
     var el = document.activeElement;
     if (el && el.closest && (el.closest('form') || el.closest('#v6FiltrosExtrato'))) return true;
@@ -292,7 +294,7 @@
         '</select>'+
         '<button id="v6NewTop" class="v6-btn-primary" onclick="v6NovoLancamento()">+ Novo</button>'+
       '</div>';
-    tabs.parentNode.insertBefore(nav,tabs);
+    tabs.parentNode.insertBefore(nav,id('cockpitFinanceiro'));
     aplicarTema(temaPreferido(),false);
 
     var dashboardHdr=document.createElement('div');
