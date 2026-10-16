@@ -105,24 +105,19 @@
     if (!force && Date.now()-ultimaBusca.global < tempo) return;
     carregando.global = true;
     // A chamada mantém o handler original, que atualiza em memória e persiste no IndexedDB.
-    var promise = recarregarDadosGlobais(true);
-    // Função legada não devolve Promise. Evitar concorrência com um pequeno período de segurança.
-    setTimeout(function () { carregando.global = false; }, 45000);
-    return promise;
+    return Promise.resolve(recarregarDadosGlobais(true)).finally(function () { carregando.global=false; });
   }
   function v6SincronizarBanco() {
     if (carregando.banco || temEdicaoAtiva()) return;
     if (Date.now()-ultimaBusca.banco < tempo) return;
     carregando.banco = true;
-    carregarConciliacaoBancoV59();
-    setTimeout(function () { carregando.banco = false; }, 45000);
+    return Promise.resolve(carregarConciliacaoBancoV59()).finally(function () { carregando.banco=false; });
   }
   function v6SincronizarCartao() {
     if (carregando.cartao || temEdicaoAtiva()) return;
     if (Date.now()-ultimaBusca.cartao < tempo) return;
     carregando.cartao = true;
-    carregarCartaoV513();
-    setTimeout(function () { carregando.cartao = false; }, 45000);
+    return Promise.resolve(carregarCartaoV513()).finally(function () { carregando.cartao=false; });
   }
 
   function temaPreferido() {
@@ -140,6 +135,21 @@
     var meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) { meta = document.createElement('meta');meta.name='theme-color';document.head.appendChild(meta); }
     meta.content = cor;
+    if (window.Chart) {
+      Chart.defaults.color = valor === 'dark' ? '#bdcce1' : '#526273';
+      Chart.defaults.borderColor = valor === 'dark' ? '#36465b' : '#e5eaf0';
+      if (typeof chartInstance !== 'undefined' && chartInstance) {
+        try {
+          Object.values(chartInstance.options.scales || {}).forEach(function(axis) {
+            if (!axis.ticks) axis.ticks = {};
+            axis.ticks.color = Chart.defaults.color;
+            axis.grid = axis.grid || {};
+            axis.grid.color = Chart.defaults.borderColor;
+          });
+          chartInstance.update('none');
+        } catch (_) {}
+      }
+    }
   }
   window.v6Tema = function (v) { aplicarTema(v, true); };
   if (mediaEscuro.addEventListener) mediaEscuro.addEventListener('change', function () {
@@ -162,11 +172,12 @@
     });
     var titulo = id('v6SectionTitle');
     if (titulo) titulo.textContent = viewLabel(tab);
+    document.body.classList.toggle('v6-other-view', tab!=='fluxo');
     if (tab==='lancamentos' && viewMov==='banco') v6SincronizarBanco();
     if (tab==='lancamentos' && viewMov==='cartao') v6SincronizarCartao();
     if (tab==='dashboard') renderizarDashboardMensal();
     if (tab==='horas') carregarRelatoriosHorasV514();
-    window.scrollTo({top:0,behavior:'instant'});
+    window.scrollTo({top:0,behavior:'auto'});
   };
   window.v6AlternarMovimentos = function(sub, forcar) {
     sub = ['extrato','banco','cartao'].includes(sub) ? sub : 'extrato';
@@ -346,9 +357,14 @@
     setInterval(function() {
       if(!document.hidden) v6SincronizarGlobal(false);
       // Banco e cartão: só consultar quando estiver fora da edição da tela; não mudar seleção de conciliação em andamento.
-      if (!document.hidden && id('lancamentos').classList.contains('active')) {
-        if (viewMov === 'cartao') v6SincronizarCartao();
-        // Banco possui seleções locais (1:1 / N:N); evitar resetar a tela durante uso.
+      if (!document.hidden) {
+        if (cartaoV513.dados) v6SincronizarCartao();
+        // Banco em cache continua sendo atualizado, mas nunca durante uma conciliação em andamento.
+        var painelBancoAtivo = id('lancamentos').classList.contains('active') && viewMov === 'banco';
+        var bancoEmEdicao = Object.keys(bancoV59.confirmados || {}).length ||
+          Object.keys((bancoV59.grupoV515 || {}).banco || {}).length ||
+          Object.keys((bancoV59.grupoV515 || {}).fluxo || {}).length;
+        if (bancoV59.dados && !painelBancoAtivo && !bancoEmEdicao) v6SincronizarBanco();
       }
     },60000);
   });
