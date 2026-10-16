@@ -1,0 +1,155 @@
+/* FLUXO V6 - interface e temas. Nenhuma regra financeira aqui. */
+:root {
+  --v6-accent:#2563eb; --v6-accent-soft:#eff6ff; --v6-bg:#f5f7fb;
+  --v6-card:#ffffff; --v6-border:#e4eaf1; --v6-text:#172337;
+  --v6-muted:#65768d; --v6-shadow:0 3px 18px rgba(18,39,65,.045);
+}
+html[data-bs-theme="dark"] {
+  color-scheme:dark;
+  --v6-accent:#70a9ff; --v6-accent-soft:#1c314c; --v6-bg:#0d1625;
+  --v6-card:#172439; --v6-border:#31415a; --v6-text:#e8effa;
+  --v6-muted:#a9b7ca; --v6-shadow:0 4px 22px rgba(0,0,0,.15);
+}
+html, body { color:var(--v6-text); background:var(--v6-bg)!important; }
+body { padding-bottom:48px; }
+.navbar {
+  position:sticky;top:0;z-index:1035;background:var(--v6-card)!important;
+  border-bottom:1px solid var(--v6-border); box-shadow:none!important;
+  min-height:52px; color:var(--v6-text)!important; margin-bottom:10px!important;
+}
+.navbar .navbar-brand { color:var(--v6-text)!important; letter-spacing:-.03em; font-size:17px!important; font-weight:800; }
+#status-conexao { border-radius:40px; font-size:10px!important; font-weight:600; }
+#mainTabs { display:none!important; } /* abas legadas permanecem para Bootstrap / IDs */
+#v6Navigation {
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:7px 3px 14px; position:relative; z-index:1030;
+}
+.v6-links {display:flex;gap:5px;align-items:center;}
+.v6-nav-btn, .v6-inline-btn {
+  appearance:none;border:1px solid transparent;background:transparent;color:var(--v6-muted);
+  border-radius:12px;padding:9px 13px;font-size:13px;font-weight:650;cursor:pointer;white-space:nowrap;
+}
+.v6-nav-btn.active {background:var(--v6-accent-soft);border-color:var(--v6-border);color:var(--v6-accent);}
+.v6-nav-btn:hover, .v6-inline-btn:hover {background:var(--v6-accent-soft);color:var(--v6-accent);}
+.v6-controls {display:flex;align-items:center;gap:7px;}
+.v6-theme-select {
+  width:auto;max-width:132px;border-color:var(--v6-border);border-radius:11px;
+  color:var(--v6-text);background-color:var(--v6-card);font-size:12px;padding:7px 25px 7px 10px;
+}
+.v6-btn-primary {
+  border:0;background:#2563eb;color:white;padding:9px 14px;
+  border-radius:11px;font-size:12px;font-weight:700;
+}
+.v6-btn-primary:hover {background:#1d4ed8;}
+.v6-sync-info {
+  color:var(--v6-muted);font-size:10px;white-space:nowrap;
+  margin-left:auto;text-align:right;
+}
+.v6-secondary-header {display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:4px 0 12px;}
+.v6-section-title {font-size:16px;font-weight:800;letter-spacing:-.02em;margin:0;color:var(--v6-text);}
+.v6-subtabs {display:flex;gap:5px;overflow:auto;scrollbar-width:none;padding-bottom:11px;}
+.v6-subtabs button {
+  border:1px solid var(--v6-border);background:var(--v6-card);color:var(--v6-muted);
+  padding:9px 14px;border-radius:10px;font-size:12px;font-weight:700;white-space:nowrap;
+}
+.v6-subtabs button.active {background:var(--v6-accent-soft);border-color:var(--v6-accent);color:var(--v6-accent);}
+.v6-subpanel[hidden] {display:none!important;}
+.v6-panel-summary {font-weight:750;color:var(--v6-text);cursor:pointer;padding:9px;}
+.v6-advanced-box {background:var(--v6-card);border:1px solid var(--v6-border);border-radius:12px;margin:8px 0 12px;}
+.v6-advanced-box > summary {list-style:none;}
+.v6-advanced-box > summary::-webkit-details-marker {display:none;}
+.v6-advanced-box > summary:before {content:'▸';padding-right:8px;color:var(--v6-accent);}
+.v6-advanced-box[open] > summary:before {content:'▾';}
+.v6-advanced-box > :not(summary) {padding:0 12px 10px;}
+#cockpitFinanceiro {margin-bottom:5px!important;}
+#cockpitFinanceiro > div:nth-child(n+4) {display:none;}
+body.v6-more-kpis #cockpitFinanceiro > div:nth-child(n+4) {display:block;}
+#cockpitFinanceiro .cockpit-card {
+  text-align:left;min-height:92px;border:1px solid var(--v6-border);
+  border-radius:15px;color:var(--v6-text)!important;background:var(--v6-card)!important;
+  box-shadow:var(--v6-shadow);padding:15px!important;
+}
+#cockpitFinanceiro .cockpit-card small {color:var(--v6-muted);opacity:1;font-size:10px;}
+#cockpitFinanceiro .cockpit-card h5 {color:var(--v6-text)!important;font-size:21px;font-weight:800;letter-spacing:-.025em;}
+#cockpitFinanceiro .cockpit-card .subvalor {color:var(--v6-muted);opacity:1;}
+#cockpitFinanceiro #cardSaldoContainer {border-color:var(--v6-accent);background:var(--v6-accent-soft)!important;}
+#cockpitFinanceiro #cardSaldoContainer h5 {color:var(--v6-accent)!important;}
+.card,.banco-mov-card,.cartao-kpi-v513,.banco-v59-kpi,.conciliacao-grupo-item-v515,.conciliacao-grupo-resumo-v515 {
+  background:var(--v6-card)!important;border:1px solid var(--v6-border)!important;
+  color:var(--v6-text);box-shadow:var(--v6-shadow)!important;border-radius:14px!important;
+}
+.card {padding:16px!important;}
+.card h6,.card h5,.banco-v59-kpi strong,.cartao-kpi-v513 strong {color:var(--v6-text);}
+#chartFluxo {max-height:280px;}
+#lancamentos .col-md-4 {display:none;}
+#lancamentos .col-md-8 {width:100%;max-width:100%;}
+#lancamentos.v6-form-visible .col-md-4 {display:block;}
+#lancamentos.v6-form-visible .col-md-8 {width:66.6666667%;max-width:66.6666667%;}
+#lancamentos .table-container {max-height:62vh;}
+#v6FiltrosExtrato {display:none;}
+#v6FiltrosExtrato.v6-filtros-abertos {display:flex;}
+#v6FiltrosExtrato {background:var(--v6-card)!important;border-color:var(--v6-border)!important;}
+#banco, #cartao {display:none!important;} /* Conteúdo real movido para a área Movimentações */
+.v6-view-pane {min-width:0;}
+.form-control,.form-select,.input-group-text {border-color:var(--v6-border);}
+html[data-bs-theme="dark"] .bg-light,
+html[data-bs-theme="dark"] .alert-light,
+html[data-bs-theme="dark"] .table-light,
+html[data-bs-theme="dark"] .conciliacao-grupo-lista-v515,
+html[data-bs-theme="dark"] .automacao-v511,
+html[data-bs-theme="dark"] .banco-sugestao,
+html[data-bs-theme="dark"] .banco-criar-v510,
+html[data-bs-theme="dark"] .cartao-resumo-v513,
+html[data-bs-theme="dark"] .saude-saldo-v513 {
+  background:var(--v6-card)!important;color:var(--v6-text)!important;border-color:var(--v6-border)!important;
+}
+html[data-bs-theme="dark"] .text-muted,html[data-bs-theme="dark"] .banco-mov-data,
+html[data-bs-theme="dark"] .banco-mov-meta,html[data-bs-theme="dark"] .banco-sugestao-detalhe,
+html[data-bs-theme="dark"] .filtro-label,html[data-bs-theme="dark"] .cartao-kpi-v513 small,
+html[data-bs-theme="dark"] .banco-v59-kpi small {color:var(--v6-muted)!important;}
+html[data-bs-theme="dark"] .table {--bs-table-color:var(--v6-text);--bs-table-bg:transparent;--bs-table-border-color:var(--v6-border);}
+html[data-bs-theme="dark"] .table-dark {--bs-table-bg:#243852;}
+html[data-bs-theme="dark"] .modal-content {background:var(--v6-card);color:var(--v6-text);border-color:var(--v6-border);}
+html[data-bs-theme="dark"] .modal-footer,html[data-bs-theme="dark"] .modal-header {border-color:var(--v6-border);}
+html[data-bs-theme="dark"] .linha-atrasada {background:#412c39!important;}
+html[data-bs-theme="dark"] .linha-hoje {background:#343426!important;}
+html[data-bs-theme="dark"] .col-fim-de-semana {background:#243044!important;}
+html[data-bs-theme="dark"] .status-seguro {background:#214f3a!important;color:#dcfff0!important;}
+html[data-bs-theme="dark"] .status-baixo {background:#6a4c19!important;color:#fff2d0!important;}
+html[data-bs-theme="dark"] .status-moderado {background:#594322!important;color:#ffedcb!important;}
+html[data-bs-theme="dark"] .status-negativo {background:#8d3743!important;color:white!important;}
+html[data-bs-theme="dark"] .banco-sugestao,html[data-bs-theme="dark"] .pluggy-sync-v5103 {color:var(--v6-text)!important;}
+html[data-bs-theme="dark"] .banco-confirmar-v5101 {background:#163b30;color:#dcffee;border-color:#305c51;}
+html[data-bs-theme="dark"] .alert-info {background:#172f47;color:#d6eeff;border-color:#375b77;}
+html[data-bs-theme="dark"] .alert-warning {background:#453819;color:#fff0bc;border-color:#736029;}
+html[data-bs-theme="dark"] .badge.bg-light {background:#304054!important;color:#dceaff!important;}
+html[data-bs-theme="dark"] .dropdown-menu {background:var(--v6-card);border-color:var(--v6-border);}
+html[data-bs-theme="dark"] .dropdown-item {color:var(--v6-text);}
+html[data-bs-theme="dark"] .dropdown-item:hover {background:var(--v6-accent-soft);}
+html[data-bs-theme="dark"] .bar-navegacao-mes {background:#254877;}
+#lancamentos .v6-help-info {color:var(--v6-muted);font-size:11px;}
+@media(max-width:767px) {
+  body {padding-bottom:93px!important;}
+  .navbar {min-height:49px;}
+  .navbar .navbar-brand {font-size:14px!important;}
+  #v6Navigation {
+    position:fixed;z-index:1038;bottom:0;left:0;right:0;background:var(--v6-card);
+    border-top:1px solid var(--v6-border);padding:6px max(9px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom));
+    box-shadow:0 -3px 16px rgba(0,0,0,.08);gap:4px;
+  }
+  .v6-links {flex:1;justify-content:space-evenly;gap:0;}
+  .v6-nav-btn {font-size:10px;padding:8px 5px;}
+  .v6-controls {gap:3px;}
+  .v6-theme-select {max-width:81px;font-size:10px;padding:6px 18px 6px 4px;}
+  .v6-sync-info,#v6NewTop {display:none;}
+  .v6-dropdown .dropdown-menu {bottom:calc(100% + 6px)!important;top:auto!important;transform:none!important;right:0;left:auto;max-height:68vh;overflow:auto;}
+  #cockpitFinanceiro {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;overflow:visible!important;}
+  #cockpitFinanceiro > div[class*="col-"] {width:auto!important;max-width:none!important;flex:none!important;}
+  #cockpitFinanceiro > div:first-child {grid-column:1/-1;}
+  #cockpitFinanceiro .cockpit-card {min-height:78px;padding:12px!important;}
+  #cockpitFinanceiro .cockpit-card h5 {font-size:18px;}
+  #lancamentos.v6-form-visible .col-md-4,#lancamentos.v6-form-visible .col-md-8 {display:block;width:100%;max-width:100%;}
+  #lancamentos .card {padding:11px!important;}
+  #v6Pendencias .row > div {margin-bottom:6px;}
+  .v6-btn-primary {padding:8px 10px;}
+}
