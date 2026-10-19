@@ -1,7 +1,7 @@
 // REDEPLOY V5.14.0 - token clasp renovado 2026-09-30
 // DEPLOY V5.14.0 - 2026-09-30
 // V5.15.0 - conciliação bancária N:N
-var VERSAO_SISTEMA = "5.16.0";
+var VERSAO_SISTEMA = "5.17.0";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -2518,6 +2518,10 @@ function calibrarSaldoPluggyV513() {
 
 function importarTudoPluggyV513() {
   var msgBanco = importarMovimentosBanco15Dias();
+  // Primeiro corrige titulos previamente conciliados na data errada.
+  var datas = corrigirDatasAntecipadasV517_();
+  // Concilia apenas 1:1, com descricao forte, valor exato e correspondencia unica.
+  var auto = autoConciliarAntecipacoesV517_();
   var cartao = importarCartaoCreditoV513();
   var m = String(msgBanco || "").match(/(\d+)\s+novo/i);
   var novosBanco = m ? Number(m[1] || 0) : 0;
@@ -2527,7 +2531,16 @@ function importarTudoPluggyV513() {
     novosCartao: Number(cartao.novos || 0),
     cartoes: Number(cartao.cartoes || 0),
     errosCartao: cartao.erros || [],
-    mensagem: "Banco: " + novosBanco + " novo(s) • Cartão: " + Number(cartao.novos || 0) + " nova(s) transação(ões)."
+    conciliadosAutomaticamente: Number(auto.conciliados || 0),
+    datasCorrigidas: Number(datas.corrigidos || 0),
+    pendentesBanco: Number(auto.pendentes || 0),
+    errosConciliacao: auto.erros || [],
+    mensagem: "Pluggy: " + novosBanco + " novo(s) banco, " +
+      Number(cartao.novos || 0) + " cartao. " +
+      Number(auto.conciliados || 0) + " conciliado(s) automaticamente, " +
+      Number(datas.corrigidos || 0) + " data(s) corrigida(s), " +
+      Number(auto.pendentes || 0) + " pendente(s) para conferir." +
+      ((auto.erros || []).length ? " ATENCAO: " + auto.erros.length + " erro(s) de conciliacao." : "")
   };
 }
 
@@ -3126,6 +3139,15 @@ function conciliarGrupoBancoV515(dados) {
 
   var idConciliacao = idConciliacaoBancoV515_();
   var agora = new Date();
+  // O caixa deve reconhecer o dia em que o dinheiro entrou/saiu, e nao o vencimento.
+  // Na conciliacao N:N, considera-se a ultima data de liquidacao do grupo.
+  var dataEfetivaBanco = movimentos.reduce(function(ultima, item) {
+    var dataMov = String(item.mov.data || "");
+    return dataMov > ultima ? dataMov : ultima;
+  }, "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataEfetivaBanco)) {
+    throw new Error("Data bancaria invalida; conciliacao nao realizada.");
+  }
   var observacao = String(dados.observacao || "Conciliação bancária N:N").trim();
 
   shConc.appendRow([
@@ -3162,6 +3184,7 @@ function conciliarGrupoBancoV515(dados) {
       : "GRUPO:" + idConciliacao;
     linha[16] = agora;
     if (!linha[17] && dataOriginal) linha[17] = dataOriginal;
+    linha[0] = new Date(dataEfetivaBanco + "T12:00:00");
     linha[5] = "Consolidado";
 
     shLanc.getRange(x.linhaLanc, 1, 1, 18).setValues([linha]);
@@ -3767,9 +3790,9 @@ function atualizarPluggyAgoraV512() {
     });
   }
 
-  var msgImportacao = importarMovimentosBanco15Dias();
-  var m = String(msgImportacao || "").match(/(\d+)\s+novo/i);
-  var novos = m ? Number(m[1] || 0) : 0;
+  var importacao = importarTudoPluggyV513();
+  var novos = Number(importacao.novosBanco || 0);
+  var conciliados = Number(importacao.conciliadosAutomaticamente || 0);
 
   resultados.forEach(function(x) {
     var cod = normalizarTextoConciliacao_(x.codigo || "");
@@ -3798,6 +3821,7 @@ function atualizarPluggyAgoraV512() {
   if (requerInteracao) partes.push(requerInteracao + " exigem atualização interativa");
   if (erros) partes.push(erros + " com erro");
   partes.push(novos + " movimento(s) novo(s) importado(s)");
+  if (conciliados) partes.push(conciliados + " conciliado(s) no fluxo");
 
   return {
     ok: erros === 0,
