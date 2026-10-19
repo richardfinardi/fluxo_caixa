@@ -1782,14 +1782,15 @@ function importarMovimentosBanco15Dias() {
   // IDs JÁ IMPORTADOS
   // =========================
   const idsExistentes = new Set();
+  const linhasExistentes = {};
 
   if (sheet.getLastRow() > 1) {
-    const ids = sheet
-      .getRange(2, 1, sheet.getLastRow() - 1, 1)
-      .getValues();
-
-    ids.forEach(function(linha) {
-      if (linha[0]) idsExistentes.add(String(linha[0]));
+    const registros = sheet.getRange(2, 1, sheet.getLastRow() - 1, 14).getValues();
+    registros.forEach(function(reg, i) {
+      if (!reg[0]) return;
+      var id = String(reg[0]);
+      idsExistentes.add(id);
+      linhasExistentes[id] = { linha: i + 2, dados: reg };
     });
   }
 
@@ -1808,12 +1809,12 @@ function importarMovimentosBanco15Dias() {
   const apiKey = JSON.parse(authResp.getContentText()).apiKey;
 
   // =========================
-  // PERÍODO: ÚLTIMOS 15 DIAS
+  // PERÍODO: ÚLTIMOS 30 DIAS (inclui liquidacoes importadas com atraso)
   // =========================
   const hoje = new Date();
 
   const dataInicial = new Date();
-  dataInicial.setDate(hoje.getDate() - 15);
+  dataInicial.setDate(hoje.getDate() - 30);
 
   const dateFrom = Utilities.formatDate(
     dataInicial,
@@ -1828,6 +1829,7 @@ function importarMovimentosBanco15Dias() {
   );
 
   const novasLinhas = [];
+  let atualizadosBanco = 0;
 
   // =========================
   // PF + PJ
@@ -1875,6 +1877,38 @@ function importarMovimentosBanco15Dias() {
         transacoes.forEach(function(t) {
 
           if (idsExistentes.has(String(t.id))) {
+            var existente = linhasExistentes[String(t.id)];
+            // Importacoes anteriores podem conter transacoes ainda PENDING.
+            // Atualiza somente movimentos NOVOS, sem tocar em conciliacoes realizadas.
+            if (existente && String(existente.dados[10] || "NOVO").trim().toUpperCase() === "NOVO") {
+              var anterior = existente.dados;
+              var novaData = new Date(t.date);
+              var dadosAtualizados = [
+                item.conta,
+                novaData,
+                t.description || "",
+                t.descriptionRaw || "",
+                Number(t.amount || 0),
+                t.type || "",
+                t.category || "",
+                t.status || "",
+                conta.id
+              ];
+              var mudou = String(anterior[1] || "") !== String(dadosAtualizados[0]) ||
+                isoData_(anterior[2]) !== isoData_(novaData) ||
+                String(anterior[3] || "") !== String(dadosAtualizados[2]) ||
+                String(anterior[4] || "") !== String(dadosAtualizados[3]) ||
+                Number(anterior[5] || 0) !== Number(dadosAtualizados[4]) ||
+                String(anterior[6] || "") !== String(dadosAtualizados[5]) ||
+                String(anterior[7] || "") !== String(dadosAtualizados[6]) ||
+                String(anterior[8] || "") !== String(dadosAtualizados[7]) ||
+                String(anterior[9] || "") !== String(dadosAtualizados[8]);
+              if (mudou) {
+                sheet.getRange(existente.linha, 2, 1, 9).setValues([dadosAtualizados]);
+                existente.dados.splice(1, 9, ...dadosAtualizados);
+                atualizadosBanco++;
+              }
+            }
             return;
           }
 
@@ -1923,8 +1957,10 @@ function importarMovimentosBanco15Dias() {
 
   Logger.log('✅ IMPORTAÇÃO CONCLUÍDA');
   Logger.log('Novos movimentos: ' + novasLinhas.length);
+  Logger.log('Movimentos existentes revisados: ' + atualizadosBanco);
   Logger.log('Período: ' + dateFrom + ' até ' + dateTo);
-  return 'Banco atualizado: ' + novasLinhas.length + ' novo(s) movimento(s).';
+  return 'Banco atualizado: ' + novasLinhas.length + ' novo(s) movimento(s), ' +
+    atualizadosBanco + ' revisado(s).';
 }
 
 
@@ -4037,21 +4073,15 @@ function monitorarPluggyAutomaticamenteV511() {
     }
 
     var syncAtual = String(status.referenciaAtualizacao || "");
-    var syncAnterior = String(props.getProperty("MONITOR_PLUGGY_ULTIMA_SYNC") || "");
-    var mudouSync = false;
-
-    if (syncAtual) {
-      if (!syncAnterior) {
-        mudouSync = true;
-      } else {
-        var atualTs = new Date(syncAtual).getTime();
-        var anteriorTs = new Date(syncAnterior).getTime();
-        mudouSync =
-          !isNaN(atualTs) &&
-          !isNaN(anteriorTs) &&
-          atualTs > anteriorTs;
-      }
-    }
+    // Monitorar PF e PJ individualmente: max(lastUpdatedAt) deixava atualizacoes
+    // da conta mais antiga invisiveis se a outra ja tinha atualizado depois.
+    var chaveAtual = (status.itens || [])
+      .filter(function(x) { return x.conta && x.lastUpdatedAt && !x.erro; })
+      .map(function(x) { return x.conta + "@" + x.lastUpdatedAt; })
+      .sort()
+      .join("|");
+    var chaveAnterior = String(props.getProperty("MONITOR_PLUGGY_ULTIMA_SYNC_CHAVE_V517") || "");
+    var mudouSync = !!chaveAtual && chaveAtual !== chaveAnterior;
 
     if (mudouSync) {
       var imp = importarTudoPluggyV513();
@@ -4060,6 +4090,7 @@ function monitorarPluggyAutomaticamenteV511() {
       var novos = novosBanco + novosCartao;
 
       props.setProperty("MONITOR_PLUGGY_ULTIMA_SYNC", syncAtual);
+      props.setProperty("MONITOR_PLUGGY_ULTIMA_SYNC_CHAVE_V517", chaveAtual);
       props.setProperty("MONITOR_PLUGGY_ULTIMOS_NOVOS", String(novos));
       props.setProperty("MONITOR_PLUGGY_ULTIMO_ERRO", "");
       props.deleteProperty("MONITOR_PLUGGY_ULTIMO_ALERTA_ATRASO");
