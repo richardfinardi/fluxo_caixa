@@ -3753,6 +3753,7 @@ function processarConfirmadosBancoV5102() {
           }
 
           carregarConciliacaoBancoV59();
+          recarregarDadosGlobais(true);
         })
         .withFailureHandler(function(err) {
           atualizarBotaoConfirmadosBancoV5102_();
@@ -3831,6 +3832,7 @@ function htmlAcoesBancoV510_(mov, sugestao) {
 function aposAcaoBancoV510_(msg) {
   exibirAvisoNaTela(msg || 'Movimento tratado.', 'success');
   carregarConciliacaoBancoV59();
+  recarregarDadosGlobais(true);
 }
 
 function conciliarBancoV510(idPluggy, idLancamento, jaConsolidado) {
@@ -4096,6 +4098,7 @@ function atualizarBancoV59() {
       exibirAvisoNaTela(resp.mensagem || 'Banco e cartão atualizados.', 'success');
       carregarConciliacaoBancoV59();
       carregarCartaoV513();
+      recarregarDadosGlobais(true);
     })
     .withFailureHandler(function(err) {
       if (btn) {
