@@ -3356,8 +3356,12 @@ function conciliarGrupoBancoV515(dados) {
   totalBanco = Number(totalBanco.toFixed(2));
   totalFluxo = Number(totalFluxo.toFixed(2));
   var diferenca = Number((totalBanco - totalFluxo).toFixed(2));
+  // Apenas a conciliacao 1:1 confirmada ajusta o realizado ao valor do banco.
+  // A conciliacao N:N permanece com diferenca obrigatoriamente zero.
+  var ajusteUnitario = dados.ajustarValorRealizado === true &&
+    movimentos.length === 1 && lancamentos.length === 1;
 
-  if (Math.abs(diferenca) > 0.01) {
+  if (Math.abs(diferenca) > 0.01 && !ajusteUnitario) {
     throw new Error(
       "Os totais não fecham. Banco=" + totalBanco.toFixed(2) +
       " | Fluxo=" + totalFluxo.toFixed(2) +
@@ -3405,8 +3409,11 @@ function conciliarGrupoBancoV515(dados) {
     var dataOriginal = isoData_(linha[0]);
 
     if (linha[12] === "" || linha[12] === null) linha[12] = x.valor;
-    linha[13] = x.valor;
-    linha[14] = 0;
+    var valorRealizado = ajusteUnitario ? totalBanco : x.valor;
+    linha[13] = valorRealizado;
+    linha[14] = ajusteUnitario ? diferenca : 0;
+    // Valor alimenta o caixa; ValorPrevisto (coluna 13) preserva a previsao original.
+    if (ajusteUnitario) linha[2] = valorRealizado;
     linha[15] = movimentos.length === 1
       ? movimentos[0].mov.idPluggy
       : "GRUPO:" + idConciliacao;
@@ -3428,6 +3435,13 @@ function conciliarGrupoBancoV515(dados) {
     idConciliacao,
     movimentos.length + " banco x " + lancamentos.length + " fluxo | total=" + totalBanco
   );
+  if (ajusteUnitario && Math.abs(diferenca) > 0.01) {
+    registrarLog_("BANCO_AJUSTE_VALOR_1A1", idConciliacao,
+      "Lançamento " + lancamentos[0].idLancamento +
+      " | previsto=" + totalFluxo.toFixed(2) +
+      " | realizado=" + totalBanco.toFixed(2) +
+      " | diferenca=" + diferenca.toFixed(2));
+  }
 
   return "Conciliação " + idConciliacao + " concluída: " +
     movimentos.length + " banco ↔ " + lancamentos.length + " fluxo.";
@@ -3455,7 +3469,8 @@ function conciliarMovimentoBancoV510(dados) {
   var mensagem = conciliarGrupoBancoV515({
     banco: [{ idPluggy: mov.idPluggy }],
     fluxo: [{ idLancamento: dados.idLancamento }],
-    observacao: "Conciliação 1:1"
+    observacao: "Conciliação 1:1",
+    ajustarValorRealizado: true
   });
 
   if (dados.lembrar === true) {
