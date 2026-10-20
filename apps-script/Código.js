@@ -192,7 +192,7 @@ function garantirEstruturaV58_() {
   }
 
   garantirCabecalhos_(lanc, ["Data", "Descricao", "Valor", "Tipo", "Categoria", "Status", "RecorrenciaId", "IdLancamento", "Origem", "ChaveOrigem", "DataCalculada", "OverrideManual", "ValorPrevisto", "ValorRealizado", "DiferencaBanco", "IdMovimentoBanco", "DataConciliacao", "DataPrevistaOriginal"]);
-  garantirCabecalhos_(regras, ["Cliente", "ValorVisita", "Condicao", "NovoValor", "DataVigor", "PorHora", "IdCliente"]);
+  garantirCabecalhos_(regras, ["Cliente", "ValorVisita", "Condicao", "NovoValor", "DataVigor", "PorHora", "IdCliente", "CondicaoFutura", "InicioCondicaoFutura"]);
   garantirCabecalhos_(cats, ["Nome", "IdCategoria"]);
   garantirCabecalhos_(cond, ["Nome", "Periodo", "DiaCorte", "MesDeslocamento", "DiaPagamento", "IdCondicao", "ModoPagamento"]);
   garantirCabecalhos_(rec, ["IdSerie", "Descricao", "Valor", "Tipo", "Categoria", "Frequencia", "DiaAlvo", "DataInicio", "TipoTermino", "ValorTermino"]);
@@ -385,7 +385,8 @@ function obterDadosIniciais() {
         condicaoNome: dataR[j][2],
         novoValor: dataR[j][3] ? Number(dataR[j][3]) : "",
         dataVigor: dataR[j][4] ? isoData_(dataR[j][4]) : "",
-        porHora: dataR[j][5] ? String(dataR[j][5]).toUpperCase().trim() === "SIM" : false
+        porHora: dataR[j][5] ? String(dataR[j][5]).toUpperCase().trim() === "SIM" : false,
+        condicaoFutura: String(dataR[j][7] || "").trim(), inicioCondicaoFutura: dataR[j][8] ? isoData_(dataR[j][8]) : ""
       });
     }
   }
@@ -512,13 +513,27 @@ function salvarCondicaoPagamento(dados) {
   return "Condição cadastrada!";
 }
 
+// Permite programar nova condicao sem mudar as visitas anteriores a data de inicio.
+function normalizarCondicaoFutura_(dados) {
+  var nome = String(dados.condicaoFutura || "").trim();
+  var inicio = String(dados.inicioCondicaoFutura || "").trim();
+  if (!nome && !inicio) return { nome: "", inicio: "" };
+  if (!nome || !/^\d{4}-\d{2}-\d{2}$/.test(inicio)) {
+    throw new Error("Selecione a condicao futura e a data de inicio (AAAA-MM-DD).");
+  }
+  var dt = new Date(inicio + "T12:00:00");
+  if (isNaN(dt.getTime()) || isoData_(dt) !== inicio) throw new Error("Data da condicao futura invalida.");
+  return { nome: nome, inicio: inicio };
+}
+
 function salvarRegra(dados) {
   garantirEstruturaV58_();
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RegrasClientes");
   var id = gerarIdNumerico_();
   var dataVigor = dados.dataVigor ? new Date(dados.dataVigor + "T12:00:00") : "";
   var porHora = String(dados.porHora || "NÃO").toUpperCase() === "SIM" ? "SIM" : "NÃO";
-  sheet.appendRow([dados.cliente, Number(dados.valorVisita), dados.condicaoNome, dados.novoValor ? Number(dados.novoValor) : "", dataVigor, porHora, id]);
+  var alteracaoFutura = normalizarCondicaoFutura_(dados);
+  sheet.appendRow([dados.cliente, Number(dados.valorVisita), dados.condicaoNome, dados.novoValor ? Number(dados.novoValor) : "", dataVigor, porHora, id, alteracaoFutura.nome, alteracaoFutura.inicio]);
   registrarLog_("CRIAR_CLIENTE", id, dados.cliente);
   return "Cliente " + dados.cliente + " salvo com sucesso!";
 }
@@ -530,7 +545,11 @@ function atualizarClienteBackend(dados) {
   if (linha > 1) {
     var valVigor = dados.dataVigor ? new Date(dados.dataVigor + "T12:00:00") : "";
     var porHora = String(dados.porHora || "NÃO").toUpperCase() === "SIM" ? "SIM" : "NÃO";
+    // Editores antigos nao enviam os campos H:I; nesse caso nunca apagar uma condicao futura existente.
+    var informouCondicaoFutura = Object.prototype.hasOwnProperty.call(dados, "condicaoFutura") || Object.prototype.hasOwnProperty.call(dados, "inicioCondicaoFutura");
+    var alteracaoFutura = informouCondicaoFutura ? normalizarCondicaoFutura_(dados) : null;
     sheet.getRange(linha, 1, 1, 6).setValues([[dados.cliente, Number(dados.valorVisita), dados.condicaoNome, dados.novoValor ? Number(dados.novoValor) : "", valVigor, porHora]]);
+    if (alteracaoFutura) sheet.getRange(linha, 8, 1, 2).setValues([[alteracaoFutura.nome, alteracaoFutura.inicio]]);
     registrarLog_("ATUALIZAR_CLIENTE", dados.id, dados.cliente);
     return "Cliente atualizado!";
   }
@@ -1049,12 +1068,13 @@ function carregarRegrasClientesRapido_() {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RegrasClientes");
   var out = [];
   if (!sh || sh.getLastRow() <= 1) return out;
-  var dados = sh.getRange(2, 1, sh.getLastRow() - 1, 7).getValues();
+  var dados = sh.getRange(2, 1, sh.getLastRow() - 1, 9).getValues();
   dados.forEach(function(r) {
     if (!r[0]) return;
     out.push({
       cliente: r[0], valorVisita: Number(r[1]), condicaoNome: r[2], novoValor: r[3] ? Number(r[3]) : "",
-      dataVigor: r[4] ? isoData_(r[4]) : "", porHora: r[5] ? String(r[5]).toUpperCase().trim() === "SIM" : false
+      dataVigor: r[4] ? isoData_(r[4]) : "", porHora: r[5] ? String(r[5]).toUpperCase().trim() === "SIM" : false,
+      condicaoFutura: String(r[7] || "").trim(), inicioCondicaoFutura: r[8] ? isoData_(r[8]) : ""
     });
   });
   return out;
@@ -1085,7 +1105,8 @@ function sincronizarCalendarBackendReal() {
   regrasRapidas.forEach(function(r) {
     rulesClientes[r.cliente.toLowerCase().trim()] = {
       nomeOriginal: r.cliente, valorVisita: r.valorVisita, condicaoNome: r.condicaoNome, novoValor: r.novoValor,
-      dataVigor: r.dataVigor ? new Date(r.dataVigor + "T00:00:00") : null, porHora: r.porHora
+      dataVigor: r.dataVigor ? new Date(r.dataVigor + "T00:00:00") : null, porHora: r.porHora,
+      condicaoFutura: r.condicaoFutura || "", inicioCondicaoFutura: r.inicioCondicaoFutura || ""
     };
   });
 
@@ -1121,7 +1142,12 @@ function sincronizarCalendarBackendReal() {
     var v = visitasValidas[ch], cl = rulesClientes[v.clienteKey], prc = cl.valorVisita;
     if (cl.novoValor && cl.dataVigor && new Date(v.dataVisita.getFullYear(), v.dataVisita.getMonth(), v.dataVisita.getDate()) >= cl.dataVigor) prc = cl.novoValor;
     if (cl.porHora) prc = prc * v.horas;
-    var reg = dbCondicoes.filter(function(c) { return c.nome.toLowerCase().trim() === cl.condicaoNome.toLowerCase().trim(); });
+    // Se a condicao futura estiver programada, so vale para visitas dentro de sua vigencia.
+    var nomeCondicaoVisita = cl.condicaoNome;
+    if (cl.condicaoFutura && cl.inicioCondicaoFutura && isoData_(v.dataVisita) >= cl.inicioCondicaoFutura) {
+      nomeCondicaoVisita = cl.condicaoFutura;
+    }
+    var reg = dbCondicoes.filter(function(c) { return c.nome.toLowerCase().trim() === String(nomeCondicaoVisita || "").toLowerCase().trim(); });
     var cond = reg[0];
     if (reg.length > 1) {
       var diaV = v.dataVisita.getDate(); reg.sort(function(a,b){ return a.diaCorte - b.diaCorte; });
