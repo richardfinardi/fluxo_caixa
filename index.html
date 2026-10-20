@@ -3893,7 +3893,9 @@ function processarConfirmadosBancoV5102() {
           var ok = Number(resp.processados || 0);
           var erros = Number(resp.erros || 0);
           if (erros > 0) {
-            exibirAvisoNaTela(ok + ' processado(s) • ' + erros + ' com erro.', 'warning');
+            var primeiraFalha = (resp.falhas || [])[0];
+            var detalhe = primeiraFalha && primeiraFalha.erro ? ' Motivo: ' + primeiraFalha.erro : '';
+            exibirAvisoNaTela(ok + ' processado(s) • ' + erros + ' com erro.' + detalhe, 'warning');
           } else {
             exibirAvisoNaTela(ok + ' movimento(s) processado(s) com sucesso.', 'success');
           }
