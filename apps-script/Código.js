@@ -538,6 +538,87 @@ function salvarRegra(dados) {
   return "Cliente " + dados.cliente + " salvo com sucesso!";
 }
 
+
+/** Recalcula apenas projecoes CALENDAR do cliente, mantendo datas manuais e titulos confirmados. */
+function recalcularProjetadosVigenciaV2027_(cliente, termoAtual, termoFuturo, inicioFuturo, reverDesde) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Lancamentos");
+  if (!sh || sh.getLastRow() < 2) return 0;
+  var clienteKey = normalizarChave_(cliente);
+  var hoje = new Date();
+  var eventos = CalendarApp.getDefaultCalendar().getEvents(
+    new Date(hoje.getFullYear(), hoje.getMonth(), 1),
+    new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 210)
+  );
+  var visitas = {};
+  eventos.forEach(function(evento) {
+    if (normalizarChave_(evento.getTitle()).indexOf(clienteKey) === -1) return;
+    var dt = new Date(evento.getStartTime());
+    visitas[Utilities.formatDate(dt, Session.getScriptTimeZone(), "dd/MM")] = dt;
+  });
+  var condicoes = carregarCondicoesRapido_();
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, 12).getValues();
+  var propostas = [], contagemChaves = {};
+  rows.forEach(function(row, i) {
+    var desc = normalizarChave_(row[1] || "");
+    if (desc.indexOf("faturamento: " + clienteKey + " (") !== 0 &&
+        desc.indexOf(clienteKey + " (") !== 0) return;
+    if (String(row[8]) !== "CALENDAR" || String(row[5]).toLowerCase().trim() !== "projetado") return;
+    var refs = String(row[1] || "").match(/\b\d{1,2}\/\d{1,2}\b/g) || [];
+    if (!refs.length) return;
+    var datas = refs.map(function(ref) {
+      var d = ref.split("/");
+      return visitas[("0" + Number(d[0])).slice(-2) + "/" + ("0" + Number(d[1])).slice(-2)] || null;
+    });
+    if (datas.some(function(d) { return !d; })) return;
+    if (reverDesde && datas.every(function(d) { return isoData_(d) < reverDesde; })) return;
+    var due = null, cond = null;
+    for (var n = 0; n < datas.length; n++) {
+      var dtVisita = datas[n];
+      var nomeTermo = termoFuturo && inicioFuturo && isoData_(dtVisita) >= inicioFuturo ? termoFuturo : termoAtual;
+      var opcoes = condicoes.filter(function(c) { return normalizarChave_(c.nome) === normalizarChave_(nomeTermo); });
+      if (!opcoes.length) return;
+      opcoes.sort(function(a,b) { return a.diaCorte - b.diaCorte; });
+      cond = opcoes[0];
+      if (opcoes.length > 1) {
+        for (var j = 0; j < opcoes.length; j++) {
+          if (dtVisita.getDate() <= opcoes[j].diaCorte) { cond = opcoes[j]; break; }
+        }
+      }
+      if (String(cond.diaPagamento).indexOf(",") !== -1) return;
+      var novaData = isoData_(rodarMotorCalculo(dtVisita, cond));
+      if (due !== null && due !== novaData) return;
+      due = novaData;
+    }
+    var atual = isoData_(row[0]);
+    var calculada = row[10] ? isoData_(row[10]) : "";
+    var override = String(row[11] || "").trim().toUpperCase();
+    if (override === "TOTAL" ||
+        (override === "DATA" && (!calculada || atual !== calculada)) ||
+        (calculada && atual !== calculada)) return;
+    var chave = "CAL|N|" + clienteKey + "_" + due;
+    if (String(cond.modoPagamento || "PADRAO").toUpperCase() === "ANTECIPADO") {
+      chave += "_ADV_" + normalizarChave_(cond.nome);
+    }
+    if (atual === due && String(row[9]) === chave && !override) return;
+    var dtOriginal = row[0] instanceof Date ? row[0] : new Date(atual + "T12:00:00");
+    var novoVencimento = new Date(due + "T12:00:00");
+    novoVencimento.setHours(dtOriginal.getHours(), dtOriginal.getMinutes(),
+      dtOriginal.getSeconds(), dtOriginal.getMilliseconds());
+    propostas.push({row:i+2, vencimento:novoVencimento, chave:chave, dataCalculada:new Date(due+"T12:00:00")});
+    contagemChaves[chave] = (contagemChaves[chave] || 0) + 1;
+  });
+  var atualizados = 0;
+  propostas.forEach(function(item) {
+    if (contagemChaves[item.chave] > 1) return;
+    sh.getRange(item.row, 1).setValue(item.vencimento);
+    sh.getRange(item.row, 10, 1, 3).setValues([[item.chave, item.dataCalculada, ""]]);
+    atualizados++;
+  });
+  if (atualizados) registrarLog_("RECALCULO_VIGENCIA_CLIENTE", cliente,
+    "Somente " + atualizados + " previsoes Projetadas recalculadas.");
+  return atualizados;
+}
+
 function atualizarClienteBackend(dados) {
   garantirEstruturaV58_();
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RegrasClientes");
@@ -548,9 +629,28 @@ function atualizarClienteBackend(dados) {
     // Editores antigos nao enviam os campos H:I; nesse caso nunca apagar uma condicao futura existente.
     var informouCondicaoFutura = Object.prototype.hasOwnProperty.call(dados, "condicaoFutura") || Object.prototype.hasOwnProperty.call(dados, "inicioCondicaoFutura");
     var alteracaoFutura = informouCondicaoFutura ? normalizarCondicaoFutura_(dados) : null;
+    var anterior = sheet.getRange(linha, 1, 1, 9).getValues()[0];
     sheet.getRange(linha, 1, 1, 6).setValues([[dados.cliente, Number(dados.valorVisita), dados.condicaoNome, dados.novoValor ? Number(dados.novoValor) : "", valVigor, porHora]]);
     if (alteracaoFutura) sheet.getRange(linha, 8, 1, 2).setValues([[alteracaoFutura.nome, alteracaoFutura.inicio]]);
     registrarLog_("ATUALIZAR_CLIENTE", dados.id, dados.cliente);
+    var mudouTermo = alteracaoFutura && (
+      String(anterior[2] || "") !== String(dados.condicaoNome || "") ||
+      String(anterior[7] || "") !== alteracaoFutura.nome ||
+      (anterior[8] ? isoData_(anterior[8]) : "") !== alteracaoFutura.inicio);
+    if (mudouTermo) {
+      try {
+        var anteriorInicio = anterior[8] ? isoData_(anterior[8]) : "";
+        var reverDesde = anteriorInicio && alteracaoFutura.inicio ?
+          (anteriorInicio < alteracaoFutura.inicio ? anteriorInicio : alteracaoFutura.inicio) :
+          (anteriorInicio || alteracaoFutura.inicio || isoData_(new Date()));
+        var qtd = recalcularProjetadosVigenciaV2027_(dados.cliente, dados.condicaoNome,
+          alteracaoFutura.nome, alteracaoFutura.inicio, reverDesde);
+        return "Cliente atualizado! " + qtd + " previsao(oes) projetada(s) recalculada(s).";
+      } catch (erro) {
+        registrarLog_("ERRO_RECALCULO_VIGENCIA_CLIENTE", dados.cliente, String(erro));
+        return "Cliente atualizado, mas revisao das previsoes pendente: " + String(erro.message || erro);
+      }
+    }
     return "Cliente atualizado!";
   }
   throw new Error("Cliente não encontrado.");
@@ -1273,7 +1373,7 @@ function sincronizarCalendarBackendReal() {
     novo[7] = idExist;
     if (override === "TOTAL") {
       novo[0] = row[0]; novo[1] = row[1]; novo[2] = row[2]; novo[3] = row[3]; novo[4] = row[4]; novo[5] = row[5]; novo[6] = row[6]; novo[11] = "TOTAL"; ajustesPreservados++;
-    } else if (override === "DATA" || (calcAnterior && dataAtual !== calcAnterior)) {
+    } else if ((override === "DATA" && (!calcAnterior || dataAtual !== calcAnterior)) || (calcAnterior && dataAtual !== calcAnterior)) {
       novo[0] = row[0]; novo[11] = "DATA"; ajustesPreservados++;
     }
     novo[10] = dataGerada;
