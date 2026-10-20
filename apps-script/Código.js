@@ -1173,7 +1173,12 @@ function sincronizarCalendarBackendReal() {
     var dataVenc = rodarMotorCalculo(v.dataVisita, cond), dataVencStr = isoData_(dataVenc);
     // Mantem vencimento antecipado mesmo quando a data ja passou e a visita e futura.
     if (dataVencStr < hojeIsoStr && String(cond.modoPagamento || "PADRAO").toUpperCase() !== "ANTECIPADO") continue;
+    // Quando termos legados e antecipados vencem no mesmo dia, manter titulos separados.
+    // Chave historica permanece IDENTICA para condicoes padrao.
     var chC = v.clienteKey + "_" + dataVencStr;
+    if (String(cond.modoPagamento || "PADRAO").toUpperCase() === "ANTECIPADO") {
+      chC += "_ADV_" + normalizarChave_(cond.nome);
+    }
     if (!faturamentosConsolidados[chC]) faturamentosConsolidados[chC] = { clienteNome: cl.nomeOriginal, clienteKey: v.clienteKey, porHora: cl.porHora, dataVencimento: dataVenc, valorTotal: 0, visitasObjeto: [] };
     faturamentosConsolidados[chC].valorTotal += prc;
     faturamentosConsolidados[chC].visitasObjeto.push(v);
