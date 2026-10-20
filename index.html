@@ -747,7 +747,15 @@
                 <input type="hidden" id="editClienteId" value="">
                 <div class="mb-2"><label class="form-label small">Nome</label><input type="text" id="regraCliente" class="form-control form-control-sm" required></div>
                 <div class="mb-2"><label class="form-label small">Valor/Visita</label><input type="number" step="0.01" id="regraValor" class="form-control form-control-sm" required></div>
-                <div class="mb-2"><label class="form-label small">Termo</label><select id="regraCondicaoNome" class="form-select form-select-sm" required></select></div>
+                <div class="mb-2"><label class="form-label small">Termo atual</label><select id="regraCondicaoNome" class="form-select form-select-sm" required></select></div>
+                <div class="border rounded p-2 mb-2">
+                  <div class="fw-semibold small mb-1">Mudança de condição programada (opcional)</div>
+                  <div class="row g-2">
+                    <div class="col-sm-7"><label class="form-label small" for="regraCondicaoFutura">Nova condição</label><select id="regraCondicaoFutura" class="form-select form-select-sm"></select></div>
+                    <div class="col-sm-5"><label class="form-label small" for="regraInicioCondicaoFutura">Aplicar a partir de</label><input type="date" id="regraInicioCondicaoFutura" class="form-control form-control-sm"></div>
+                  </div>
+                  <div class="form-text">Ex.: manter 2026 no termo atual e usar COLUMBIA 2027 apenas para visitas a partir de 01/01/2027. Valor/visita é independente desta mudança.</div>
+                </div>
                 
                 <div class="row bg-light p-2 rounded mb-2">
                   <div class="col-6"><label class="form-label text-xs">Novo Valor</label><input type="number" step="0.01" id="regraNovoValor" class="form-control form-control-sm"></div>
@@ -781,6 +789,8 @@
             cliente: document.getElementById('regraCliente').value,
             valorVisita: document.getElementById('regraValor').value,
             condicaoNome: document.getElementById('regraCondicaoNome').value,
+            condicaoFutura: document.getElementById('regraCondicaoFutura').value,
+            inicioCondicaoFutura: document.getElementById('regraInicioCondicaoFutura').value,
             novoValor: document.getElementById('regraNovoValor').value,
             dataVigor: document.getElementById('regraDataVigor').value,
             porHora: document.getElementById('regraPorHora').checked ? "SIM" : "NÃO"
@@ -1145,9 +1155,76 @@
       <div class="tab-pane fade" id="condicoes" role="tabpanel">
         <div class="row">
           <div class="col-md-5">
-            <div class="card"><form id="formCondicao" onsubmit="salvarNovaCondition(event)"><div class="mb-2"><label class="form-label small">Nome do Termo</label><input type="text" id="condNome" class="form-control form-control-sm" required></div><div class="mb-2"><label class="form-label small">Ciclo</label><select id="condPeriodo" class="form-select form-select-sm" required><option value="Mensal">Mensal</option><option value="Semanal">Semanal</option></select></div><div class="mb-2"><label class="form-label small">Corte</label><input type="number" id="condCorte" class="form-control form-control-sm" required></div><div class="mb-2"><label class="form-label small">Deslocamento</label><input type="number" id="condDeslocamento" class="form-control form-control-sm" required></div><div class="mb-3"><label class="form-label small">Dia Pagamento</label><input type="text" id="condPagamento" class="form-control form-control-sm" placeholder="Ex: 5, 20 ou apenas 10" required></div><button type="submit" class="btn btn-sm btn-dark w-100">Cadastrar</button></form></div>
+            <div class="card">
+              <form id="formCondicao" onsubmit="salvarNovaCondition(event)">
+                <div class="mb-2">
+                  <label class="form-label small" for="condNome">Nome do Termo</label>
+                  <input type="text" id="condNome" class="form-control form-control-sm" required>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small" for="condPeriodo">Ciclo</label>
+                  <select id="condPeriodo" class="form-select form-select-sm" onchange="atualizarCamposCondicao()" required>
+                    <option value="Mensal">Mensal</option><option value="Semanal">Semanal</option>
+                  </select>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small" for="condModoPagamento">Momento do pagamento</label>
+                  <select id="condModoPagamento" class="form-select form-select-sm" onchange="atualizarCamposCondicao()" required>
+                    <option value="PADRAO" selected>Padrão (mesma regra atual)</option>
+                    <option value="ANTECIPADO">Antecipado (antes do início do período de serviços)</option>
+                  </select>
+                  <div class="form-text">As condições já cadastradas continuam com a regra original, sem conversão.</div>
+                </div>
+                <div id="condCamposPadrao">
+                  <div class="mb-2">
+                    <label class="form-label small" for="condCorte">Corte (regra atual)</label>
+                    <input type="number" id="condCorte" class="form-control form-control-sm" required>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small" for="condDeslocamento">Deslocamento (regra atual)</label>
+                    <input type="number" id="condDeslocamento" class="form-control form-control-sm" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label small" for="condPagamento">Dia Pagamento (regra atual)</label>
+                    <input type="text" id="condPagamento" class="form-control form-control-sm" placeholder="Ex.: 5, 20 ou 10" required>
+                  </div>
+                </div>
+                <div id="condCamposAntecipado" class="d-none">
+                  <div id="condFechamentoSemanalBox" class="mb-2 d-none">
+                    <label class="form-label small" for="condFechamentoSemanal">Dia de fechamento da semana</label>
+                    <select id="condFechamentoSemanal" class="form-select form-select-sm">
+                      <option value="0" selected>Domingo</option><option value="1">Segunda-feira</option><option value="2">Terça-feira</option>
+                      <option value="3">Quarta-feira</option><option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option>
+                    </select>
+                  </div>
+                  <div id="condFechamentoMensalBox" class="mb-2 d-none">
+                    <label class="form-label small" for="condFechamentoMensal">Dia de fechamento do mês</label>
+                    <input type="number" min="1" max="31" value="31" id="condFechamentoMensal" class="form-control form-control-sm">
+                    <div class="form-text">31 = último dia de cada mês, inclusive fevereiro.</div>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small" for="condCiclosAntecipados" id="condLabelCiclosAntecipados">Semanas adicionais de antecipação</label>
+                    <input type="number" min="0" max="24" value="0" id="condCiclosAntecipados" class="form-control form-control-sm">
+                    <div class="form-text">0 = pagar no início do ciclo, no dia escolhido ou no último dia correspondente anterior.</div>
+                  </div>
+                  <div id="condPagamentoSemanalBox" class="mb-3 d-none">
+                    <label class="form-label small" for="condPagamentoSemanal">Dia do pagamento</label>
+                    <select id="condPagamentoSemanal" class="form-select form-select-sm">
+                      <option value="1" selected>Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option>
+                      <option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="0">Domingo</option>
+                    </select>
+                  </div>
+                  <div id="condPagamentoMensalBox" class="mb-3 d-none">
+                    <label class="form-label small" for="condPagamentoMensal">Dia do pagamento</label>
+                    <input type="number" min="1" max="31" value="1" id="condPagamentoMensal" class="form-control form-control-sm">
+                  </div>
+                  <div class="alert alert-info py-2 small">O vencimento cai no dia escolhido <strong>antes ou no início do período de serviços</strong>. Em finais de semana e feriados, segue a antecipação para o dia útil anterior.</div>
+                </div>
+                <button type="submit" class="btn btn-sm btn-dark w-100">Cadastrar</button>
+              </form>
+            </div>
           </div>
-          <div class="col-md-7"><div class="card"><div class="table-container"><table class="table table-sm align-middle"><thead class="table-light"><tr><th>Nome</th><th>Ciclo</th><th>Corte</th><th>Mês+</th><th>Dia Vcto</th><th></th></tr></thead><tbody id="tbodyCondicoes"></tbody></table></div></div></div>
+          <div class="col-md-7"><div class="card"><div class="table-container"><table class="table table-sm align-middle"><thead class="table-light"><tr><th>Nome</th><th>Ciclo</th><th>Modo</th><th>Fechamento/Corte</th><th>Deslocamento</th><th>Dia Vcto</th><th></th></tr></thead><tbody id="tbodyCondicoes"></tbody></table></div></div></div>
         </div>
       </div>
 
@@ -1949,14 +2026,16 @@
         if(!nomesVistos[nLimpo]){ htmlConds += `<option value="${nLimpo}">${nLimpo}</option>`; nomesVistos[nLimpo] = true; }
       });
       document.getElementById('regraCondicaoNome').innerHTML = htmlConds;
+      document.getElementById('regraCondicaoFutura').innerHTML = htmlConds;
     }
 
     function renderizarTabelas(deveFiltrar) {
       var htmlRegras = "";
       state.regras.forEach(function(r) {
         var textoReajuste = r.novoValor ? `<br><small class="text-muted">📈 R$ ${r.novoValor} de reajuste</small>` : "";
+        var condFutura = r.condicaoFutura && r.inicioCondicaoFutura ? `<br><small class="text-primary">A partir de ${r.inicioCondicaoFutura.split('-').reverse().join('/')}: ${r.condicaoFutura}</small>` : "";
         var badgeHora = r.porHora ? '<span class="badge bg-info-subtle text-info-emphasis ms-1">⏰/h</span>' : '';
-        htmlRegras += `<tr><td><b>${r.cliente}</b>${badgeHora}<br><small class="text-success">${r.condicaoNome}</small>${textoReajuste}</td><td class="text-end">R$ ${r.valorVisita.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicaoCliente(${r.id})">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="pedirConfirmacaoDeletarSimples('RegrasClientes', ${r.id})">🗑️</button></td></tr>`;
+        htmlRegras += `<tr><td><b>${r.cliente}</b>${badgeHora}<br><small class="text-success"> ${r.condicaoNome}</small>${condFutura}${textoReajuste}</td><td class="text-end">R$ ${r.valorVisita.toFixed(2)}</td><td class="text-end"><button type="button" class="btn btn-xs text-primary border-0" onclick="abrirModoEdicaoCliente(${r.id})">✏️</button><button type="button" class="btn btn-xs text-danger border-0" onclick="pedirConfirmacaoDeletarSimples('RegrasClientes', ${r.id})">🗑️</button></td></tr>`;
       });
       document.getElementById('tbodyRegras').innerHTML = htmlRegras || "<tr><td>Nenhum cliente cadastrado.</td></tr>";
 
@@ -2077,10 +2156,15 @@
       document.getElementById('tbodyCategorias').innerHTML = htmlCats || "<tr><td>Nenhuma.</td></tr>";
 
       var htmlCondsTable = "";
+      var diasSemanaCond = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
       state.condicoes.forEach(function(c) {
-        htmlCondsTable += `<tr><td><small>${c.nome}</small></td><td>${c.periodo}</td><td>${c.diaCorte}</td><td>${c.mesDeslocamento}</td><td>${c.diaPagamento}</td><td><button type="button" class="btn btn-xs text-danger border-0" onclick="pedirConfirmacaoDeletarSimples('CondicoesPagamento', ${c.id})">🗑️</button></td></tr>`;
+        var antecipado = String(c.modoPagamento || "PADRAO").toUpperCase() === "ANTECIPADO";
+        var fechamento = antecipado && c.periodo === "Semanal" ? diasSemanaCond[Number(c.diaCorte)] : c.diaCorte;
+        var venc = antecipado && c.periodo === "Semanal" ? diasSemanaCond[Number(c.diaPagamento)] : c.diaPagamento;
+        var desloc = antecipado ? c.mesDeslocamento + (c.periodo === "Semanal" ? " semana(s)" : " mês(es)") : c.mesDeslocamento;
+        htmlCondsTable += `<tr><td><small>${c.nome}</small></td><td>${c.periodo}</td><td>${antecipado ? '<span class="badge bg-primary">Antecipado</span>' : '<span class="badge bg-secondary">Padrão</span>'}</td><td>${fechamento}</td><td>${desloc}</td><td>${venc}</td><td><button type="button" class="btn btn-xs text-danger border-0" onclick="pedirConfirmacaoDeletarSimples('CondicoesPagamento', ${c.id})">🗑️</button></td></tr>`;
       });
-      document.getElementById('tbodyCondicoes').innerHTML = htmlCondsTable || "<tr><td colspan='6'>Nenhuma.</td></tr>";
+      document.getElementById('tbodyCondicoes').innerHTML = htmlCondsTable || "<tr><td colspan='7'>Nenhuma.</td></tr>";
       renderizarPendenciasHoje();
     }
 
@@ -2301,6 +2385,8 @@
       document.getElementById('regraCliente').value = item.cliente || "";
       document.getElementById('regraValor').value = item.valorVisita || 0;
       document.getElementById('regraCondicaoNome').value = item.condicaoNome || "";
+      document.getElementById('regraCondicaoFutura').value = item.condicaoFutura || "";
+      document.getElementById('regraInicioCondicaoFutura').value = item.inicioCondicaoFutura || "";
       document.getElementById('regraNovoValor').value = item.novoValor || "";
       document.getElementById('regraDataVigor').value = item.dataVigor || "";
       document.getElementById('regraPorHora').checked = !!item.porHora;
@@ -2456,7 +2542,53 @@
     }
 
     function salvarNovaCategoria(e) { e.preventDefault(); google.script.run.withSuccessHandler(function() { document.getElementById('formCategoria').reset(); exibirAvisoNaTela("Categoria salva!", "success"); recarregarDadosGlobais(); }).salvarCategoria({ nome: document.getElementById('catNome').value }); }
-    function salvarNovaCondition(e) { e.preventDefault(); var dados = { nome: document.getElementById('condNome').value, periodo: document.getElementById('condPeriodo').value, diaCorte: document.getElementById('condCorte').value, mesDeslocamento: document.getElementById('condDeslocamento').value, diaPagamento: document.getElementById('condPagamento').value }; google.script.run.withSuccessHandler(function() { document.getElementById('formCondicao').reset(); exibirAvisoNaTela("Condição cadastrada!", "success"); recarregarDadosGlobais(); }).salvarCondicaoPagamento(dados); }
+    function atualizarCamposCondicao() {
+      var modo = document.getElementById('condModoPagamento').value;
+      var semanal = document.getElementById('condPeriodo').value === 'Semanal';
+      var antecipado = modo === 'ANTECIPADO';
+      document.getElementById('condCamposPadrao').classList.toggle('d-none', antecipado);
+      document.getElementById('condCamposAntecipado').classList.toggle('d-none', !antecipado);
+      document.getElementById('condFechamentoSemanalBox').classList.toggle('d-none', !semanal);
+      document.getElementById('condPagamentoSemanalBox').classList.toggle('d-none', !semanal);
+      document.getElementById('condFechamentoMensalBox').classList.toggle('d-none', semanal);
+      document.getElementById('condPagamentoMensalBox').classList.toggle('d-none', semanal);
+      document.getElementById('condLabelCiclosAntecipados').textContent = semanal ? 'Semanas adicionais de antecipação' : 'Meses adicionais de antecipação';
+      ['condCorte','condDeslocamento','condPagamento'].forEach(function(id) {
+        document.getElementById(id).required = !antecipado;
+      });
+      ['condFechamentoMensal','condPagamentoMensal'].forEach(function(id) {
+        document.getElementById(id).required = antecipado && !semanal;
+      });
+      ['condFechamentoSemanal','condPagamentoSemanal'].forEach(function(id) {
+        document.getElementById(id).required = antecipado && semanal;
+      });
+      document.getElementById('condCiclosAntecipados').required = antecipado;
+    }
+
+    function salvarNovaCondition(e) {
+      e.preventDefault();
+      var modo = document.getElementById('condModoPagamento').value;
+      var periodo = document.getElementById('condPeriodo').value;
+      var antecipado = modo === 'ANTECIPADO';
+      var semanal = periodo === 'Semanal';
+      var dados = {
+        nome: document.getElementById('condNome').value,
+        periodo: periodo,
+        modoPagamento: modo,
+        diaCorte: antecipado ? document.getElementById(semanal ? 'condFechamentoSemanal' : 'condFechamentoMensal').value : document.getElementById('condCorte').value,
+        mesDeslocamento: antecipado ? document.getElementById('condCiclosAntecipados').value : document.getElementById('condDeslocamento').value,
+        diaPagamento: antecipado ? document.getElementById(semanal ? 'condPagamentoSemanal' : 'condPagamentoMensal').value : document.getElementById('condPagamento').value
+      };
+      google.script.run
+        .withSuccessHandler(function() {
+          document.getElementById('formCondicao').reset();
+          atualizarCamposCondicao();
+          exibirAvisoNaTela("Condição cadastrada!", "success");
+          recarregarDadosGlobais();
+        })
+        .withFailureHandler(function(erro) { exibirAvisoNaTela("Erro ao cadastrar condição: " + erro, "danger"); })
+        .salvarCondicaoPagamento(dados);
+    }
     function sincronizarAgendaReal() {
       var btn = document.getElementById('btnSincronizar'); if(btn) btn.disabled = true;
       google.script.run.withSuccessHandler(function(resp) { exibirAvisoNaTela(resp, "success"); if(btn) btn.disabled = false; recarregarDadosGlobais(); })
