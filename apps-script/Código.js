@@ -194,7 +194,7 @@ function garantirEstruturaV58_() {
   garantirCabecalhos_(lanc, ["Data", "Descricao", "Valor", "Tipo", "Categoria", "Status", "RecorrenciaId", "IdLancamento", "Origem", "ChaveOrigem", "DataCalculada", "OverrideManual", "ValorPrevisto", "ValorRealizado", "DiferencaBanco", "IdMovimentoBanco", "DataConciliacao", "DataPrevistaOriginal"]);
   garantirCabecalhos_(regras, ["Cliente", "ValorVisita", "Condicao", "NovoValor", "DataVigor", "PorHora", "IdCliente"]);
   garantirCabecalhos_(cats, ["Nome", "IdCategoria"]);
-  garantirCabecalhos_(cond, ["Nome", "Periodo", "DiaCorte", "MesDeslocamento", "DiaPagamento", "IdCondicao"]);
+  garantirCabecalhos_(cond, ["Nome", "Periodo", "DiaCorte", "MesDeslocamento", "DiaPagamento", "IdCondicao", "ModoPagamento"]);
   garantirCabecalhos_(rec, ["IdSerie", "Descricao", "Valor", "Tipo", "Categoria", "Frequencia", "DiaAlvo", "DataInicio", "TipoTermino", "ValorTermino"]);
   garantirCabecalhos_(exc, ["IdSerie", "ChaveOcorrencia", "DataOcorrencia", "Motivo", "CriadoEm"]);
   garantirCabecalhos_(fer, ["Data", "Descricao", "Ativo"]);
@@ -400,7 +400,8 @@ function obterDadosIniciais() {
     if (dataCond[c][0]) {
       condicoes.push({
         id: Number(dataCond[c][5]), nome: dataCond[c][0], periodo: dataCond[c][1], diaCorte: Number(dataCond[c][2]),
-        mesDeslocamento: Number(dataCond[c][3]), diaPagamento: dataCond[c][4] !== undefined && dataCond[c][4] !== null ? String(dataCond[c][4]).trim() : "0"
+        mesDeslocamento: Number(dataCond[c][3]), diaPagamento: dataCond[c][4] !== undefined && dataCond[c][4] !== null ? String(dataCond[c][4]).trim() : "0",
+        modoPagamento: String(dataCond[c][6] || "PADRAO").toUpperCase()
       });
     }
   }
@@ -488,7 +489,25 @@ function salvarCondicaoPagamento(dados) {
   garantirEstruturaV58_();
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("CondicoesPagamento");
   var id = gerarIdNumerico_();
-  sh.appendRow([dados.nome, dados.periodo, Number(dados.diaCorte), Number(dados.mesDeslocamento), String(dados.diaPagamento), id]);
+
+  // Colunas A:F preservadas. Campo opt-in do pagamento antecipado somente na coluna G.
+  var modo = String(dados.modoPagamento || "PADRAO").trim().toUpperCase();
+  if (modo !== "PADRAO" && modo !== "ANTECIPADO") throw new Error("Modo de pagamento invalido.");
+  var periodo = String(dados.periodo || "");
+  var corte = Number(dados.diaCorte);
+  var dia = String(dados.diaPagamento || "").trim();
+  var desloc = Number(dados.mesDeslocamento);
+  if (modo === "ANTECIPADO") {
+    if (periodo !== "Semanal" && periodo !== "Mensal") throw new Error("Ciclo antecipado deve ser semanal ou mensal.");
+    if (!Number.isInteger(desloc) || desloc < 0 || desloc > 24) throw new Error("Antecipacao adicional deve ser de 0 a 24 ciclos.");
+    if (periodo === "Semanal" && (!Number.isInteger(corte) || corte < 0 || corte > 6 || !/^[0-6]$/.test(dia))) {
+      throw new Error("Para semanal antecipado, escolha dias da semana validos.");
+    }
+    if (periodo === "Mensal" && (!Number.isInteger(corte) || corte < 1 || corte > 31 || !/^(?:[1-9]|[12][0-9]|3[01])$/.test(dia))) {
+      throw new Error("Para mensal antecipado, informe fechamento e pagamento entre 1 e 31.");
+    }
+  }
+  sh.appendRow([dados.nome, periodo, corte, desloc, dia, id, modo]);
   registrarLog_("CRIAR_CONDICAO", id, dados.nome);
   return "Condição cadastrada!";
 }
@@ -1045,10 +1064,10 @@ function carregarCondicoesRapido_() {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("CondicoesPagamento");
   var out = [];
   if (!sh || sh.getLastRow() <= 1) return out;
-  var dados = sh.getRange(2, 1, sh.getLastRow() - 1, 6).getValues();
+  var dados = sh.getRange(2, 1, sh.getLastRow() - 1, 7).getValues();
   dados.forEach(function(r) {
     if (!r[0]) return;
-    out.push({ nome: r[0], periodo: r[1], diaCorte: Number(r[2]), mesDeslocamento: Number(r[3]), diaPagamento: r[4] !== undefined && r[4] !== null ? String(r[4]).trim() : "0" });
+    out.push({ nome: r[0], periodo: r[1], diaCorte: Number(r[2]), mesDeslocamento: Number(r[3]), diaPagamento: r[4] !== undefined && r[4] !== null ? String(r[4]).trim() : "0", modoPagamento: String(r[6] || "PADRAO").toUpperCase() });
   });
   return out;
 }
@@ -1126,7 +1145,8 @@ function sincronizarCalendarBackendReal() {
     }
 
     var dataVenc = rodarMotorCalculo(v.dataVisita, cond), dataVencStr = isoData_(dataVenc);
-    if (dataVencStr < hojeIsoStr) continue;
+    // Mantem vencimento antecipado mesmo quando a data ja passou e a visita e futura.
+    if (dataVencStr < hojeIsoStr && String(cond.modoPagamento || "PADRAO").toUpperCase() !== "ANTECIPADO") continue;
     var chC = v.clienteKey + "_" + dataVencStr;
     if (!faturamentosConsolidados[chC]) faturamentosConsolidados[chC] = { clienteNome: cl.nomeOriginal, clienteKey: v.clienteKey, porHora: cl.porHora, dataVencimento: dataVenc, valorTotal: 0, visitasObjeto: [] };
     faturamentosConsolidados[chC].valorTotal += prc;
@@ -1248,7 +1268,48 @@ function criarDataComAno(textoDiaMes, ano) {
   return new Date(ano, Number(partes[1]) - 1, Number(partes[0]), 12, 0, 0);
 }
 
+// Motor antecipado independente: condicoes antigas SEMPRE continuam no algoritmo legado.
+function calcularVencimentoAntecipado_(dataVisita, c) {
+  var visita = new Date(dataVisita.getFullYear(), dataVisita.getMonth(), dataVisita.getDate(), 12);
+  var ciclos = Number(c.mesDeslocamento) || 0;
+  var diaPagamento = Number(c.diaPagamento);
+  var dataVencimento;
+
+  if (c.periodo === "Semanal") {
+    // Fechamento 0=domingo ... 6=sabado. Proximo dia e inicio do ciclo de servicos.
+    var diaInicio = (Number(c.diaCorte) + 1) % 7;
+    var diffInicio = (visita.getDay() - diaInicio + 7) % 7;
+    var inicioSemana = new Date(visita.getFullYear(), visita.getMonth(), visita.getDate() - diffInicio, 12);
+    var diffPagamento = (inicioSemana.getDay() - diaPagamento + 7) % 7;
+    dataVencimento = new Date(inicioSemana.getFullYear(), inicioSemana.getMonth(), inicioSemana.getDate() - diffPagamento - 7 * ciclos, 12);
+  } else if (c.periodo === "Mensal") {
+    // Fechamento 31 significa ultimo dia do mes (inclusive fevereiro).
+    var corte = Number(c.diaCorte);
+    var ano = visita.getFullYear(), mes = visita.getMonth();
+    var diaFechamento = Math.min(corte, new Date(ano, mes + 1, 0).getDate());
+    var mesFinal = mes + (visita.getDate() > diaFechamento ? 1 : 0);
+    var ultimoDiaMesAnterior = new Date(ano, mesFinal, 0).getDate();
+    var corteAnterior = new Date(ano, mesFinal - 1, Math.min(corte, ultimoDiaMesAnterior), 12);
+    var inicioCiclo = new Date(corteAnterior.getFullYear(), corteAnterior.getMonth(), corteAnterior.getDate() + 1, 12);
+
+    function diaDoMesSeguro(anoRef, mesRef, dia) {
+      return new Date(anoRef, mesRef, Math.min(dia, new Date(anoRef, mesRef + 1, 0).getDate()), 12);
+    }
+    dataVencimento = diaDoMesSeguro(inicioCiclo.getFullYear(), inicioCiclo.getMonth(), diaPagamento);
+    if (dataVencimento.getTime() > inicioCiclo.getTime()) {
+      dataVencimento = diaDoMesSeguro(inicioCiclo.getFullYear(), inicioCiclo.getMonth() - 1, diaPagamento);
+    }
+    if (ciclos) dataVencimento = diaDoMesSeguro(dataVencimento.getFullYear(), dataVencimento.getMonth() - ciclos, diaPagamento);
+  } else {
+    throw new Error("Ciclo antecipado nao suportado: " + c.periodo);
+  }
+  return ajustarFinaisDeSemanaEFeriados(dataVencimento);
+}
+
 function rodarMotorCalculo(dataVisita, c) {
+  if (String(c.modoPagamento || "PADRAO").toUpperCase() === "ANTECIPADO") {
+    return calcularVencimentoAntecipado_(dataVisita, c);
+  }
   var data = new Date(dataVisita.getTime());
   var diaPag = Number(c.diaPagamento) || 0;
 
