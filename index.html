@@ -795,6 +795,11 @@
             dataVigor: document.getElementById('regraDataVigor').value,
             porHora: document.getElementById('regraPorHora').checked ? "SIM" : "NÃO"
           };
+          // Nao aceitar condicao futura se o Apps Script ainda estiver na versao anterior.
+          if ((dados.condicaoFutura || dados.inicioCondicaoFutura) && !backendSuportaTermosAvancados_()) {
+            exibirAvisoNaTela("Aguarde o deploy do Apps Script e atualize a pagina antes de programar um termo futuro.", "danger");
+            return;
+          }
           const funcaoPlanilha = id ? "atualizarClienteBackend" : "salvarRegra";
           const btn = document.getElementById('btnClienteSubmit');
           if (btn) btn.disabled = true;
@@ -2565,9 +2570,18 @@
       document.getElementById('condCiclosAntecipados').required = antecipado;
     }
 
+    function backendSuportaTermosAvancados_() {
+      return !!(state.condicoes && state.condicoes.length &&
+        state.condicoes.some(function(c) { return Object.prototype.hasOwnProperty.call(c, 'modoPagamento'); }));
+    }
+
     function salvarNovaCondition(e) {
       e.preventDefault();
       var modo = document.getElementById('condModoPagamento').value;
+      if (modo === 'ANTECIPADO' && !backendSuportaTermosAvancados_()) {
+        exibirAvisoNaTela("O Apps Script ainda nao confirmou suporte a pagamentos antecipados. Aguarde o deploy e recarregue a pagina.", "danger");
+        return;
+      }
       var periodo = document.getElementById('condPeriodo').value;
       var antecipado = modo === 'ANTECIPADO';
       var semanal = periodo === 'Semanal';
