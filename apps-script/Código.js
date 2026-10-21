@@ -1414,23 +1414,15 @@ function calcularVencimentoAntecipado_(dataVisita, c) {
     var diffPagamento = (inicioSemana.getDay() - diaPagamento + 7) % 7;
     dataVencimento = new Date(inicioSemana.getFullYear(), inicioSemana.getMonth(), inicioSemana.getDate() - diffPagamento - 7 * ciclos, 12);
   } else if (c.periodo === "Mensal") {
-    // Fechamento 31 significa ultimo dia do mes (inclusive fevereiro).
-    var corte = Number(c.diaCorte);
-    var ano = visita.getFullYear(), mes = visita.getMonth();
-    var diaFechamento = Math.min(corte, new Date(ano, mes + 1, 0).getDate());
-    var mesFinal = mes + (visita.getDate() > diaFechamento ? 1 : 0);
-    var ultimoDiaMesAnterior = new Date(ano, mesFinal, 0).getDate();
-    var corteAnterior = new Date(ano, mesFinal - 1, Math.min(corte, ultimoDiaMesAnterior), 12);
-    var inicioCiclo = new Date(corteAnterior.getFullYear(), corteAnterior.getMonth(), corteAnterior.getDate() + 1, 12);
-
-    function diaDoMesSeguro(anoRef, mesRef, dia) {
-      return new Date(anoRef, mesRef, Math.min(dia, new Date(anoRef, mesRef + 1, 0).getDate()), 12);
-    }
-    dataVencimento = diaDoMesSeguro(inicioCiclo.getFullYear(), inicioCiclo.getMonth(), diaPagamento);
-    if (dataVencimento.getTime() > inicioCiclo.getTime()) {
-      dataVencimento = diaDoMesSeguro(inicioCiclo.getFullYear(), inicioCiclo.getMonth() - 1, diaPagamento);
-    }
-    if (ciclos) dataVencimento = diaDoMesSeguro(dataVencimento.getFullYear(), dataVencimento.getMonth() - ciclos, diaPagamento);
+    // O DiaCorte escolhe o dia de pagamento do termo (ex.: 01-16 => dia 05,
+    // 17-31 => dia 20). A referencia e SEMPRE o mes da visita: 0 ciclos
+    // = mesmo mes; ciclos adicionais deslocam para meses anteriores.
+    // Nao antecipar automaticamente um mes so porque o dia de pagamento
+    // e anterior ao inicio do ciclo ou ao dia da visita.
+    var anoRef = visita.getFullYear();
+    var mesRef = visita.getMonth() - ciclos;
+    var diaSeguro = Math.min(diaPagamento, new Date(anoRef, mesRef + 1, 0).getDate());
+    dataVencimento = new Date(anoRef, mesRef, diaSeguro, 12);
   } else {
     throw new Error("Ciclo antecipado nao suportado: " + c.periodo);
   }
