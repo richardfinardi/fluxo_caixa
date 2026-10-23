@@ -1215,7 +1215,12 @@ function sincronizarCalendarBackendReal(clienteFiltro, nomeAnterior) {
         var mm = String(Number(mensal[1])).padStart(2,"0");
         encontrados[cliente+"|"+mensal[2]+"-"+mm] = true;
       }
-      var refs = desc.match(/\b\d{1,2}\/\d{1,2}\b/g) || [];
+      // Extrair datas apenas da referencia da visita: "Parcela 1/2" nao e data.
+      // Anteriormente 1/2 e 2/2 eram lidos como visitas de fevereiro,
+      // congelando TODOS os projetados antigos quando um mes ja estava faturado.
+      var inicioRef = desc.search(/\bRef\./i);
+      var apenasReferencias = inicioRef >= 0 ? desc.substring(inicioRef) : "";
+      var refs = apenasReferencias.match(/\b\d{1,2}\/\d{1,2}(?!\d)/g) || [];
       refs.forEach(function(ref) {
         var p = ref.split("/"), dia = Number(p[0]), mes = Number(p[1]);
         var possibilidades = (visitasPorCliente[cliente] || []).filter(function(v) {
