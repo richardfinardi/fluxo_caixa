@@ -1197,7 +1197,9 @@ function sincronizarCalendarBackendReal(clienteFiltro, nomeAnterior) {
     while (cabecalho.length < largura) cabecalho.push("");
 
     function clienteDaLinha(row) {
-      if (String(row[8] || "") !== "CALENDAR" && !/^Faturamento:\s*/i.test(String(row[1] || ""))) return "";
+      var origemLinha = String(row[8] || "").trim();
+      if (origemLinha && origemLinha !== "CALENDAR") return "";
+      if (!origemLinha && !/^Faturamento:\s*/i.test(String(row[1] || ""))) return "";
       var d = normalizarChave_(String(row[1] || "").replace(/^Faturamento:\s*/i, ""));
       var nomes = Object.keys(aliases).sort(function(a,b) {return b.length - a.length;});
       for (var n = 0; n < nomes.length; n++) {
