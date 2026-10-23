@@ -1219,12 +1219,25 @@ function sincronizarCalendarBackendReal(clienteFiltro, nomeAnterior) {
         var possibilidades = (visitasPorCliente[cliente] || []).filter(function(v) {
           return v.data.getDate() === dia && v.data.getMonth()+1 === mes;
         });
+        var dataVenc = row[0] instanceof Date ? row[0] : hoje;
+        var dtVenc = dataVenc.getTime();
         if (possibilidades.length) {
-          var dtVenc = row[0] instanceof Date ? row[0].getTime() : hoje.getTime();
           possibilidades.sort(function(a,b) {
             return Math.abs(a.data.getTime()-dtVenc)-Math.abs(b.data.getTime()-dtVenc);
           });
           encontrados[cliente+"|"+possibilidades[0].iso.substring(0,7)] = true;
+        } else {
+          // Um titulo ja faturado pode se referir a visita removida do Calendar:
+          // infere o ano pela proximidade do vencimento e continua protegendo o mes.
+          var anos = [dataVenc.getFullYear()-1,dataVenc.getFullYear(),dataVenc.getFullYear()+1];
+          var candidatas = anos.map(function(ano) {return new Date(ano,mes-1,dia,12);})
+            .filter(function(dt) {return dt.getMonth()===mes-1 && dt.getDate()===dia;});
+          candidatas.sort(function(a,b) {
+            return Math.abs(a.getTime()-dtVenc)-Math.abs(b.getTime()-dtVenc);
+          });
+          if (candidatas.length) {
+            encontrados[cliente+"|"+isoData_(candidatas[0]).substring(0,7)] = true;
+          }
         }
       });
       var antiga = String(row[9] || "").match(/^CAL\|M\|.+_(20\d{2})_(\d{1,2})(?:\||$)/);
