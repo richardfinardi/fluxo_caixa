@@ -633,13 +633,11 @@ function excluirLinha(aba, id) {
   if (linha > 1) {
     if (aba === "CondicoesPagamento") {
       var nomeTermo = normalizarChave_(sheet.getRange(linha,1).getValue());
-      var restantes = sheet.getRange(2,1,sheet.getLastRow()-1,1).getValues()
-        .filter(function(r,i) {return i+2!==linha && normalizarChave_(r[0])===nomeTermo;}).length;
-      if (!restantes) {
-        var regrasVinculadas = carregarRegrasClientesRapido_().filter(function(r) {
-          return normalizarChave_(r.condicaoNome)===nomeTermo || normalizarChave_(r.condicaoFutura)===nomeTermo;
-        });
-        if (regrasVinculadas.length) throw new Error("Condicao em uso por cliente. Altere primeiro a vinculacao.");
+      var regrasVinculadas = carregarRegrasClientesRapido_().filter(function(r) {
+        return normalizarChave_(r.condicaoNome)===nomeTermo || normalizarChave_(r.condicaoFutura)===nomeTermo;
+      });
+      if (regrasVinculadas.length) {
+        throw new Error("Condicao em uso por cliente. Altere primeiro as vinculacoes para nao afetar vencimentos.");
       }
     }
     sheet.deleteRow(linha);
