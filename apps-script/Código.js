@@ -10,6 +10,7 @@ var COL_LANC_DATA_CALCULADA = 11;
 var COL_LANC_OVERRIDE = 12;
 var FERIADOS_CACHE_EXECUCAO_ = null;
 var ULTIMO_ID_EXECUCAO_ = 0;
+var BLOQUEIO_CALENDAR_EXTERNAMENTE_ = false;
 
 function doGet(e) {
   var dados = obterDadosIniciais();
@@ -80,6 +81,7 @@ function doPost(e) {
     if (!somenteLeitura) {
       lock = LockService.getScriptLock();
       lock.waitLock(30000);
+      BLOQUEIO_CALENDAR_EXTERNAMENTE_ = true;
     }
 
     var resultado;
@@ -99,6 +101,7 @@ function doPost(e) {
     saida.setContent(JSON.stringify({ erro: erro.toString(), detalhe: "Erro interno no doPost V5.13.0" }));
     return saida;
   } finally {
+    BLOQUEIO_CALENDAR_EXTERNAMENTE_ = false;
     if (lock) {
       try { lock.releaseLock(); } catch (eLock) {}
     }
@@ -1141,8 +1144,8 @@ function carregarCondicoesRapido_() {
  */
 function sincronizarCalendarBackendReal(clienteFiltro, nomeAnterior) {
   garantirEstruturaV58_();
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(25000)) throw new Error("Outra sincronizacao esta em andamento. Tente novamente.");
+  var lock = BLOQUEIO_CALENDAR_EXTERNAMENTE_ ? null : LockService.getScriptLock();
+  if (lock && !lock.tryLock(25000)) throw new Error("Outra sincronizacao esta em andamento. Tente novamente.");
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName("Lancamentos");
@@ -1406,7 +1409,9 @@ function sincronizarCalendarBackendReal(clienteFiltro, nomeAnterior) {
       var cliente = clienteDaLinha(row);
       if (!cliente) return false;
       var status = normalizarChave_(row[5]), override = String(row[11]||"");
-      return (status !== "projetado" || override || row[15] || row[16]) &&
+      var venc = isoData_(row[0]);
+      return venc >= isoData_(inicio) && venc <= isoData_(fim) &&
+        (status !== "projetado" || override || row[15] || row[16]) &&
         periodosLinha(row,cliente).length === 0 &&
         Object.keys(periodosGerados).some(function(k) {return k.indexOf("CAL|") === 0 && gerados[k][1].toLowerCase().indexOf(cliente) !== -1;});
     });
@@ -1425,7 +1430,7 @@ function sincronizarCalendarBackendReal(clienteFiltro, nomeAnterior) {
     if (mudou) {
       // Backup integral ANTES da primeira escrita. Se a gravacao falhar, tenta rollback.
       var bkp = sh.copyTo(ss);
-      bkp.setName("BKP_CAL_"+Utilities.formatDate(new Date(),Session.getScriptTimeZone(),"yyyyMMdd_HHmmss"));
+      bkp.setName("BKP_CAL_"+Utilities.formatDate(new Date(),Session.getScriptTimeZone(),"yyyyMMdd_HHmmss")+"_"+Math.floor(Math.random()*10000));
       try {
         var nLinhas = Math.max(sh.getLastRow(),finais.length);
         sh.getRange(1,1,nLinhas,largura).clearContent();
@@ -1441,7 +1446,7 @@ function sincronizarCalendarBackendReal(clienteFiltro, nomeAnterior) {
       }
       // Mantem as tres ultimas copias do Calendar, sem afetar nenhum outro backup.
       try {
-        var backups = ss.getSheets().filter(function(s) {return /^BKP_CAL_\d{8}_\d{6}$/.test(s.getName());})
+        var backups = ss.getSheets().filter(function(s) {return /^BKP_CAL_\d{8}_\d{6}_\d{1,4}$/.test(s.getName());})
           .sort(function(a,b) {return b.getName().localeCompare(a.getName());});
         backups.slice(3).forEach(function(s) {ss.deleteSheet(s);});
       } catch (eBkp) {}
@@ -1452,7 +1457,7 @@ function sincronizarCalendarBackendReal(clienteFiltro, nomeAnterior) {
     registrarLog_("RECONCILIAR_CALENDAR_SEGURO", filtro||"TODOS",resultado);
     return resultado;
   } finally {
-    lock.releaseLock();
+    if (lock) lock.releaseLock();
   }
 }
 
