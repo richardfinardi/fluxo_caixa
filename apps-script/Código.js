@@ -526,135 +526,65 @@ function normalizarCondicaoFutura_(dados) {
   return { nome: nome, inicio: inicio };
 }
 
+
 function salvarRegra(dados) {
   garantirEstruturaV58_();
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RegrasClientes");
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RegrasClientes");
+  var futura = normalizarCondicaoFutura_(dados);
   var id = gerarIdNumerico_();
-  var dataVigor = dados.dataVigor ? new Date(dados.dataVigor + "T12:00:00") : "";
-  var porHora = String(dados.porHora || "NÃO").toUpperCase() === "SIM" ? "SIM" : "NÃO";
-  var alteracaoFutura = normalizarCondicaoFutura_(dados);
-  sheet.appendRow([dados.cliente, Number(dados.valorVisita), dados.condicaoNome, dados.novoValor ? Number(dados.novoValor) : "", dataVigor, porHora, id, alteracaoFutura.nome, alteracaoFutura.inicio]);
-  registrarLog_("CRIAR_CLIENTE", id, dados.cliente);
-  return "Cliente " + dados.cliente + " salvo com sucesso!";
+  var linha = [
+    dados.cliente, Number(dados.valorVisita), dados.condicaoNome,
+    dados.novoValor ? Number(dados.novoValor) : "",
+    dados.dataVigor ? new Date(dados.dataVigor + "T12:00:00") : "",
+    String(dados.porHora||"NAO").toUpperCase()==="SIM"?"SIM":"NÃO",
+    id, futura.nome, futura.inicio
+  ];
+  sh.appendRow(linha);
+  try {
+    var resumo = sincronizarCalendarBackendReal(dados.cliente);
+    registrarLog_("CRIAR_CLIENTE",id,dados.cliente);
+    return "Cliente cadastrado. "+resumo;
+  } catch (erro) {
+    // Nao deixa cadastro incompleto apos falha no Calendar.
+    sh.deleteRow(sh.getLastRow());
+    throw new Error("Cadastro desfeito: "+erro.message);
+  }
 }
 
-
-/** Recalcula apenas projecoes CALENDAR do cliente, mantendo datas manuais e titulos confirmados. */
-function recalcularProjetadosVigenciaV2027_(cliente, termoAtual, termoFuturo, inicioFuturo, reverDesde) {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Lancamentos");
-  if (!sh || sh.getLastRow() < 2) return 0;
-  var clienteKey = normalizarChave_(cliente);
-  var hoje = new Date();
-  var eventos = CalendarApp.getDefaultCalendar().getEvents(
-    new Date(hoje.getFullYear(), hoje.getMonth(), 1),
-    new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 210)
-  );
-  var visitas = {};
-  eventos.forEach(function(evento) {
-    if (normalizarChave_(evento.getTitle()).indexOf(clienteKey) === -1) return;
-    var dt = new Date(evento.getStartTime());
-    visitas[Utilities.formatDate(dt, Session.getScriptTimeZone(), "dd/MM")] = dt;
-  });
-  var condicoes = carregarCondicoesRapido_();
-  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, 12).getValues();
-  var propostas = [], contagemChaves = {};
-  rows.forEach(function(row, i) {
-    var desc = normalizarChave_(row[1] || "");
-    if (desc.indexOf("faturamento: " + clienteKey + " (") !== 0 &&
-        desc.indexOf(clienteKey + " (") !== 0) return;
-    if (String(row[8]) !== "CALENDAR" || String(row[5]).toLowerCase().trim() !== "projetado") return;
-    var refs = String(row[1] || "").match(/\b\d{1,2}\/\d{1,2}\b/g) || [];
-    if (!refs.length) return;
-    var datas = refs.map(function(ref) {
-      var d = ref.split("/");
-      return visitas[("0" + Number(d[0])).slice(-2) + "/" + ("0" + Number(d[1])).slice(-2)] || null;
-    });
-    if (datas.some(function(d) { return !d; })) return;
-    if (reverDesde && datas.every(function(d) { return isoData_(d) < reverDesde; })) return;
-    var due = null, cond = null;
-    for (var n = 0; n < datas.length; n++) {
-      var dtVisita = datas[n];
-      var nomeTermo = termoFuturo && inicioFuturo && isoData_(dtVisita) >= inicioFuturo ? termoFuturo : termoAtual;
-      var opcoes = condicoes.filter(function(c) { return normalizarChave_(c.nome) === normalizarChave_(nomeTermo); });
-      if (!opcoes.length) return;
-      opcoes.sort(function(a,b) { return a.diaCorte - b.diaCorte; });
-      cond = opcoes[0];
-      if (opcoes.length > 1) {
-        for (var j = 0; j < opcoes.length; j++) {
-          if (dtVisita.getDate() <= opcoes[j].diaCorte) { cond = opcoes[j]; break; }
-        }
-      }
-      if (String(cond.diaPagamento).indexOf(",") !== -1) return;
-      var novaData = isoData_(rodarMotorCalculo(dtVisita, cond));
-      if (due !== null && due !== novaData) return;
-      due = novaData;
-    }
-    var atual = isoData_(row[0]);
-    var calculada = row[10] ? isoData_(row[10]) : "";
-    var override = String(row[11] || "").trim().toUpperCase();
-    if (override === "TOTAL" ||
-        (override === "DATA" && (!calculada || atual !== calculada)) ||
-        (calculada && atual !== calculada)) return;
-    var chave = "CAL|N|" + clienteKey + "_" + due;
-    if (String(cond.modoPagamento || "PADRAO").toUpperCase() === "ANTECIPADO") {
-      chave += "_ADV_" + normalizarChave_(cond.nome);
-    }
-    if (atual === due && String(row[9]) === chave && !override) return;
-    var dtOriginal = row[0] instanceof Date ? row[0] : new Date(atual + "T12:00:00");
-    var novoVencimento = new Date(due + "T12:00:00");
-    novoVencimento.setHours(dtOriginal.getHours(), dtOriginal.getMinutes(),
-      dtOriginal.getSeconds(), dtOriginal.getMilliseconds());
-    propostas.push({row:i+2, vencimento:novoVencimento, chave:chave, dataCalculada:new Date(due+"T12:00:00")});
-    contagemChaves[chave] = (contagemChaves[chave] || 0) + 1;
-  });
-  var atualizados = 0;
-  propostas.forEach(function(item) {
-    if (contagemChaves[item.chave] > 1) return;
-    sh.getRange(item.row, 1).setValue(item.vencimento);
-    sh.getRange(item.row, 10, 1, 3).setValues([[item.chave, item.dataCalculada, ""]]);
-    atualizados++;
-  });
-  if (atualizados) registrarLog_("RECALCULO_VIGENCIA_CLIENTE", cliente,
-    "Somente " + atualizados + " previsoes Projetadas recalculadas.");
-  return atualizados;
+/** Compatibilidade: revisoes de vigencia passam pela mesma conciliacao segura. */
+function recalcularProjetadosVigenciaV2027_(cliente) {
+  return sincronizarCalendarBackendReal(cliente);
 }
 
 function atualizarClienteBackend(dados) {
   garantirEstruturaV58_();
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RegrasClientes");
-  var linha = encontrarLinhaPorId_(sheet, dados.id, 7);
-  if (linha > 1) {
-    var valVigor = dados.dataVigor ? new Date(dados.dataVigor + "T12:00:00") : "";
-    var porHora = String(dados.porHora || "NÃO").toUpperCase() === "SIM" ? "SIM" : "NÃO";
-    // Editores antigos nao enviam os campos H:I; nesse caso nunca apagar uma condicao futura existente.
-    var informouCondicaoFutura = Object.prototype.hasOwnProperty.call(dados, "condicaoFutura") || Object.prototype.hasOwnProperty.call(dados, "inicioCondicaoFutura");
-    var alteracaoFutura = informouCondicaoFutura ? normalizarCondicaoFutura_(dados) : null;
-    var anterior = sheet.getRange(linha, 1, 1, 9).getValues()[0];
-    sheet.getRange(linha, 1, 1, 6).setValues([[dados.cliente, Number(dados.valorVisita), dados.condicaoNome, dados.novoValor ? Number(dados.novoValor) : "", valVigor, porHora]]);
-    if (alteracaoFutura) sheet.getRange(linha, 8, 1, 2).setValues([[alteracaoFutura.nome, alteracaoFutura.inicio]]);
-    registrarLog_("ATUALIZAR_CLIENTE", dados.id, dados.cliente);
-    var mudouTermo = alteracaoFutura && (
-      String(anterior[2] || "") !== String(dados.condicaoNome || "") ||
-      String(anterior[7] || "") !== alteracaoFutura.nome ||
-      (anterior[8] ? isoData_(anterior[8]) : "") !== alteracaoFutura.inicio);
-    if (mudouTermo) {
-      try {
-        var anteriorInicio = anterior[8] ? isoData_(anterior[8]) : "";
-        var reverDesde = anteriorInicio && alteracaoFutura.inicio ?
-          (anteriorInicio < alteracaoFutura.inicio ? anteriorInicio : alteracaoFutura.inicio) :
-          (anteriorInicio || alteracaoFutura.inicio || isoData_(new Date()));
-        var qtd = recalcularProjetadosVigenciaV2027_(dados.cliente, dados.condicaoNome,
-          alteracaoFutura.nome, alteracaoFutura.inicio, reverDesde);
-        return "Cliente atualizado! " + qtd + " previsao(oes) projetada(s) recalculada(s).";
-      } catch (erro) {
-        registrarLog_("ERRO_RECALCULO_VIGENCIA_CLIENTE", dados.cliente, String(erro));
-        return "Cliente atualizado, mas revisao das previsoes pendente: " + String(erro.message || erro);
-      }
-    }
-    return "Cliente atualizado!";
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RegrasClientes");
+  var linha = encontrarLinhaPorId_(sh,dados.id,7);
+  if (linha <= 1) throw new Error("Cliente nao encontrado.");
+  var anterior = sh.getRange(linha,1,1,9).getValues()[0];
+  var enviouFuturo = Object.prototype.hasOwnProperty.call(dados,"condicaoFutura") ||
+                     Object.prototype.hasOwnProperty.call(dados,"inicioCondicaoFutura");
+  var futuro = enviouFuturo ? normalizarCondicaoFutura_(dados) :
+    {nome:String(anterior[7]||""),inicio:anterior[8]?isoData_(anterior[8]):""};
+  var novo = [
+    dados.cliente,Number(dados.valorVisita),dados.condicaoNome,
+    dados.novoValor?Number(dados.novoValor):"",
+    dados.dataVigor?new Date(dados.dataVigor+"T12:00:00"):"",
+    String(dados.porHora||"NAO").toUpperCase()==="SIM"?"SIM":"NÃO",
+    anterior[6],futuro.nome,futuro.inicio
+  ];
+  sh.getRange(linha,1,1,9).setValues([novo]);
+  try {
+    var resumo = sincronizarCalendarBackendReal(dados.cliente,String(anterior[0]||""));
+    registrarLog_("ATUALIZAR_CLIENTE",dados.id,dados.cliente+"; "+resumo);
+    return "Cliente atualizado. "+resumo;
+  } catch (erro) {
+    sh.getRange(linha,1,1,9).setValues([anterior]);
+    registrarLog_("ERRO_ATUALIZAR_CLIENTE",dados.id,"Alteracao de cadastro revertida: "+erro.message);
+    throw new Error("Alteracao desfeita; dados anteriores preservados. "+erro.message);
   }
-  throw new Error("Cliente não encontrado.");
 }
+
 
 function salvarCategoria(dados) {
   garantirEstruturaV58_();
@@ -698,6 +628,17 @@ function excluirLinha(aba, id) {
   var colId = colunaIdPorAba_(aba);
   var linha = colId ? encontrarLinhaPorId_(sheet, id, colId) : Number(id);
   if (linha > 1) {
+    if (aba === "CondicoesPagamento") {
+      var nomeTermo = normalizarChave_(sheet.getRange(linha,1).getValue());
+      var restantes = sheet.getRange(2,1,sheet.getLastRow()-1,1).getValues()
+        .filter(function(r,i) {return i+2!==linha && normalizarChave_(r[0])===nomeTermo;}).length;
+      if (!restantes) {
+        var regrasVinculadas = carregarRegrasClientesRapido_().filter(function(r) {
+          return normalizarChave_(r.condicaoNome)===nomeTermo || normalizarChave_(r.condicaoFutura)===nomeTermo;
+        });
+        if (regrasVinculadas.length) throw new Error("Condicao em uso por cliente. Altere primeiro a vinculacao.");
+      }
+    }
     sheet.deleteRow(linha);
     registrarLog_("EXCLUIR_" + aba.toUpperCase(), id, "Registro excluído");
     return "Removido!";
@@ -1192,207 +1133,329 @@ function carregarCondicoesRapido_() {
   return out;
 }
 
-function sincronizarCalendarBackendReal() {
+
+/**
+ * Concilia SOMENTE titulos projetados do Calendar. Titulos faturados, recebidos,
+ * conciliados ou com qualquer ajuste manual sao intocaveis.
+ * clienteFiltro e nomeAnterior permitem revisao pontual da regra, sem afetar outros clientes.
+ */
+function sincronizarCalendarBackendReal(clienteFiltro, nomeAnterior) {
   garantirEstruturaV58_();
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetLancamentos = ss.getSheetByName("Lancamentos");
-  var regrasRapidas = carregarRegrasClientesRapido_();
-  var dbCondicoes = carregarCondicoesRapido_();
-  var hoje = new Date(); hoje.setHours(0,0,0,0);
-  var hojeIsoStr = isoData_(hoje);
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(25000)) throw new Error("Outra sincronizacao esta em andamento. Tente novamente.");
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName("Lancamentos");
+    var regras = carregarRegrasClientesRapido_();
+    var condicoes = carregarCondicoesRapido_();
+    var filtro = normalizarChave_(clienteFiltro || "");
+    var nomeAnteriorKey = normalizarChave_(nomeAnterior || "");
+    var hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    var hojeIsoStr = isoData_(hoje);
+    var inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    var fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 210);
+    var regrasPorNome = {}, aliases = {}, visitados = {}, visitasPorCliente = {};
+    regras.forEach(function(r) {
+      var key = normalizarChave_(r.cliente);
+      if (filtro && key !== filtro) return;
+      if (regrasPorNome[key]) throw new Error("Cliente duplicado no cadastro: " + r.cliente);
+      regrasPorNome[key] = {
+        nome: r.cliente, valorVisita: r.valorVisita, condicaoAtual: r.condicaoNome,
+        condicaoFutura: r.condicaoFutura || "", inicioFuturo: r.inicioCondicaoFutura || "",
+        novoValor: r.novoValor, inicioValor: r.dataVigor || "", porHora: r.porHora
+      };
+      aliases[key] = key;
+      visitasPorCliente[key] = [];
+    });
+    if (filtro && !regrasPorNome[filtro]) throw new Error("Cliente nao localizado ao sincronizar: " + clienteFiltro);
+    if (filtro && nomeAnteriorKey && nomeAnteriorKey !== filtro) aliases[nomeAnteriorKey] = filtro;
 
-  var rulesClientes = {};
-  regrasRapidas.forEach(function(r) {
-    rulesClientes[r.cliente.toLowerCase().trim()] = {
-      nomeOriginal: r.cliente, valorVisita: r.valorVisita, condicaoNome: r.condicaoNome, novoValor: r.novoValor,
-      dataVigor: r.dataVigor ? new Date(r.dataVigor + "T00:00:00") : null, porHora: r.porHora,
-      condicaoFutura: r.condicaoFutura || "", inicioCondicaoFutura: r.inicioCondicaoFutura || ""
-    };
-  });
+    var eventos = CalendarApp.getDefaultCalendar().getEvents(inicio, fim);
+    if (!eventos) throw new Error("Falha ao ler o Google Calendar.");
+    var aliasesOrdenados = Object.keys(aliases).sort(function(a, b) { return b.length - a.length; });
+    eventos.forEach(function(ev) {
+      var titulo = normalizarChave_(ev.getTitle());
+      var chaveAlias = aliasesOrdenados.filter(function(k) { return titulo.indexOf(k) !== -1; })[0];
+      if (!chaveAlias) return;
+      var cliente = aliases[chaveAlias], c = regrasPorNome[cliente];
+      var dv = new Date(ev.getStartTime()), df = new Date(ev.getEndTime());
+      var iso = isoData_(dv), unica = cliente + "|" + iso;
+      if (!c.porHora && visitados[unica]) return;
+      if (!c.porHora) visitados[unica] = true;
+      var horas = (df.getTime() - dv.getTime()) / 3600000;
+      if (horas <= 0) horas = 1;
+      visitasPorCliente[cliente].push({ cliente: cliente, data: dv, iso: iso, horas: c.porHora ? horas : 1 });
+    });
+    var visitas = [];
+    Object.keys(visitasPorCliente).forEach(function(k) {
+      visitasPorCliente[k].forEach(function(v) { visitas.push(v); });
+    });
+    var entrada = sh.getDataRange().getValues(), largura = 18;
+    if (!entrada.length) throw new Error("Aba Lancamentos sem cabecalho.");
+    var cabecalho = entrada[0].slice(0, largura);
+    while (cabecalho.length < largura) cabecalho.push("");
 
-  var dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0);
-  var dataFim = new Date(hoje.getTime() + 180 * 24 * 60 * 60 * 1000);
-  var eventos = CalendarApp.getDefaultCalendar().getEvents(dataInicio, dataFim);
-  var visitasValidas = {};
-  var diasJaComputadosPorCliente = {};
+    function clienteDaLinha(row) {
+      if (String(row[8] || "") !== "CALENDAR" && !/^Faturamento:\s*/i.test(String(row[1] || ""))) return "";
+      var d = normalizarChave_(String(row[1] || "").replace(/^Faturamento:\s*/i, ""));
+      var nomes = Object.keys(aliases).sort(function(a,b) {return b.length - a.length;});
+      for (var n = 0; n < nomes.length; n++) {
+        var k = nomes[n];
+        if (d.indexOf(k + " (") === 0 || d.indexOf(k + " -") === 0 || d === k) return aliases[k];
+      }
+      return "";
+    }
+    function periodosLinha(row, cliente) {
+      var desc = String(row[1] || ""), encontrados = {}, out = [];
+      var mensal = desc.match(/\b(?:de|do)\s+(\d{1,2})\/(\d{4})\b/i);
+      if (mensal && /visita/i.test(desc)) {
+        var mm = String(Number(mensal[1])).padStart(2,"0");
+        encontrados[cliente+"|"+mensal[2]+"-"+mm] = true;
+      }
+      var refs = desc.match(/\b\d{1,2}\/\d{1,2}\b/g) || [];
+      refs.forEach(function(ref) {
+        var p = ref.split("/"), dia = Number(p[0]), mes = Number(p[1]);
+        var possibilidades = (visitasPorCliente[cliente] || []).filter(function(v) {
+          return v.data.getDate() === dia && v.data.getMonth()+1 === mes;
+        });
+        if (possibilidades.length) {
+          var dtVenc = row[0] instanceof Date ? row[0].getTime() : hoje.getTime();
+          possibilidades.sort(function(a,b) {
+            return Math.abs(a.data.getTime()-dtVenc)-Math.abs(b.data.getTime()-dtVenc);
+          });
+          encontrados[cliente+"|"+possibilidades[0].iso.substring(0,7)] = true;
+        }
+      });
+      var antiga = String(row[9] || "").match(/^CAL\|M\|.+_(20\d{2})_(\d{1,2})(?:\||$)/);
+      if (antiga) encontrados[cliente+"|"+antiga[1]+"-"+String(Number(antiga[2])+1).padStart(2,"0")] = true;
+      Object.keys(encontrados).forEach(function(k) { out.push(k); });
+      return out;
+    }
+    // Ausencia total de eventos nao pode destruir previsoes por falha de calendario.
+    if (visitas.length === 0) {
+      var existentes = entrada.slice(1).some(function(r) {
+        return clienteDaLinha(r) && normalizarChave_(r[5]) === "projetado" && isoData_(r[0]) >= hojeIsoStr;
+      });
+      if (existentes) throw new Error("Nenhuma visita encontrada para os clientes envolvidos. Lancamentos preservados; confira o Calendar.");
+    }
 
-  for (var e = 0; e < eventos.length; e++) {
-    var tit = eventos[e].getTitle().toLowerCase().trim();
-    for (var clKey in rulesClientes) {
-      if (tit.indexOf(clKey) === -1) continue;
-      var dv = new Date(eventos[e].getStartTime());
-      var df = new Date(eventos[e].getEndTime());
-      var dataIsoStr = isoData_(dv);
-      var clConfig = rulesClientes[clKey];
-      var chaveDiaCliente = clKey + "_" + dataIsoStr;
-      var duracaoHoras = (df.getTime() - dv.getTime()) / 3600000;
-      if (duracaoHoras <= 0) duracaoHoras = 1;
-      if (clConfig.porHora) {
-        visitasValidas[chaveDiaCliente + "_" + e] = { clienteKey: clKey, dataVisita: dv, horas: duracaoHoras };
-      } else if (!diasJaComputadosPorCliente[chaveDiaCliente]) {
-        diasJaComputadosPorCliente[chaveDiaCliente] = true;
-        visitasValidas[chaveDiaCliente] = { clienteKey: clKey, dataVisita: dv, horas: 1 };
+    function selecionarCondicao(nome, dataVisita) {
+      var possiveis = condicoes.filter(function(c) {
+        return normalizarChave_(c.nome) === normalizarChave_(nome);
+      }).sort(function(a,b) {return a.diaCorte-b.diaCorte;});
+      if (!possiveis.length) throw new Error("Condicao de pagamento inexistente: " + nome);
+      if (possiveis.length === 1) return possiveis[0];
+      for (var i=0; i<possiveis.length; i++) {
+        if (dataVisita.getDate() <= possiveis[i].diaCorte) return possiveis[i];
+      }
+      return possiveis[possiveis.length-1];
+    }
+
+    var consolidado = {}, parcelas = {}, parcelasPorMes = {};
+    function adicionarConsolidado(chave, v, valor, venc, cond, porHora) {
+      if (!consolidado[chave]) consolidado[chave] = {
+        cliente: v.cliente, nome: regrasPorNome[v.cliente].nome,
+        venc: venc, valor: 0, visitas: [], porHora: porHora
+      };
+      consolidado[chave].valor += valor;
+      consolidado[chave].visitas.push(v);
+    }
+    visitas.forEach(function(v) {
+      var c = regrasPorNome[v.cliente];
+      var nome = c.condicaoAtual;
+      if (c.condicaoFutura && c.inicioFuturo && v.iso >= c.inicioFuturo) nome = c.condicaoFutura;
+      var cond = selecionarCondicao(nome, v.data);
+      var valor = c.valorVisita;
+      if (c.novoValor && c.inicioValor && v.iso >= c.inicioValor) valor = c.novoValor;
+      if (c.porHora) valor *= v.horas;
+      var dias = String(cond.diaPagamento || "").trim();
+      if (dias.indexOf(",") !== -1) {
+        if (normalizarChave_(cond.modoPagamento) === "antecipado") throw new Error("Pagamento antecipado nao aceita multiplos dias: " + cond.nome);
+        var numeros = dias.split(",").map(function(d) {return Number(d.trim());});
+        if (numeros.some(function(d) {return !Number.isInteger(d)||d<1||d>31;})) throw new Error("Dias invalidos para " + cond.nome);
+        var base = v.cliente+"_"+v.data.getFullYear()+"_"+v.data.getMonth();
+        var assinatura = normalizarChave_(cond.nome)+"|"+cond.mesDeslocamento+"|"+dias+"|"+cond.modoPagamento;
+        var identificador = base+"|"+assinatura;
+        if (!parcelas[identificador]) {
+          parcelas[identificador] = {
+            base: base, assinatura: assinatura, cliente: v.cliente, nome: c.nome,
+            ano: v.data.getFullYear(), mes: v.data.getMonth(),
+            desloc: Number(cond.mesDeslocamento)||0, dias: numeros, visitas: [], valor: 0
+          };
+          parcelasPorMes[base] = (parcelasPorMes[base]||0)+1;
+        }
+        parcelas[identificador].valor += valor;
+        parcelas[identificador].visitas.push(v);
+      } else {
+        var venc = rodarMotorCalculo(v.data, cond), vencIso = isoData_(venc);
+        if (vencIso < hojeIsoStr && normalizarChave_(cond.modoPagamento) !== "antecipado") return;
+        var chave = v.cliente+"_"+vencIso;
+        if (normalizarChave_(cond.modoPagamento) === "antecipado") {
+          chave += "_ADV_"+normalizarChave_(cond.nome);
+        }
+        adicionarConsolidado(chave, v, valor, venc, cond, c.porHora);
+      }
+    });
+
+    var gerados = {}, geradosPorDescricao = {}, periodosGerados = {}, mesComPlano = {};
+    function indexarDescricao(desc, chave) {
+      var normal = normalizarChave_(desc.replace(/^Faturamento:\s*/i, ""));
+      if (!Object.prototype.hasOwnProperty.call(geradosPorDescricao, normal)) geradosPorDescricao[normal] = chave;
+      else if (geradosPorDescricao[normal] !== chave) geradosPorDescricao[normal] = null;
+    }
+    function adicionar(venc, desc, valor, chave, listaVisitas) {
+      if (gerados[chave]) throw new Error("Chave de Calendar repetida: " + chave);
+      gerados[chave] = [venc, desc, valor, "Receita", "Visitas Técnicas", "Projetado", "", "", "CALENDAR", chave, isoData_(venc), "", "", "", "", "", "", ""];
+      periodosGerados[chave] = {};
+      listaVisitas.forEach(function(v) {
+        var periodo = v.cliente+"|"+v.iso.substring(0,7);
+        periodosGerados[chave][periodo] = true;
+        mesComPlano[periodo] = true;
+      });
+      indexarDescricao(desc, chave);
+    }
+    Object.keys(consolidado).forEach(function(k) {
+      var fat = consolidado[k];
+      fat.visitas.sort(function(a,b){return a.data-b.data;});
+      var ref;
+      if (fat.porHora) ref = "Ref. "+fat.visitas.map(function(v) {return v.horas+"h dia "+Utilities.formatDate(v.data,Session.getScriptTimeZone(),"dd/MM");}).join(" e ");
+      else if (fat.visitas.length === 1) ref = "Ref. visita do dia "+Utilities.formatDate(fat.visitas[0].data,Session.getScriptTimeZone(),"dd/MM");
+      else ref = "Ref. visitas dos dias "+fat.visitas.map(function(v) {return Utilities.formatDate(v.data,Session.getScriptTimeZone(),"dd/MM");}).join(" e ");
+      adicionar(fat.venc,"Faturamento: "+fat.nome+" ("+ref+")",fat.valor,"CAL|N|"+k,fat.visitas);
+    });
+    Object.keys(parcelas).forEach(function(k) {
+      var item = parcelas[k], total = item.dias.length;
+      item.visitas.sort(function(a,b) {return a.data-b.data;});
+      var ref = "Ref. "+item.visitas.length+" visita(s) de "+String(item.mes+1).padStart(2,"0")+"/"+item.ano;
+      var base = parcelasPorMes[item.base] === 1 ? item.base : item.base+"|"+item.assinatura;
+      for (var i=0; i<total; i++) {
+        var venc = ajustarFinaisDeSemanaEFeriados(new Date(item.ano,item.mes+item.desloc,item.dias[i],12));
+        if (isoData_(venc) < hojeIsoStr) continue;
+        adicionar(venc,"Faturamento: "+item.nome+" - Parcela "+(i+1)+"/"+total+" ("+ref+")",item.valor/total,
+          "CAL|M|"+base+"|"+(i+1)+"-"+total,item.visitas);
+      }
+    });
+
+    // Congela o mes inteiro se algum titulo do mes foi faturado, liquidado,
+    // conciliado ou alterado manualmente. Impede dupla cobranca ao mudar 2x -> 1x.
+    var congelados = {}, protegidos = 0;
+    entrada.slice(1).forEach(function(row) {
+      var cliente = clienteDaLinha(row);
+      if (!cliente) return;
+      var status = normalizarChave_(row[5]), override = String(row[11]||"").trim();
+      var dataAtual = isoData_(row[0]), calculada = row[10] ? isoData_(row[10]) : "";
+      var editado = !!override || !!(calculada && dataAtual !== calculada);
+      var bancario = !!row[15] || !!row[16] || !!row[13];
+      if (status !== "projetado" || editado || bancario) {
+        periodosLinha(row,cliente).forEach(function(p) {congelados[p] = true;});
+        protegidos++;
+      }
+    });
+
+    var finais = [cabecalho], usados = {}, novos = 0, atualizados = 0, removidos = 0, pendentes = 0, preservados = 0;
+    entrada.slice(1).forEach(function(raw) {
+      var row = raw.slice(0,largura);
+      while (row.length < largura) row.push("");
+      if (!row[0]) {finais.push(row); return;}
+      var cliente = clienteDaLinha(row);
+      if (!cliente) {finais.push(row); return;}
+      var periodos = periodosLinha(row,cliente);
+      var status = normalizarChave_(row[5]), override = String(row[11]||"").trim();
+      var dataAtual = isoData_(row[0]), calculada = row[10] ? isoData_(row[10]) : "";
+      var protegido = status !== "projetado" || !!override || !!row[15] || !!row[16] || !!row[13] ||
+        !!(calculada && dataAtual !== calculada);
+      var congelado = periodos.some(function(p) {return !!congelados[p];});
+      if (protegido || congelado) {
+        finais.push(row); preservados++;
+        return;
+      }
+      var chave = String(row[9]||"");
+      var novo = chave && gerados[chave] ? chave : geradosPorDescricao[normalizarChave_(String(row[1]||"").replace(/^Faturamento:\s*/i,""))];
+      if (novo && !usados[novo]) {
+        var atualizar = gerados[novo].slice();
+        atualizar[7] = row[7] || gerarIdNumerico_();
+        usados[novo] = true;
+        finais.push(atualizar);
+        if (String(atualizar[0]) !== String(row[0]) || String(atualizar[1]) !== String(row[1]) ||
+            Number(atualizar[2]) !== Number(row[2]) || String(atualizar[9]) !== String(row[9])) atualizados++;
+        return;
+      }
+      // Nunca apaga vencimento antigo sem referencia identificavel dentro do horizonte lido.
+      var intervalo = periodos.some(function(p) {return p.substring(p.indexOf("|")+1)>=""+isoData_(inicio).substring(0,7) &&
+        p.substring(p.indexOf("|")+1)<=isoData_(fim).substring(0,7);});
+      if (dataAtual <= hojeIsoStr && !periodos.some(function(p) {return mesComPlano[p];})) {
+        finais.push(row); pendentes++; return;
+      }
+      if (!periodos.length || !intervalo) {
+        finais.push(row); preservados++; return;
+      }
+      removidos++;
+    });
+    Object.keys(gerados).forEach(function(chave) {
+      if (usados[chave]) return;
+      if (Object.keys(periodosGerados[chave]).some(function(p) {return congelados[p];})) return;
+      var r = gerados[chave].slice();
+      r[7] = gerarIdNumerico_();
+      finais.push(r);
+      novos++;
+    });
+
+    // Caso uma referencia protegida nao tenha sido mapeada ao mes por ausencia
+    // de eventos, nao permite gerar uma nova cobranca para esse mesmo cliente.
+    var desconhecidosProtegidos = entrada.slice(1).some(function(row) {
+      var cliente = clienteDaLinha(row);
+      if (!cliente) return false;
+      var status = normalizarChave_(row[5]), override = String(row[11]||"");
+      return (status !== "projetado" || override || row[15] || row[16]) &&
+        periodosLinha(row,cliente).length === 0 &&
+        Object.keys(periodosGerados).some(function(k) {return k.indexOf("CAL|") === 0 && gerados[k][1].toLowerCase().indexOf(cliente) !== -1;});
+    });
+    if (desconhecidosProtegidos) {
+      throw new Error("Existe titulo confirmado sem referencia de visita identificavel. Nenhuma alteracao realizada; revise o historico.");
+    }
+
+    var mudou = finais.length !== entrada.length;
+    if (!mudou) {
+      for (var i=0;i<finais.length && !mudou;i++) {
+        for (var j=0;j<largura;j++) {
+          if (String(finais[i][j]===undefined?"":finais[i][j]) !== String(entrada[i][j]===undefined?"":entrada[i][j])) {mudou=true;break;}
+        }
       }
     }
-  }
-
-  var faturamentosConsolidados = {};
-  var faturamentosMultiplasParcelas = {};
-  for (var ch in visitasValidas) {
-    var v = visitasValidas[ch], cl = rulesClientes[v.clienteKey], prc = cl.valorVisita;
-    if (cl.novoValor && cl.dataVigor && new Date(v.dataVisita.getFullYear(), v.dataVisita.getMonth(), v.dataVisita.getDate()) >= cl.dataVigor) prc = cl.novoValor;
-    if (cl.porHora) prc = prc * v.horas;
-    // Se a condicao futura estiver programada, so vale para visitas dentro de sua vigencia.
-    var nomeCondicaoVisita = cl.condicaoNome;
-    if (cl.condicaoFutura && cl.inicioCondicaoFutura && isoData_(v.dataVisita) >= cl.inicioCondicaoFutura) {
-      nomeCondicaoVisita = cl.condicaoFutura;
-    }
-    var reg = dbCondicoes.filter(function(c) { return c.nome.toLowerCase().trim() === String(nomeCondicaoVisita || "").toLowerCase().trim(); });
-    var cond = reg[0];
-    if (reg.length > 1) {
-      var diaV = v.dataVisita.getDate(); reg.sort(function(a,b){ return a.diaCorte - b.diaCorte; });
-      for (var x=0; x<reg.length; x++) if (diaV <= reg[x].diaCorte) { cond = reg[x]; break; }
-    }
-    if (!cond) continue;
-
-    var diasPagamentoStr = String(cond.diaPagamento).trim();
-    if (diasPagamentoStr.indexOf(",") !== -1) {
-      var diasArray = diasPagamentoStr.split(",").map(function(d){ return Number(d.trim()); }).filter(function(d){ return !isNaN(d); });
-      if (diasArray.length) {
-        var mesAnoChave = v.clienteKey + "_" + v.dataVisita.getFullYear() + "_" + v.dataVisita.getMonth();
-        if (!faturamentosMultiplasParcelas[mesAnoChave]) faturamentosMultiplasParcelas[mesAnoChave] = {
-          clienteNome: cl.nomeOriginal, ano: v.dataVisita.getFullYear(), mes: v.dataVisita.getMonth(), mesDeslocamento: cond.mesDeslocamento || 0,
-          diasPagamento: diasArray, valorTotalMes: 0, datasVisitas: []
-        };
-        faturamentosMultiplasParcelas[mesAnoChave].valorTotalMes += prc;
-        faturamentosMultiplasParcelas[mesAnoChave].datasVisitas.push(v);
-        continue;
+    if (mudou) {
+      // Backup integral ANTES da primeira escrita. Se a gravacao falhar, tenta rollback.
+      var bkp = sh.copyTo(ss);
+      bkp.setName("BKP_CAL_"+Utilities.formatDate(new Date(),Session.getScriptTimeZone(),"yyyyMMdd_HHmmss"));
+      try {
+        var nLinhas = Math.max(sh.getLastRow(),finais.length);
+        sh.getRange(1,1,nLinhas,largura).clearContent();
+        sh.getRange(1,1,finais.length,largura).setValues(finais);
+      } catch (erro) {
+        try {
+          sh.getRange(1,1,Math.max(sh.getLastRow(),entrada.length),largura).clearContent();
+          sh.getRange(1,1,entrada.length,largura).setValues(entrada.map(function(r) {
+            var linha = r.slice(0,largura);while(linha.length<largura)linha.push("");return linha;
+          }));
+        } catch (falhaRollback) {}
+        throw new Error("Falha na escrita. Backup: "+bkp.getName()+". Detalhe: "+erro);
       }
+      // Mantem as tres ultimas copias do Calendar, sem afetar nenhum outro backup.
+      try {
+        var backups = ss.getSheets().filter(function(s) {return /^BKP_CAL_\d{8}_\d{6}$/.test(s.getName());})
+          .sort(function(a,b) {return b.getName().localeCompare(a.getName());});
+        backups.slice(3).forEach(function(s) {ss.deleteSheet(s);});
+      } catch (eBkp) {}
     }
-
-    var dataVenc = rodarMotorCalculo(v.dataVisita, cond), dataVencStr = isoData_(dataVenc);
-    // Mantem vencimento antecipado mesmo quando a data ja passou e a visita e futura.
-    if (dataVencStr < hojeIsoStr && String(cond.modoPagamento || "PADRAO").toUpperCase() !== "ANTECIPADO") continue;
-    // Quando termos legados e antecipados vencem no mesmo dia, manter titulos separados.
-    // Chave historica permanece IDENTICA para condicoes padrao.
-    var chC = v.clienteKey + "_" + dataVencStr;
-    if (String(cond.modoPagamento || "PADRAO").toUpperCase() === "ANTECIPADO") {
-      chC += "_ADV_" + normalizarChave_(cond.nome);
-    }
-    if (!faturamentosConsolidados[chC]) faturamentosConsolidados[chC] = { clienteNome: cl.nomeOriginal, clienteKey: v.clienteKey, porHora: cl.porHora, dataVencimento: dataVenc, valorTotal: 0, visitasObjeto: [] };
-    faturamentosConsolidados[chC].valorTotal += prc;
-    faturamentosConsolidados[chC].visitasObjeto.push(v);
+    var resultado = "Sincronizado! Novos: "+novos+" | Atualizados: "+atualizados+
+      " | Projetados substituidos: "+removidos+" | Faturados/ajustados preservados: "+preservados+
+      " | Vencidos pendentes: "+pendentes+" | Recorrencias intactas";
+    registrarLog_("RECONCILIAR_CALENDAR_SEGURO", filtro||"TODOS",resultado);
+    return resultado;
+  } finally {
+    lock.releaseLock();
   }
-
-  var gerados = {};
-  var geradosPorDesc = {};
-  function normalizarDescricaoCalendarCompat_(desc) {
-    return normalizarChave_(String(desc || "").replace(/^Faturamento:\s*/i, ""));
-  }
-  function adicionarGerado(dataVenc, desc, valor, chaveEstrutural) {
-    var chave = chaveEstrutural || ("CAL|" + normalizarChave_(desc));
-    gerados[chave] = [dataVenc, desc, valor, "Receita", "Visitas Técnicas", "Projetado", "", "", "CALENDAR", chave, isoData_(dataVenc), "", "", "", "", "", "", ""];
-    geradosPorDesc[normalizarChave_(desc)] = chave;
-    geradosPorDesc[normalizarDescricaoCalendarCompat_(desc)] = chave;
-  }
-
-  for (var cKey in faturamentosConsolidados) {
-    var fat = faturamentosConsolidados[cKey];
-    fat.visitasObjeto.sort(function(a,b){ return a.dataVisita - b.dataVisita; });
-    var txt;
-    if (fat.porHora) txt = "Ref. " + fat.visitasObjeto.map(function(item){ return item.horas + "h dia " + Utilities.formatDate(item.dataVisita, Session.getScriptTimeZone(), "dd/MM"); }).join(" e ");
-    else txt = fat.visitasObjeto.length === 1 ? "Ref. visita do dia " + Utilities.formatDate(fat.visitasObjeto[0].dataVisita, Session.getScriptTimeZone(), "dd/MM") : "Ref. visitas dos dias " + fat.visitasObjeto.map(function(vItem){ return Utilities.formatDate(vItem.dataVisita, Session.getScriptTimeZone(), "dd/MM"); }).join(" e ");
-    adicionarGerado(fat.dataVencimento, "Faturamento: " + fat.clienteNome + " (" + txt + ")", fat.valorTotal, "CAL|N|" + cKey);
-  }
-
-  for (var mKey in faturamentosMultiplasParcelas) {
-    var itemMulti = faturamentosMultiplasParcelas[mKey];
-    itemMulti.datasVisitas.sort(function(a,b){ return a.dataVisita - b.dataVisita; });
-    var totalParcelas = itemMulti.diasPagamento.length, valorParcela = itemMulti.valorTotalMes / totalParcelas;
-    var mesAnoRefStr = String(itemMulti.mes + 1).padStart(2,"0") + "/" + itemMulti.ano;
-    var txtVisitas = "Ref. " + itemMulti.datasVisitas.length + " visita(s) de " + mesAnoRefStr;
-    for (var p=0; p<totalParcelas; p++) {
-      var dataVencParcela = ajustarFinaisDeSemanaEFeriados(new Date(itemMulti.ano, itemMulti.mes + itemMulti.mesDeslocamento, itemMulti.diasPagamento[p], 12,0,0));
-      if (isoData_(dataVencParcela) < hojeIsoStr) continue;
-      var descParcela = "Faturamento: " + itemMulti.clienteNome + " - Parcela " + (p+1) + "/" + totalParcelas + " (" + txtVisitas + ")";
-      adicionarGerado(dataVencParcela, descParcela, valorParcela, "CAL|M|" + mKey + "|" + (p + 1) + "-" + totalParcelas);
-    }
-  }
-
-  var dbLanc = sheetLancamentos.getDataRange().getValues();
-  var finais = [dbLanc[0].slice(0,18)];
-  var finalizadasChave = {};
-  var finalizadasDesc = {};
-  var consolidadosPreservados = 0, abertosPreservados = 0, vencidosPreservados = 0, ajustesPreservados = 0, atualizados = 0, removidos = 0;
-
-  for (var k=1; k<dbLanc.length; k++) {
-    var row = dbLanc[k].slice(0,18);
-    while (row.length < 18) row.push("");
-    if (!row[0]) continue;
-    var origem = String(row[8] || "");
-    var desc = String(row[1] || "");
-    var status = String(row[5] || "").toLowerCase().trim();
-    var isCalendar = origem === "CALENDAR" || desc.indexOf("Faturamento:") === 0;
-    if (!isCalendar) { finais.push(row); continue; }
-
-    var chaveExist = String(row[9] || ("CAL|" + normalizarChave_(desc)));
-    var chaveGerada = chaveExist;
-    var novo = gerados[chaveGerada];
-    if (!novo) {
-      var chavePorDescricao = geradosPorDesc[normalizarChave_(desc)] || geradosPorDesc[normalizarDescricaoCalendarCompat_(desc)];
-      if (chavePorDescricao) { chaveGerada = chavePorDescricao; novo = gerados[chavePorDescricao]; }
-    }
-
-    // Consolidado = dinheiro liquidado. Em Aberto = já faturado/confirmado.
-    // Ambos viram registros financeiros próprios e não podem ser recriados pelo Calendar.
-    if (status === "consolidado" || status === "em aberto") {
-      row[8] = "CALENDAR"; row[9] = chaveExist;
-      finais.push(row);
-      finalizadasChave[chaveExist] = true;
-      finalizadasDesc[normalizarChave_(desc)] = true;
-      finalizadasDesc[normalizarDescricaoCalendarCompat_(desc)] = true;
-      if (novo) delete gerados[chaveGerada];
-      if (status === "consolidado") consolidadosPreservados++; else abertosPreservados++;
-      continue;
-    }
-
-    var dataAtual = isoData_(row[0]);
-    // Título projetado que já venceu não some na sincronização: fica pendente até o usuário resolver.
-    if (!novo && dataAtual <= hojeIsoStr) {
-      row[8] = "CALENDAR"; row[9] = chaveExist;
-      finais.push(row);
-      vencidosPreservados++;
-      continue;
-    }
-    if (!novo) { removidos++; continue; }
-
-    var idExist = row[7] || gerarIdNumerico_();
-    var override = String(row[11] || "").toUpperCase();
-    var calcAnterior = row[10] ? isoData_(row[10]) : "";
-    var dataGerada = isoData_(novo[0]);
-    novo[7] = idExist;
-    if (override === "TOTAL") {
-      novo[0] = row[0]; novo[1] = row[1]; novo[2] = row[2]; novo[3] = row[3]; novo[4] = row[4]; novo[5] = row[5]; novo[6] = row[6]; novo[11] = "TOTAL"; ajustesPreservados++;
-    } else if ((override === "DATA" && (!calcAnterior || dataAtual !== calcAnterior)) || (calcAnterior && dataAtual !== calcAnterior)) {
-      novo[0] = row[0]; novo[11] = "DATA"; ajustesPreservados++;
-    }
-    novo[10] = dataGerada;
-    finais.push(novo); delete gerados[chaveGerada]; atualizados++;
-  }
-
-  var criados = 0;
-  for (var chaveNova in gerados) {
-    var novoRow = gerados[chaveNova];
-    if (finalizadasChave[chaveNova] || finalizadasDesc[normalizarChave_(novoRow[1])] || finalizadasDesc[normalizarDescricaoCalendarCompat_(novoRow[1])]) continue;
-    novoRow[7] = gerarIdNumerico_();
-    finais.push(novoRow); criados++;
-  }
-
-  var linhasParaLimpar = Math.max(sheetLancamentos.getLastRow(), finais.length);
-  sheetLancamentos.getRange(1, 1, linhasParaLimpar, 18).clearContent();
-  sheetLancamentos.getRange(1,1,finais.length,18).setValues(finais);
-  return "Sincronizado! Novos: " + criados + " | Atualizados: " + atualizados + " | Em aberto preservados: " + abertosPreservados + " | Vencidos pendentes: " + vencidosPreservados + " | Consolidados preservados: " + consolidadosPreservados + " | Ajustes manuais: " + ajustesPreservados + " | Obsoletos removidos: " + removidos;
 }
+
 
 function criarDataComAno(textoDiaMes, ano) {
   var partes = textoDiaMes.split('/');
