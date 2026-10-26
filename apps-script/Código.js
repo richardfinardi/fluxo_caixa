@@ -1,7 +1,7 @@
 // REDEPLOY V5.14.0 - token clasp renovado 2026-09-30
 // DEPLOY V5.14.0 - 2026-09-30
 // V5.15.0 - conciliação bancária N:N
-var VERSAO_SISTEMA = "5.17.0";
+var VERSAO_SISTEMA = "6.0.1";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -55,6 +55,7 @@ function doPost(e) {
       calibrarSaldoPluggyV513: true,
       atualizarPluggyAgoraV512: true,
       obterConciliacaoBancoV59: true,
+      obterLancamentosDisponiveisConciliacaoV601: true,
       conciliarMovimentoBancoV510: true,
       conciliarGrupoBancoV515: true,
       criarLancamentoBancoV510: true,
@@ -77,7 +78,7 @@ function doPost(e) {
     if (!permitidas[nomeFuncao]) throw new Error("Função não permitida: " + nomeFuncao);
     if (typeof this[nomeFuncao] !== "function") throw new Error("Função não encontrada: " + nomeFuncao);
 
-    var somenteLeitura = nomeFuncao === "obterDadosIniciais" || nomeFuncao === "enviarAlertasFaturamentoSite" || nomeFuncao === "obterConciliacaoBancoV59" || nomeFuncao === "obterCartaoCreditoV513" || nomeFuncao === "obterConfigPushV511" || nomeFuncao === "obterRelatoriosHoras" || nomeFuncao === "gerarPdfRelatorioHoras";
+    var somenteLeitura = nomeFuncao === "obterDadosIniciais" || nomeFuncao === "enviarAlertasFaturamentoSite" || nomeFuncao === "obterConciliacaoBancoV59" || nomeFuncao === "obterLancamentosDisponiveisConciliacaoV601" || nomeFuncao === "obterCartaoCreditoV513" || nomeFuncao === "obterConfigPushV511" || nomeFuncao === "obterRelatoriosHoras" || nomeFuncao === "gerarPdfRelatorioHoras";
     if (!somenteLeitura) {
       lock = LockService.getScriptLock();
       lock.waitLock(30000);
@@ -3344,6 +3345,37 @@ function salvarRegraAprendidaBancoV510_(mov, dados, tipoFluxo) {
   ]);
 }
 
+// V6.0.1: Lancamentos sempre atualizados, sem depender do cache ou do filtro do painel.
+function obterLancamentosDisponiveisConciliacaoV601() {
+  garantirEstruturaV58_();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Lancamentos");
+  if (!sh || sh.getLastRow() < 2) return [];
+  var ocupados = {};
+  var shItens = ss.getSheetByName("ConciliacaoBancoItens");
+  if (shItens && shItens.getLastRow() > 1) {
+    shItens.getRange(2, 1, shItens.getLastRow() - 1, 5).getValues().forEach(function(r) {
+      if (normalizarTextoConciliacao_(r[1]) === "FLUXO" && r[2]) {
+        ocupados[String(r[2])] = true;
+      }
+    });
+  }
+  var linhas = sh.getRange(2, 1, sh.getLastRow() - 1, 18).getValues();
+  return linhas.map(function(r) {
+    var id = String(r[7] || "").trim();
+    if (!id || ocupados[id] || String(r[15] || "").trim()) return null;
+    var status = String(r[5] || "Projetado").trim();
+    var origem = String(r[8] || "");
+    // Compras quitadas pelo cartao nao podem diminuir o saldo bancario de novo.
+    if (normalizarTextoConciliacao_(status) === "PAGO NO CARTAO" || origem === "CARTAO_PLUGGY") return null;
+    return {
+      id: id, data: isoData_(r[0]), descricao: String(r[1] || ""),
+      valor: Math.abs(Number(r[2] || 0)), tipo: String(r[3] || ""),
+      categoria: String(r[4] || "Sem Categoria"), status: status
+    };
+  }).filter(function(l) { return !!l; });
+}
+
 function idConciliacaoBancoV515_() {
   return "CONC-" + new Date().getTime() + "-" + String(Math.floor(Math.random() * 900) + 100);
 }
@@ -3434,17 +3466,32 @@ function conciliarGrupoBancoV515(dados) {
   totalBanco = Number(totalBanco.toFixed(2));
   totalFluxo = Number(totalFluxo.toFixed(2));
   var diferenca = Number((totalBanco - totalFluxo).toFixed(2));
-  // Apenas a conciliacao 1:1 confirmada ajusta o realizado ao valor do banco.
-  // A conciliacao N:N permanece com diferenca obrigatoriamente zero.
+  // A conciliacao 1:1 anterior continua ajustando apenas seu proprio lancamento.
   var ajusteUnitario = dados.ajustarValorRealizado === true &&
     movimentos.length === 1 && lancamentos.length === 1;
 
+  // N:N com transferencia nao prevista: lancamento complementar auditavel.
+  // Nunca apagar a diferenca nem mexer nos valores das contas selecionadas.
+  var complementar = null;
   if (Math.abs(diferenca) > 0.01 && !ajusteUnitario) {
-    throw new Error(
-      "Os totais não fecham. Banco=" + totalBanco.toFixed(2) +
-      " | Fluxo=" + totalFluxo.toFixed(2) +
-      " | Diferença=" + diferenca.toFixed(2)
-    );
+    if (diferenca < 0) {
+      throw new Error("O fluxo excede o banco em R$ " + Math.abs(diferenca).toFixed(2) +
+        ". Revise os itens; um complemento negativo nao e permitido.");
+    }
+    var complementoReq = dados.lancamentoDiferenca || {};
+    var descComplemento = String(complementoReq.descricao || "").trim();
+    var categoriaComplemento = String(complementoReq.categoria || "").trim();
+    if (!descComplemento || !categoriaComplemento) {
+      throw new Error("Informe descricao e categoria para registrar a diferenca de R$ " + diferenca.toFixed(2) + ".");
+    }
+    var shCategorias = ss.getSheetByName("Categorias");
+    var categoriasValidas = shCategorias && shCategorias.getLastRow() > 1
+      ? shCategorias.getRange(2, 1, shCategorias.getLastRow() - 1, 1).getValues().map(function(r) { return String(r[0] || "").trim(); })
+      : [];
+    if (categoriasValidas.indexOf(categoriaComplemento) === -1) {
+      throw new Error("Categoria do complemento nao encontrada; recarregue os dados.");
+    }
+    complementar = { descricao: descComplemento, categoria: categoriaComplemento, valor: diferenca };
   }
 
   var idConciliacao = idConciliacaoBancoV515_();
@@ -3460,14 +3507,32 @@ function conciliarGrupoBancoV515(dados) {
   }
   var observacao = String(dados.observacao || "Conciliação bancária N:N").trim();
 
+  // Completa o grupo com a parte que saiu/entrou do banco mas nao estava prevista.
+  if (complementar) {
+    var idExtra = gerarIdNumerico_();
+    var linhaExtra = [
+      new Date(dataEfetivaBanco + "T12:00:00"),
+      complementar.descricao, complementar.valor, tipoEsperado, complementar.categoria,
+      "Em Aberto", "", idExtra, "BANCO_DIFERENCA", "CONC_DIFF|" + idConciliacao,
+      "", "BANCO", complementar.valor, "", "", "", "", ""
+    ];
+    shLanc.appendRow(linhaExtra);
+    lancamentos.push({
+      idLancamento: String(idExtra), linhaLanc: shLanc.getLastRow(),
+      linha: linhaExtra, valor: complementar.valor
+    });
+    observacao += " | Complemento: " + complementar.descricao +
+      " | R$ " + complementar.valor.toFixed(2);
+  }
+
   shConc.appendRow([
     idConciliacao,
     agora,
     "CONCILIADO",
     tipoEsperado,
     totalBanco,
-    totalFluxo,
-    diferenca,
+    Number((totalFluxo + (complementar ? complementar.valor : 0)).toFixed(2)),
+    complementar ? 0 : (ajusteUnitario ? diferenca : 0),
     observacao
   ]);
 
@@ -3513,6 +3578,11 @@ function conciliarGrupoBancoV515(dados) {
     idConciliacao,
     movimentos.length + " banco x " + lancamentos.length + " fluxo | total=" + totalBanco
   );
+  if (complementar) {
+    registrarLog_("BANCO_DIFERENCA_NN", idConciliacao,
+      "Complemento R$ " + complementar.valor.toFixed(2) +
+      " | descricao=" + complementar.descricao + " | categoria=" + complementar.categoria);
+  }
   if (ajusteUnitario && Math.abs(diferenca) > 0.01) {
     registrarLog_("BANCO_AJUSTE_VALOR_1A1", idConciliacao,
       "Lançamento " + lancamentos[0].idLancamento +
@@ -3522,7 +3592,8 @@ function conciliarGrupoBancoV515(dados) {
   }
 
   return "Conciliação " + idConciliacao + " concluída: " +
-    movimentos.length + " banco ↔ " + lancamentos.length + " fluxo.";
+    movimentos.length + " banco ↔ " + lancamentos.length + " fluxo." +
+    (complementar ? " Complemento de R$ " + complementar.valor.toFixed(2) + " criado e conciliado." : "");
 }
 
 function conciliarMovimentoBancoV510(dados) {
