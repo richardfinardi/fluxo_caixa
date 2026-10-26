@@ -3582,14 +3582,29 @@ function renderizarConciliacaoMultiplaV515_() {
   var totalBanco = bancoSel.reduce(function(s,m){ return s + Math.abs(Number(m.valor || 0)); }, 0);
   var totalFluxo = fluxoSel.reduce(function(s,l){ return s + Math.abs(Number(l.valor || 0)); }, 0);
   var diff = Number((totalBanco - totalFluxo).toFixed(2));
-  var fechou = bancoSel.length > 0 && fluxoSel.length > 0 && Math.abs(diff) <= 0.01;
+  var fechou = Math.abs(diff) <= 0.01;
+  var aceitaComplemento = diff > 0.01;
+  var grupoDiferenca = document.getElementById('grupoDiferencaV601');
+  var grupoDiferencaMsg = document.getElementById('grupoDiferencaMsgV601');
+  var grupoDiferencaCampos = document.getElementById('grupoDiferencaCamposV601');
+  var grupoDescricao = document.getElementById('grupoDiferencaDescricaoV601');
+  var grupoCategoria = document.getElementById('grupoDiferencaCategoriaV601');
+  if (grupoDiferenca) grupoDiferenca.classList.toggle('d-none', fechou || !bancoSel.length || !fluxoSel.length);
+  if (grupoDiferencaMsg) grupoDiferencaMsg.textContent = aceitaComplemento
+    ? 'Existe ' + moedaBancoV59_(diff) + ' no banco sem previsão no fluxo. Será criado um lançamento complementar, descrito abaixo.'
+    : 'O total do fluxo é maior que o banco. Corrija a seleção antes de conciliar.';
+  if (grupoDiferencaCampos) grupoDiferencaCampos.classList.toggle('d-none', !aceitaComplemento);
+  var complementoValido = aceitaComplemento &&
+    !!String((grupoDescricao || {}).value || '').trim() &&
+    !!String((grupoCategoria || {}).value || '').trim();
 
   resumo.innerHTML =
     '<div><small>BANCO</small><strong>' + bancoSel.length + ' item(ns) • ' + moedaBancoV59_(totalBanco) + '</strong></div>' +
     '<div><small>FLUXO</small><strong>' + fluxoSel.length + ' item(ns) • ' + moedaBancoV59_(totalFluxo) + '</strong></div>' +
     '<div><small>DIFERENÇA</small><strong class="' + (fechou ? 'text-success' : 'text-danger') + '">' + moedaBancoV59_(diff) + '</strong></div>';
 
-  btn.disabled = !fechou;
+  btn.disabled = bancoV59.grupoCarregandoV601 || !bancoV59.fluxoGrupoV601 ||
+    !bancoSel.length || !fluxoSel.length || !(fechou || complementoValido);
 }
 
 function conciliarGrupoSelecionadoV515() {
@@ -3599,13 +3614,18 @@ function conciliarGrupoSelecionadoV515() {
   var totalFluxo = fluxoSel.reduce(function(s,l){ return s + Math.abs(Number(l.valor || 0)); }, 0);
   var diff = Number((totalBanco - totalFluxo).toFixed(2));
 
-  if (!bancoSel.length || !fluxoSel.length || Math.abs(diff) > 0.01) {
-    exibirAvisoNaTela('A conciliação múltipla só pode ser concluída quando Banco e Fluxo fecharem em R$ 0,00 de diferença.', 'warning');
+  var descExtra = String((document.getElementById('grupoDiferencaDescricaoV601') || {}).value || '').trim();
+  var catExtra = String((document.getElementById('grupoDiferencaCategoriaV601') || {}).value || '').trim();
+  if (!bancoSel.length || !fluxoSel.length || !bancoV59.fluxoGrupoV601 || diff < -0.01 ||
+      (diff > 0.01 && (!descExtra || !catExtra))) {
+    exibirAvisoNaTela('Selecione as contas e, se houver valor bancário não previsto, informe descrição e categoria.', 'warning');
     return;
   }
 
   exibirModalConfirmacao(
-    'Conciliar ' + bancoSel.length + ' movimento(s) do banco com ' + fluxoSel.length + ' lançamento(s) do fluxo?',
+    'Conciliar ' + bancoSel.length + ' movimento(s) do banco com ' + fluxoSel.length + ' lançamento(s) do fluxo?' +
+      (diff > 0.01 ? ' Será criado um lançamento adicional de ' + moedaBancoV59_(diff) +
+        ' (' + descExtra + ').' : ''),
     function() {
       var btn = document.getElementById('btnConfirmarGrupoV515');
       if (btn) { btn.disabled = true; btn.innerText = '⏳ Conciliando...'; }
@@ -3626,7 +3646,8 @@ function conciliarGrupoSelecionadoV515() {
         .conciliarGrupoBancoV515({
           banco: bancoSel.map(function(m){ return { idPluggy: String(m.idPluggy || '') }; }),
           fluxo: fluxoSel.map(function(l){ return { idLancamento: String(l.id || '') }; }),
-          observacao: 'Conciliação múltipla manual'
+          observacao: 'Conciliação múltipla manual',
+           lancamentoDiferenca: diff > 0.01 ? { descricao: descExtra, categoria: catExtra } : null
         });
     }
   );
