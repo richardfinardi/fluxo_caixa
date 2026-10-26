@@ -8,7 +8,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Finanças V5.15.0">
+  <meta name="apple-mobile-web-app-title" content="Finanças V6.0.1">
   
   <link rel="manifest" href="./manifest.json">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -368,7 +368,7 @@
 .conciliacao-grupo-resumo-v515 small{font-size:9px;color:#6c757d;font-weight:700}
 @media(max-width:767px){.conciliacao-grupo-resumo-v515{grid-template-columns:1fr}.conciliacao-grupo-lista-v515{max-height:34vh}}
 </style>
-  <link rel="stylesheet" href="./v6.css?v=6.0.0">
+  <link rel="stylesheet" href="./v6.css?v=6.0.1">
 </head>
 <body>
 
@@ -386,7 +386,7 @@
 
   <nav class="navbar navbar-dark p-2">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V5.15.0</span>
+      <span class="navbar-brand mb-0 h6">FLUXO DE CAIXA V6.0.1</span>
       <span class="badge bg-success" style="font-size: 11px;" id="status-conexao">🟢 Conectado</span>
     </div>
   </nav>
@@ -1365,6 +1365,7 @@
           obterCartaoCreditoV513: function() { return this.executarGenerico('obterCartaoCreditoV513'); },
           calibrarSaldoPluggyV513: function() { return this.executarGenerico('calibrarSaldoPluggyV513'); },
           obterConciliacaoBancoV59: function() { return this.executarGenerico('obterConciliacaoBancoV59'); },
+           obterLancamentosDisponiveisConciliacaoV601: function() { return this.executarGenerico('obterLancamentosDisponiveisConciliacaoV601'); },
           conciliarMovimentoBancoV510: function(dados) { return this.executarGenerico('conciliarMovimentoBancoV510', dados); },
           conciliarGrupoBancoV515: function(dados) { return this.executarGenerico('conciliarGrupoBancoV515', dados); },
           criarLancamentoBancoV510: function(dados) { return this.executarGenerico('criarLancamentoBancoV510', dados); },
@@ -1389,7 +1390,7 @@
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
     var filtrosAtivos = { texto: "", categoria: "todas", tipo: "todos", status: "todos", inicio: "", fim: "" };
-    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS', confirmados: {}, rascunhos: {}, rejeitados: {}, vinculosManuais: {}, vinculoAtualId: '', grupoV515: { banco: {}, fluxo: {} }, pushCfg: null, oneSignal: null, oneSignalIniciado: false, subscriptionId: '', pushToken: '', pushVerificado: false };
+    var bancoV59 = { dados: null, filtro: 'TODOS', visao: 'TODOS', confirmados: {}, rascunhos: {}, rejeitados: {}, vinculosManuais: {}, vinculoAtualId: '', grupoV515: { banco: {}, fluxo: {} }, fluxoGrupoV601: null, grupoCarregandoV601: false, grupoRequestV601: 0, pushCfg: null, oneSignal: null, oneSignalIniciado: false, subscriptionId: '', pushToken: '', pushVerificado: false };
     var cartaoV513 = { dados: null, filtro: 'TODOS' };
     
     var mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -1729,7 +1730,7 @@
       if (dadosPlanilha.versao) {
         var marca = document.querySelector('.navbar-brand');
         if (marca) {
-          var front = '6.0.0';
+          var front = '6.0.1';
           var back = String(dadosPlanilha.versao || '');
           var parseV = function(v) { return String(v).split('.').map(function(x){ return Number(x) || 0; }); };
           var maiorOuIgual = function(a,b) {
@@ -3346,6 +3347,17 @@ function garantirModalConciliacaoMultiplaV515_() {
               </div>
             </div>
             <div id="resumoGrupoV515" class="conciliacao-grupo-resumo-v515 mt-3"></div>
+             <div id="grupoDiferencaV601" class="border rounded p-2 mt-2 d-none">
+               <div class="small fw-bold" id="grupoDiferencaMsgV601"></div>
+               <div id="grupoDiferencaCamposV601" class="mt-2 d-none">
+                 <input type="text" maxlength="160" class="form-control form-control-sm mb-2" id="grupoDiferencaDescricaoV601"
+                   placeholder="Descrição do valor que não estava no fluxo" oninput="renderizarConciliacaoMultiplaV515_()">
+                 <select class="form-select form-select-sm" id="grupoDiferencaCategoriaV601"
+                   onchange="renderizarConciliacaoMultiplaV515_()">
+                   <option value="">Selecione a categoria do valor não previsto</option>
+                 </select>
+               </div>
+             </div>
           </div>
           <div class="modal-footer py-2">
             <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -3367,7 +3379,7 @@ function bancoGrupoSelecionadosV515_() {
 
 function fluxoGrupoSelecionadosV515_() {
   var mapa = (bancoV59.grupoV515 && bancoV59.grupoV515.fluxo) || {};
-  return (state.lancamentos || []).filter(function(l) { return !!mapa[String(l.id || '')]; });
+  return (bancoV59.fluxoGrupoV601 || []).filter(function(l) { return !!mapa[String(l.id || '')]; });
 }
 
 function naturezaGrupoV515_() {
@@ -3378,16 +3390,44 @@ function naturezaGrupoV515_() {
 
 function abrirConciliacaoMultiplaV515(idPluggyInicial) {
   bancoV59.grupoV515 = { banco: {}, fluxo: {} };
+  bancoV59.fluxoGrupoV601 = null;
+  bancoV59.grupoCarregandoV601 = true;
+  var token = ++bancoV59.grupoRequestV601;
   if (idPluggyInicial) bancoV59.grupoV515.banco[String(idPluggyInicial)] = true;
 
   garantirModalConciliacaoMultiplaV515_();
   var buscaBanco = document.getElementById('buscaBancoGrupoV515');
   var buscaFluxo = document.getElementById('buscaFluxoGrupoV515');
+  var descComplemento = document.getElementById('grupoDiferencaDescricaoV601');
+  var catComplemento = document.getElementById('grupoDiferencaCategoriaV601');
   if (buscaBanco) buscaBanco.value = '';
   if (buscaFluxo) buscaFluxo.value = '';
+  if (descComplemento) descComplemento.value = '';
+  if (catComplemento) {
+    var cats = (state.categorias || []).map(function(c) { return String(c.nome || '').trim(); })
+      .filter(Boolean).sort(function(a,b) { return a.localeCompare(b, 'pt-BR'); });
+    catComplemento.innerHTML = '<option value="">Selecione a categoria do valor não previsto</option>' +
+      cats.map(function(c) { return '<option value="' + escapeHtmlBancoV59_(c) + '">' +
+        escapeHtmlBancoV59_(c) + '</option>'; }).join('');
+  }
 
   renderizarConciliacaoMultiplaV515_();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConciliacaoMultiplaV515')).show();
+  google.script.run
+    .withSuccessHandler(function(lancamentos) {
+      if (token !== bancoV59.grupoRequestV601) return;
+      bancoV59.fluxoGrupoV601 = Array.isArray(lancamentos) ? lancamentos : [];
+      bancoV59.grupoCarregandoV601 = false;
+      renderizarConciliacaoMultiplaV515_();
+    })
+    .withFailureHandler(function(err) {
+      if (token !== bancoV59.grupoRequestV601) return;
+      bancoV59.fluxoGrupoV601 = null;
+      bancoV59.grupoCarregandoV601 = false;
+      renderizarConciliacaoMultiplaV515_();
+      exibirAvisoNaTela('Não foi possível atualizar os lançamentos: ' + err, 'danger');
+    })
+    .obterLancamentosDisponiveisConciliacaoV601();
 }
 
 function alternarBancoGrupoV515(idPluggy, marcado) {
@@ -3415,7 +3455,7 @@ function alternarBancoGrupoV515(idPluggy, marcado) {
   var natureza = naturezaGrupoV515_();
   if (natureza) {
     Object.keys(bancoV59.grupoV515.fluxo || {}).forEach(function(idFluxo) {
-      var l = (state.lancamentos || []).find(function(x) { return String(x.id) === String(idFluxo); });
+      var l = (bancoV59.fluxoGrupoV601 || []).find(function(x) { return String(x.id) === String(idFluxo); });
       if (l && normalizarBancoV512_(l.tipo) !== natureza) delete bancoV59.grupoV515.fluxo[idFluxo];
     });
   }
@@ -3425,7 +3465,7 @@ function alternarBancoGrupoV515(idPluggy, marcado) {
 function alternarFluxoGrupoV515(idLancamento, marcado) {
   bancoV59.grupoV515 = bancoV59.grupoV515 || { banco: {}, fluxo: {} };
   var id = String(idLancamento || '');
-  var lanc = (state.lancamentos || []).find(function(l) { return String(l.id) === id; });
+  var lanc = (bancoV59.fluxoGrupoV601 || []).find(function(l) { return String(l.id) === id; });
   if (!lanc) return;
 
   var natureza = naturezaGrupoV515_();
@@ -4558,6 +4598,6 @@ function abrirMeuPluggyV5122() {
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="./horas.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="./v6.js?v=6.0.0"></script>
+  <script src="./v6.js?v=6.0.1"></script>
 </body>
 </html>
