@@ -3517,20 +3517,43 @@ function renderizarConciliacaoMultiplaV515_() {
   }).join('') : '<div class="text-muted text-center py-3">Nenhum movimento disponível.</div>';
 
   var natureza = naturezaGrupoV515_();
-  var lancamentos = (state.lancamentos || []).filter(function(l) {
+  var lancamentos = (bancoV59.fluxoGrupoV601 || []).filter(function(l) {
     if (!l.id) return false;
     if (natureza && normalizarBancoV512_(l.tipo) !== natureza) return false;
     if (!buscaFluxo) return true;
-    return normalizarBancoV512_([l.descricao,l.categoria,l.data,l.valor,l.status].join(' ')).indexOf(buscaFluxo) !== -1;
+    return normalizarBancoV512_([l.id,l.descricao,l.categoria,l.data,dataBancoV59_(l.data),l.valor,l.status].join(' ')).indexOf(buscaFluxo) !== -1;
   });
+
+  // Primeiro as contas proximas as datas bancarias; nao as de meses atras.
+  var refBanco = bancoGrupoSelecionadosV515_();
+  var datasReferencia = refBanco.map(function(m) { return String(m.data || '').substring(0, 10); })
+    .filter(function(d) { return /^\d{4}-\d{2}-\d{2}$/.test(d); });
+  if (!datasReferencia.length) {
+    var agora = new Date();
+    datasReferencia = [agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0') +
+      '-' + String(agora.getDate()).padStart(2, '0')];
+  }
+  function distanciaDataGrupoV601_(data) {
+    var ts = new Date(String(data || '').substring(0, 10) + 'T12:00:00').getTime();
+    if (!Number.isFinite(ts)) return Number.MAX_SAFE_INTEGER;
+    return Math.min.apply(null, datasReferencia.map(function(d) {
+      return Math.abs(ts - new Date(d + 'T12:00:00').getTime());
+    }));
+  }
 
   lancamentos.sort(function(a,b) {
     var aSel = mapaFluxo[String(a.id)] ? 0 : 1;
     var bSel = mapaFluxo[String(b.id)] ? 0 : 1;
     if (aSel !== bSel) return aSel - bSel;
-    return String(a.data || '').localeCompare(String(b.data || ''));
+    var da = distanciaDataGrupoV601_(a.data), db = distanciaDataGrupoV601_(b.data);
+    if (da !== db) return da - db;
+    var aAberto = normalizarBancoV512_(a.status) === 'CONSOLIDADO' ? 1 : 0;
+    var bAberto = normalizarBancoV512_(b.status) === 'CONSOLIDADO' ? 1 : 0;
+    if (aAberto !== bAberto) return aAberto - bAberto;
+    return String(b.data || '').localeCompare(String(a.data || ''));
   });
-  lancamentos = lancamentos.slice(0, 100);
+  var quantidadeResultadosGrupo = lancamentos.length;
+  lancamentos = lancamentos.slice(0, 150);
 
   boxFluxo.innerHTML = lancamentos.length ? lancamentos.map(function(l) {
     var id = String(l.id || '');
@@ -3545,7 +3568,14 @@ function renderizarConciliacaoMultiplaV515_() {
         </span>
         <strong>${moedaBancoV59_(Math.abs(Number(l.valor || 0)))}</strong>
       </label>`;
-  }).join('') : '<div class="text-muted text-center py-3">Nenhum lançamento compatível.</div>';
+  }).join('') : (bancoV59.grupoCarregandoV601
+    ? '<div class="text-muted text-center py-3">Atualizando lançamentos do fluxo...</div>'
+    : '<div class="text-muted text-center py-3">' +
+      (bancoV59.fluxoGrupoV601 ? 'Nenhum lançamento compatível.' : 'Falha ao carregar. Feche e abra novamente.') + '</div>');
+  if (quantidadeResultadosGrupo > 150) {
+    boxFluxo.innerHTML += '<div class="text-muted small text-center py-2">Exibindo 150 de ' +
+      quantidadeResultadosGrupo + '. Pesquise para localizar outras contas.</div>';
+  }
 
   var bancoSel = bancoGrupoSelecionadosV515_();
   var fluxoSel = fluxoGrupoSelecionadosV515_();
