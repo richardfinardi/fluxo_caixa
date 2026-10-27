@@ -16,6 +16,8 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.RenderProcessGoneDetail;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -36,6 +38,7 @@ public final class MainActivity extends Activity {
     @Override
     public void onCreate(Bundle state) {
         super.onCreate(state);
+        try {
         getWindow().setStatusBarColor(Color.rgb(21, 32, 51));
         getWindow().setNavigationBarColor(Color.rgb(21, 32, 51));
 
@@ -59,14 +62,18 @@ public final class MainActivity extends Activity {
 
         Button home = toolbarButton("⌂");
         header.addView(home, new LinearLayout.LayoutParams(dp(42), dp(42)));
-        home.setOnClickListener(v -> web.loadUrl(SITE));
+        home.setOnClickListener(v -> { if (web != null) web.loadUrl(SITE); else openExternal(SITE); });
 
         Button refresh = toolbarButton("↻");
         header.addView(refresh, new LinearLayout.LayoutParams(dp(42), dp(42)));
         refresh.setOnClickListener(v -> {
             offline.setVisibility(View.GONE);
-            web.setVisibility(View.VISIBLE);
-            web.reload();
+            if (web != null) {
+                web.setVisibility(View.VISIBLE);
+                web.reload();
+            } else {
+                openExternal(SITE);
+            }
             CashRepository.refreshAsync(getApplicationContext());
         });
 
@@ -119,6 +126,20 @@ public final class MainActivity extends Activity {
                     web.setVisibility(View.GONE);
                 }
             }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                Log.e("FluxoCaixaRF", "Processo WebView encerrado. crash=" + detail.didCrash());
+                if (view.getParent() instanceof android.view.ViewGroup) {
+                    ((android.view.ViewGroup)view.getParent()).removeView(view);
+                }
+                view.destroy();
+                web = null;
+                offline.setText("O componente de navegador do Android parou.\\n"
+                        + "Atualize o Android System WebView ou Chrome e abra o aplicativo novamente.");
+                offline.setVisibility(View.VISIBLE);
+                return true;
+            }
         });
 
         web.setWebChromeClient(new WebChromeClient() {
@@ -140,9 +161,41 @@ public final class MainActivity extends Activity {
 
         web.setDownloadListener((url, userAgent, disposition, mime, length) -> openExternal(url));
         if (state == null || web.restoreState(state) == null) web.loadUrl(SITE);
-        RefreshService.schedule(this);
-        CashRepository.showCached(this);
-        CashRepository.refreshAsync(getApplicationContext());
+        try {
+            RefreshService.schedule(this);
+        } catch (RuntimeException error) {
+            Log.w("FluxoCaixaRF", "Agendador Android indisponivel", error);
+        }
+        try {
+            CashRepository.showCached(this);
+            CashRepository.refreshAsync(getApplicationContext());
+        } catch (RuntimeException error) {
+            Log.w("FluxoCaixaRF", "Widget nao inicializado", error);
+        }
+        } catch (Throwable startupError) {
+            Log.e("FluxoCaixaRF", "Falha ao iniciar", startupError);
+            showStartupError(startupError);
+        }
+    }
+
+    private void showStartupError(Throwable error) {
+        LinearLayout pane = new LinearLayout(this);
+        pane.setOrientation(LinearLayout.VERTICAL);
+        pane.setGravity(Gravity.CENTER);
+        pane.setPadding(dp(24), dp(20), dp(24), dp(20));
+        pane.setBackgroundColor(Color.rgb(245, 247, 250));
+        TextView message = new TextView(this);
+        message.setGravity(Gravity.CENTER);
+        message.setTextColor(Color.rgb(30, 45, 64));
+        message.setTextSize(16);
+        message.setText("O aplicativo encontrou um erro ao iniciar.\\n\\n"
+                + error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage()));
+        pane.addView(message, new LinearLayout.LayoutParams(-1, -2));
+        Button openSite = new Button(this);
+        openSite.setText("Abrir fluxo de caixa no navegador");
+        pane.addView(openSite, new LinearLayout.LayoutParams(-1, -2));
+        openSite.setOnClickListener(v -> openExternal(SITE));
+        setContentView(pane);
     }
 
     private Button toolbarButton(String label) {
@@ -178,7 +231,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onSaveInstanceState(Bundle state) {
-        web.saveState(state);
+        if (web != null) web.saveState(state);
         super.onSaveInstanceState(state);
     }
 
