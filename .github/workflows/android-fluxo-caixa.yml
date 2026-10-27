@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: android-fluxo-caixa-rf
+  group: android-fluxo-caixa-rf-build-v2
   cancel-in-progress: true
 
 jobs:
