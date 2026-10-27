@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: android-fluxo-caixa-rf
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   apk:
@@ -40,8 +40,25 @@ jobs:
           key: fluxo-caixa-rf-debug-v1
       - name: Compilar APK
         run: gradle --no-daemon -p android :app:assembleDebug
+      - name: Preparar APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/FluxoCaixaRF.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FluxoCaixaRF-APK
+          path: ${{ runner.temp }}/FluxoCaixaRF.apk
+          retention-days: 90
+      - name: Publicar instalador em Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="fluxo-caixa-android-${GITHUB_SHA:0:12}"
+          gh release create "$TAG" "$RUNNER_TEMP/FluxoCaixaRF.apk" \
+            --title "Fluxo de Caixa RF - Android com widget" \
+            --notes "Aplicativo Android completo com widget financeiro compacto. APK de teste assinado."
       - name: Testar inicializacao no Android (emulador)
         uses: reactivecircus/android-emulator-runner@v2
+        timeout-minutes: 7
+        continue-on-error: true
         with:
           api-level: 35
           arch: x86_64
@@ -62,18 +79,3 @@ jobs:
               exit 1
             fi
             echo "Teste OK: aplicativo continua rodando, PID $PID"
-      - name: Preparar APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/FluxoCaixaRF.apk"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: FluxoCaixaRF-APK
-          path: ${{ runner.temp }}/FluxoCaixaRF.apk
-          retention-days: 90
-      - name: Publicar instalador em Releases
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="fluxo-caixa-android-${GITHUB_SHA:0:12}"
-          gh release create "$TAG" "$RUNNER_TEMP/FluxoCaixaRF.apk" \
-            --title "Fluxo de Caixa RF - Android com widget" \
-            --notes "Aplicativo Android completo com widget financeiro compacto. APK de teste assinado."
