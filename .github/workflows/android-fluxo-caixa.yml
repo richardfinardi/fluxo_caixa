@@ -40,6 +40,28 @@ jobs:
           key: fluxo-caixa-rf-debug-v1
       - name: Compilar APK
         run: gradle --no-daemon -p android :app:assembleDebug
+      - name: Testar inicializacao no Android (emulador)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          target: google_apis
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          disable-animations: true
+          script: |
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb logcat -c
+            adb shell am start -W -n net.consultoriarf.fluxocaixa/.MainActivity
+            sleep 12
+            echo "==== ERROS AndroidRuntime ===="
+            adb logcat -d -s AndroidRuntime:E
+            PID="$(adb shell pidof net.consultoriarf.fluxocaixa | tr -d '\r')"
+            if [ -z "$PID" ]; then
+              echo "::error::O app abriu e fechou. Verifique AndroidRuntime acima."
+              exit 1
+            fi
+            echo "Teste OK: aplicativo continua rodando, PID $PID"
       - name: Preparar APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/FluxoCaixaRF.apk"
       - uses: actions/upload-artifact@v4
