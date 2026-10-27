@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#1C6CA3</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+    <string name="widget_description">Saldo real, a receber e a pagar</string>
+</resources>

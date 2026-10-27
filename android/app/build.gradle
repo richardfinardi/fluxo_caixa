@@ -1,0 +1,19 @@
+plugins {
+    id 'com.android.application'
+}
+android {
+    namespace 'net.consultoriarf.fluxocaixa'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'net.consultoriarf.fluxocaixa'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+    }
+    buildTypes { release { minifyEnabled false } }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
