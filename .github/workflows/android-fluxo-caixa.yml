@@ -60,4 +60,4 @@ jobs:
           TAG="fluxo-caixa-android-${GITHUB_SHA:0:12}"
           gh release create "$TAG" "$RUNNER_TEMP/FluxoCaixaRF.apk" \
             --title "Fluxo de Caixa RF - Android com widget" \
-            --notes "Aplicativo Android completo com widget financeiro compacto. APK de teste assinado."
+            --notes "App Android com telas nativas de lançamentos, banco, cartões, recorrências e widget. Algumas funções avançadas ainda não têm interface nativa."
