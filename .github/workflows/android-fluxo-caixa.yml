@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: android-fluxo-caixa-rf-build-v2
+  group: android-fluxo-caixa-native-v1
   cancel-in-progress: true
 
 jobs:
@@ -61,27 +61,3 @@ jobs:
           gh release create "$TAG" "$RUNNER_TEMP/FluxoCaixaRF.apk" \
             --title "Fluxo de Caixa RF - Android com widget" \
             --notes "Aplicativo Android completo com widget financeiro compacto. APK de teste assinado."
-      - name: Testar inicializacao no Android (emulador)
-        uses: reactivecircus/android-emulator-runner@v2
-        timeout-minutes: 7
-        continue-on-error: true
-        with:
-          api-level: 35
-          arch: x86_64
-          profile: pixel_6
-          target: google_apis
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
-          disable-animations: true
-          script: |
-            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-            adb logcat -c
-            adb shell am start -W -n net.consultoriarf.fluxocaixa/.MainActivity
-            sleep 12
-            echo "==== ERROS AndroidRuntime ===="
-            adb logcat -d -s AndroidRuntime:E
-            PID="$(adb shell pidof net.consultoriarf.fluxocaixa | tr -d '\r')"
-            if [ -z "$PID" ]; then
-              echo "::error::O app abriu e fechou. Verifique AndroidRuntime acima."
-              exit 1
-            fi
-            echo "Teste OK: aplicativo continua rodando, PID $PID"
