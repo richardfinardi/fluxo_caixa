@@ -504,6 +504,10 @@ public final class MainActivity extends Activity {
         JSONObject health=bank.optJSONObject("saudeSaldo");
         JSONArray movements=list(bank,"movimentos");
         panel("MOVIMENTOS NÃO CONCILIADOS",String.valueOf(movements.length()),PANEL);
+        Button group=button("Conciliar agrupando (N:N)",GREEN);
+        LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-1,dp(46));
+        gp.bottomMargin=dp(10);content.addView(group,gp);
+        group.setOnClickListener(v->groupBank());
         info("Toque para conciliar, criar lançamento ou ignorar. Operações só são gravadas após confirmação.");
         for(int i=0;i<Math.min(movements.length(),100);i++) {
             JSONObject m=obj(movements,i);if(m==null)continue;
@@ -512,6 +516,121 @@ public final class MainActivity extends Activity {
         }
         if(movements.length()==0)info("Nenhum movimento novo a conciliar.");
     }
+    private void groupBank() {
+        if(bank==null){loadBank();return;}
+        JSONArray movements=list(bank,"movimentos");
+        ArrayList<JSONObject> available=new ArrayList<>();
+        for(int i=0;i<Math.min(movements.length(),160);i++){
+            JSONObject m=obj(movements,i);
+            if(m!=null&&!str(m,"idPluggy").isEmpty())available.add(m);
+        }
+        if(available.isEmpty()){error("Não há movimentos bancários disponíveis.");return;}
+        String[] labels=new String[available.size()];
+        boolean[] selected=new boolean[available.size()];
+        for(int i=0;i<available.size();i++){
+            JSONObject m=available.get(i);
+            labels[i]=niceDate(str(m,"data"))+" · "+str(m,"conta")+" · "
+                    +str(m,"descricao")+" · "+money(val(m,"valor"));
+        }
+        new AlertDialog.Builder(this).setTitle("1/3 • Movimentos do banco")
+                .setMultiChoiceItems(labels,selected,(dialog,index,checked)->selected[index]=checked)
+                .setNegativeButton("Cancelar",null)
+                .setPositiveButton("Continuar",(d,w)->{
+                    ArrayList<JSONObject> chosen=new ArrayList<>();
+                    boolean typePositive=false;
+                    boolean known=false;
+                    for(int i=0;i<selected.length;i++)if(selected[i]){
+                        JSONObject m=available.get(i);
+                        boolean positive=val(m,"valor")>0;
+                        if(known&&positive!=typePositive){
+                            error("Não misture entradas e saídas na mesma conciliação.");
+                            return;
+                        }
+                        known=true;typePositive=positive;chosen.add(m);
+                    }
+                    if(chosen.isEmpty()){error("Selecione pelo menos um movimento.");return;}
+                    groupFlow(chosen,typePositive);
+                }).show();
+    }
+
+    private void groupFlow(ArrayList<JSONObject> movements,boolean incomeSide){
+        request("obterLancamentosDisponiveisConciliacaoV601",null,false,response->{
+            if(!(response instanceof JSONArray)){error("Não foi possível consultar lançamentos disponíveis.");return;}
+            JSONArray source=(JSONArray)response;
+            ArrayList<JSONObject> eligible=new ArrayList<>();
+            for(int i=0;i<source.length();i++){
+                JSONObject row=obj(source,i);
+                if(row!=null&&income(row)==incomeSide)eligible.add(row);
+            }
+            Collections.sort(eligible,(a,b)->str(b,"data").compareTo(str(a,"data")));
+            if(eligible.isEmpty()){error("Não há lançamentos disponíveis com o tipo selecionado.");return;}
+            int limit=Math.min(eligible.size(),200);
+            String[] items=new String[limit];boolean[] flags=new boolean[limit];
+            for(int i=0;i<limit;i++){
+                JSONObject l=eligible.get(i);
+                items[i]=niceDate(str(l,"data"))+" · "+str(l,"descricao")+" · "+money(val(l,"valor"));
+            }
+            new AlertDialog.Builder(this).setTitle("2/3 • Selecione os lançamentos do fluxo")
+                .setMultiChoiceItems(items,flags,(dialog,index,checked)->flags[index]=checked)
+                .setNegativeButton("Cancelar",null)
+                .setPositiveButton("Continuar",(d,w)->{
+                    ArrayList<JSONObject> chosen=new ArrayList<>();
+                    for(int i=0;i<limit;i++)if(flags[i])chosen.add(eligible.get(i));
+                    if(chosen.isEmpty()){error("Selecione pelo menos um lançamento.");return;}
+                    groupConfirm(movements,chosen);
+                }).show();
+        });
+    }
+
+    private void groupConfirm(ArrayList<JSONObject> movements,ArrayList<JSONObject> flows) {
+        double totalBank=0,totalFlow=0;
+        for(JSONObject movement:movements)totalBank+=Math.abs(val(movement,"valor"));
+        for(JSONObject entry:flows)totalFlow+=Math.abs(val(entry,"valor"));
+        final double delta=Math.round((totalBank-totalFlow)*100.0)/100.0;
+        final String description="Banco: "+money(totalBank)+" em "+movements.size()+" movimento(s)\n"
+                +"Fluxo: "+money(totalFlow)+" em "+flows.size()+" lançamento(s)\n"
+                +"Diferença: "+money(delta);
+        if(delta<-.01){error("O fluxo supera o banco.\n"+description+
+                "\nRevise os itens antes de conciliar.");return;}
+        if(delta>.01){
+            LinearLayout fields=form();
+            EditText note=input(fields,"Descrição do complemento","Diferença de conciliação",false);
+            String[] cats=categories();
+            Spinner cat=picker(fields,cats,0);
+            new AlertDialog.Builder(this).setTitle("3/3 • Registrar diferença")
+                    .setMessage(description+"\nO complemento será registrado separadamente no fluxo.")
+                    .setView(fields).setNegativeButton("Cancelar",null)
+                    .setPositiveButton("Confirmar",(d,w)->{
+                        try{
+                            JSONObject extra=new JSONObject();
+                            extra.put("descricao",note.getText().toString().trim());
+                            extra.put("categoria",cat.getSelectedItem().toString());
+                            if(str(extra,"descricao").isEmpty()){error("Informe descrição da diferença.");return;}
+                            sendGroup(movements,flows,extra);
+                        }catch(Exception e){error(e.getMessage());}
+                    }).show();
+        }else confirm("Conciliar o grupo?\n"+description,()->sendGroup(movements,flows,null));
+    }
+
+    private void sendGroup(ArrayList<JSONObject> movements,ArrayList<JSONObject> flows,JSONObject extra){
+        try{
+            JSONObject args=new JSONObject();
+            JSONArray bankGroup=new JSONArray();
+            JSONArray flowGroup=new JSONArray();
+            for(JSONObject m:movements){
+                JSONObject v=new JSONObject();v.put("idPluggy",str(m,"idPluggy"));bankGroup.put(v);
+            }
+            for(JSONObject r:flows){
+                JSONObject v=new JSONObject();v.put("idLancamento",r.opt("id"));flowGroup.put(v);
+            }
+            args.put("banco",bankGroup);args.put("fluxo",flowGroup);
+            args.put("observacao","Conciliação N:N pelo aplicativo Android");
+            args.put("ajustarValorRealizado",false);
+            if(extra!=null)args.put("lancamentoDiferenca",extra);
+            request("conciliarGrupoBancoV515",args,true,response->loadBank());
+        }catch(Exception e){error(e.getMessage());}
+    }
+
     private void bankMenu(JSONObject m){
         String[] options={"Conciliar com lançamento","Criar lançamento e conciliar","Ignorar movimento"};
         new AlertDialog.Builder(this).setTitle(str(m,"descricao")+"\n"+money(val(m,"valor")))
