@@ -38,6 +38,12 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: fluxo-caixa-rf-debug-v1
+      - name: Verificar interface nativa
+        run: |
+          ! grep -q 'import android.webkit.WebView' android/app/src/main/java/net/consultoriarf/fluxocaixa/MainActivity.java
+          grep -q 'class MainActivity' android/app/src/main/java/net/consultoriarf/fluxocaixa/MainActivity.java
+          grep -q 'salvarLancamentoManual' android/app/src/main/java/net/consultoriarf/fluxocaixa/MainActivity.java
+          grep -q 'obterConciliacaoBancoV59' android/app/src/main/java/net/consultoriarf/fluxocaixa/MainActivity.java
       - name: Compilar APK
         run: gradle --no-daemon -p android :app:assembleDebug
       - name: Preparar APK
