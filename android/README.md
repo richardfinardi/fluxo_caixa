@@ -1,37 +1,22 @@
-# Fluxo de Caixa RF — Android
+# Fluxo de Caixa RF — Android nativo 1.2.0
 
-APK Android do sistema funcional existente:
-https://richardfinardi.github.io/fluxo_caixa/
+**Aplicativo nativo:** a Activity principal usa `LinearLayout`, `ScrollView`, `TextView`, `EditText`, `Spinner` e `AlertDialog`. Não utiliza WebView nem abre o site como interface.
 
-O app abre o sistema completo dentro do Android (dashboard, lançamentos,
-recorrências, pagamentos, conciliação bancária, relatórios e demais telas).
-Atualizações do site entram no app sem reinstalar o APK.
+## Funcionalidades nativas
+- Início: saldo consolidado, títulos pendentes, previsões de 30 dias e vencimentos.
+- Lançamentos: busca, filtros, cadastrar, editar, liquidar, adiar, excluir e pagar despesas no cartão.
+- Banco: visualizar movimentos Pluggy, conciliar 1:1, criar lançamento a partir do banco e ignorar movimento (com confirmação).
+- Cartões: faturas, limites, vencimentos e compras vinculadas.
+- Recorrências: consultar e criar mensal ou semanal.
+- Widget Android: 2x2, translúcido, saldo real, a receber e a pagar, atualização manual e automática.
+- Cache privado e leitura offline dos últimos dados sincronizados.
 
-## Widget
-- Resumo compacto 2×2, fundo translúcido, com saldo real, a receber e a pagar.
-- Saldo e pendências seguem as mesmas regras da tela Cockpit:
-  até hoje, consolidado vs. não consolidado, excluindo "pago no cartão".
-- Consulta direta ao Apps Script já usado pelo site, sem banco paralelo.
-- Atualização manual ↻ e automática pelo Android a cada ~15 minutos
-  (pode sofrer atraso por economia de bateria).
-- Guarda somente totais e última atualização no armazenamento privado.
-- Toque nos valores abre o app.
+**Não implementado na interface nativa desta versão:** conciliação N:N, simulação de datas, todas as configurações avançadas, horas, relatórios PDF e importações manuais Pluggy. Essas rotinas continuam existindo no backend, mas ainda não têm tela nativa. Não confundir com equivalência total ao sistema web.
 
-## Como instalar
-Acesse Releases deste repositório, baixe o último **FluxoCaixaRF.apk**,
-instale e abra. Depois segure um espaço vazio na tela inicial do Android,
-selecione Widgets, Fluxo de Caixa RF e adicione o cartão 2×2.
+## Integração
+Usa a mesma implantação Apps Script do fluxo original por GET/POST. Nenhuma tabela, cadastro ou lançamento foi migrado. Todas as gravações vão para a API existente.
 
-## Compilar
-Requisitos: Java 17, SDK Android 35 e Gradle 8.11.1.
+## APK
+O workflow `.github/workflows/android-fluxo-caixa.yml` compila e publica a versão `FluxoCaixaRF.apk` na aba Releases do GitHub.
 
-    gradle --no-daemon -p android :app:assembleDebug
-
-O workflow do GitHub Actions compila e publica o APK nos Releases. A versão
-inicial usa certificado de teste. O cache do workflow tenta conservar essa
-assinatura para as atualizações; o ideal no futuro é uma chave estável de release.
-
-## Privacidade
-O app não envia dados para GitHub nem cria JSON público. Reusa a API existente.
-O acesso à própria implantação pública do Apps Script deve ser avaliado
-se for necessário proteger os dados contra acesso externo.
+**Atenção:** o Apps Script atual permite consulta de dados no endpoint existente; revise controle de acesso antes de distribuir o APK a terceiros. Nesta atualização não alteramos o backend nem introduzimos dados no GitHub.
