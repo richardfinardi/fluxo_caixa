@@ -175,3 +175,121 @@ html[data-bs-theme="dark"] #cockpitFinanceiro #cardSaldoContainer.status-baixo,
 html[data-bs-theme="dark"] #cockpitFinanceiro #cardMenorSaldoContainer.status-baixo {background:#41371f!important;border-color:#a5873c!important;}
 html[data-bs-theme="dark"] #cockpitFinanceiro #cardSaldoContainer.status-baixo h5,
 html[data-bs-theme="dark"] #cockpitFinanceiro #cardMenorSaldoContainer.status-baixo h5 {color:#ffe1a2!important;}
+
+
+/* Calendário financeiro: legibilidade e integração ao tema V6
+   Apenas CSS. Regras de saldo, projeção, detalhes e simulação intactas. */
+#fluxo .fluxo-cal-dia-numero {
+  font-size:12px;
+  line-height:1.1;
+  min-height:15px;
+}
+#fluxo .fluxo-cal-linha {
+  font-size:12px;
+  min-height:24px;
+}
+#fluxo .fluxo-cal-linha .fluxo-cal-abrev {
+  font-size:10px;
+}
+#fluxo .fluxo-cal-linha .fluxo-cal-valor {
+  font-size:12.5px;
+  font-weight:850;
+  letter-spacing:-.3px;
+  font-variant-numeric:tabular-nums;
+}
+@media (max-width:600px) {
+  #fluxo .fluxo-cal-dia-numero {
+    font-size:10px;
+    min-height:14px;
+  }
+  #fluxo .fluxo-cal-dia {
+    gap:3px;
+    min-height:92px;
+  }
+  #fluxo .fluxo-cal-linha {
+    min-height:22px;
+    padding:2px 1px;
+    font-size:10px;
+    gap:1px;
+  }
+  #fluxo .fluxo-cal-linha .fluxo-cal-abrev {
+    font-size:8px;
+  }
+  #fluxo .fluxo-cal-linha .fluxo-cal-valor {
+    font-size:10px;
+    letter-spacing:-.45px;
+    font-weight:850;
+  }
+}
+/* O sistema usa data-bs-theme no elemento HTML, não classes no BODY. */
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-dia {
+  background:#192b43 !important;
+  border-color:#354967 !important;
+  color:#e8effa !important;
+  opacity:1;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-dia.dia-passado:not(.fora-mes) {
+  background:#15263c !important;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-dia.fora-mes {
+  background:#0f1c2e !important;
+  opacity:.65;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-dia.dia-atual {
+  background:#203b5b !important;
+  border-color:#79b3ff !important;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-dia-numero {
+  color:#eff5ff !important;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-dia.dia-atual .fluxo-cal-dia-numero {
+  color:#9dccff !important;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-semana span,
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-titulo,
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-legenda {
+  color:#c5d4e9 !important;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-legenda .entrada {color:#7ae0b0 !important;}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-legenda .saida {color:#ff9fb0 !important;}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-navegacao button {
+  background:#1c304b !important;
+  color:#e8effa !important;
+  border-color:#405474 !important;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-linha.entrada {
+  background:#193c32 !important;
+  color:#b8f8d5 !important;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-linha.saida {
+  background:#492636 !important;
+  color:#ffd4dd !important;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-resumo {
+  background:#16342c !important;
+  color:#c5f7dc !important;
+  border-color:#2d5c49 !important;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-resumo.saidas {
+  background:#422534 !important;
+  color:#ffd4dd !important;
+  border-color:#6b3b52 !important;
+}
+/* Saldo mantém as MESMAS faixas da regra obterClasseStatusCaixa.
+   As classes de status já são definidas no v6.css para o tema escuro. */
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-linha.saldo.status-negativo {
+  background:#8d3743 !important;
+  color:#fff !important;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-linha.saldo.status-baixo {
+  background:#6a4c19 !important;
+  color:#fff2d0 !important;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-linha.saldo.status-moderado {
+  background:#594322 !important;
+  color:#ffedcb !important;
+}
+html[data-bs-theme="dark"] #fluxo .fluxo-cal-linha.saldo.status-seguro {
+  background:#214f3a !important;
+  color:#dcfff0 !important;
+}
