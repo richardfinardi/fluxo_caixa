@@ -330,6 +330,63 @@
 .conciliacao-grupo-resumo-v515 div{display:flex;flex-direction:column;gap:2px}
 .conciliacao-grupo-resumo-v515 small{font-size:9px;color:#6c757d;font-weight:700}
 @media(max-width:767px){.conciliacao-grupo-resumo-v515{grid-template-columns:1fr}.conciliacao-grupo-lista-v515{max-height:34vh}}
+
+
+/* FLUXO DE CAIXA: calendário mensal. Preserva cores e cálculos da V6.0.1. */
+.fluxo-cal-topo{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:6px 0 9px}
+.fluxo-cal-navegacao{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.fluxo-cal-navegacao button{min-height:34px;min-width:36px;border:1px solid #d8dee6;border-radius:8px;background:#fff;color:#243449;font-weight:800}
+.fluxo-cal-navegacao button:disabled{opacity:.3;cursor:not-allowed}
+.fluxo-cal-titulo{font-size:17px;font-weight:800;min-width:145px;text-align:center;text-transform:capitalize;color:#243449}
+.fluxo-cal-resumos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:5px 0 11px}
+.fluxo-cal-resumo{border:1px solid #dce7e0;border-radius:9px;background:#f4fbf7;text-align:left;padding:9px 10px;display:flex;flex-direction:column;gap:3px;color:#16653e;min-width:0;cursor:pointer}
+.fluxo-cal-resumo.saidas{background:#fff5f5;border-color:#f0d8da;color:#ac3046}
+.fluxo-cal-resumo small{font-size:11px;font-weight:700}
+.fluxo-cal-resumo strong{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fluxo-cal-legenda{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:#64748b;margin-bottom:8px}
+.fluxo-cal-legenda b{font-weight:800}
+.fluxo-cal-legenda .entrada{color:#157347}.fluxo-cal-legenda .saida{color:#bb3349}
+.fluxo-cal-semana, .fluxo-cal-grade{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.fluxo-cal-semana{margin-bottom:4px}
+.fluxo-cal-semana span{font-size:11px;text-transform:uppercase;text-align:center;font-weight:800;color:#657285;padding:3px 0}
+.fluxo-cal-dia{background:#fff;border:1px solid #e1e5eb;border-radius:8px;padding:5px;min-width:0;min-height:104px;display:flex;flex-direction:column;gap:4px}
+.fluxo-cal-dia.fora-mes{background:#f8f9fb;opacity:.54}
+.fluxo-cal-dia.dia-passado:not(.fora-mes){background:#fafbfc}
+.fluxo-cal-dia.dia-atual{border:2px solid #6fa5ef;padding:4px;background:#f2f7ff}
+.fluxo-cal-dia-numero{font-size:14px;font-weight:800;color:#263445;min-height:18px;padding-left:2px}
+.fluxo-cal-dia.dia-atual .fluxo-cal-dia-numero{color:#1e63be}
+.fluxo-cal-linha{border:0;width:100%;min-width:0;min-height:22px;padding:2px 4px;border-radius:5px;font-size:11px;display:flex;justify-content:space-between;gap:3px;align-items:center;text-align:left;white-space:nowrap;cursor:pointer;font-weight:700}
+.fluxo-cal-linha .fluxo-cal-abrev{font-weight:900;flex-shrink:0}
+.fluxo-cal-linha .fluxo-cal-valor{min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:right;font-variant-numeric:tabular-nums}
+.fluxo-cal-linha.entrada{color:#116b46;background:#e5f5eb}
+.fluxo-cal-linha.saida{color:#b42f48;background:#ffebee}
+.fluxo-cal-linha.sem-valor{opacity:.43;cursor:default}
+.fluxo-cal-linha.saldo{font-weight:900}
+.fluxo-cal-linha.saldo:disabled{cursor:default;opacity:1}
+.fluxo-cal-linha:not(:disabled):hover{outline:2px solid #7a9fe1}
+.fluxo-cal-auxiliar{font-size:10px;color:#788395;margin-top:7px}
+@media(max-width:600px){
+ .fluxo-cal-semana,.fluxo-cal-grade{gap:2px}
+ .fluxo-cal-semana span{font-size:9px}
+ .fluxo-cal-dia{padding:3px 2px;min-height:92px;gap:3px;border-radius:5px}
+ .fluxo-cal-dia.dia-atual{padding:2px 1px}
+ .fluxo-cal-dia-numero{font-size:11px;min-height:16px}
+ .fluxo-cal-linha{padding:2px 1px;gap:1px;min-height:21px;border-radius:3px;font-size:8px}
+ .fluxo-cal-linha .fluxo-cal-abrev{font-size:8px}
+ .fluxo-cal-linha .fluxo-cal-valor{font-size:8px;letter-spacing:-.3px}
+ .fluxo-cal-resumo{padding:8px}
+ .fluxo-cal-resumo small{font-size:10px}
+ .fluxo-cal-resumo strong{font-size:14px}
+ .fluxo-cal-titulo{min-width:125px;font-size:15px}
+ .fluxo-cal-legenda{font-size:9px;gap:7px}
+ #modalDetalhes .modal-dialog{margin:6px}
+ #modalDetalhes .table{font-size:11px}
+ #modalDetalhes .table td,#modalDetalhes .table th{padding:6px}
+ #modalDetalhes .acao-fluxo-dia{white-space:nowrap}
+ #modalDetalhes .acao-fluxo-dia button{font-size:10px;padding:3px 5px}
+ #modalDetalhes .input-simular-data{min-width:115px}
+}
+
 </style>
   <link rel="stylesheet" href="./v6.css?v=6.0.1">
 </head>
@@ -380,7 +437,7 @@
         <form onsubmit="simularNovoLancamentoCaixa(event)">
           <div class="modal-body py-3 small">
             <div class="alert alert-warning py-1 px-2 mb-2 style-xs" style="font-size: 11px;">
-              💡 <b>Atenção:</b> Esta simulação afeta apenas o gráfico e a projeção visual na tela. Nada será gravado no banco de dados.
+              💡 <b>Atenção:</b> Esta simulação afeta apenas o calendário e a projeção visual na tela. Nada será gravado no banco de dados.
             </div>
             <div class="mb-2">
               <label class="form-label mb-1 fw-bold">Descrição da Simulação</label>
@@ -453,12 +510,11 @@
 
     <div class="tab-content" id="mainTabsContent">
       
-      <!-- TAB FLOW -->
+      <!-- TAB FLOW: vista mensal, com os mesmos cálculos e detalhamento -->
       <div class="tab-pane fade show active" id="fluxo" role="tabpanel">
-        <div class="card mb-3"><div style="height: 350px;"><canvas id="chartFluxo"></canvas></div></div>
         <div class="card">
           <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-            <h6 class="fw-bold mb-0">Fluxo de Caixa Diário</h6>
+            <h6 class="fw-bold mb-0">Calendário do Fluxo de Caixa</h6>
             <div class="d-flex gap-2 flex-wrap">
               <button class="btn btn-xs btn-outline-warning px-2 py-1 fw-bold" onclick="abrirModalSimularNovo()" style="font-size:11px;">➕ Simular Novo Gasto/Receita</button>
               <button class="btn btn-xs btn-warning px-2 py-1 d-none" id="btnLimparSimulacao" onclick="limparSimulacaoCaixa()" style="font-size:11px; font-weight: bold;">✕ Limpar Simulação</button>
@@ -466,19 +522,31 @@
               <button class="btn btn-xs btn-outline-secondary px-2 py-1" id="btnAlternarHistorico" onclick="alternarVisaoHistorico()" style="font-size:11px;">👁️ Ver Histórico Passado</button>
             </div>
           </div>
-          <div class="table-responsive-mobile table-container">
-            <table class="table table-sm table-bordered table-mobile align-middle m-0">
-              <thead class="table-dark">
-                <tr>
-                  <th style="width: 20%;">Data</th>
-                  <th style="width: 27%;">Receitas</th>
-                  <th style="width: 27%;">Saídas</th>
-                  <th style="width: 26%;">Saldo</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyProjecaoDiaria"></tbody>
-            </table>
+          <div class="fluxo-cal-topo">
+            <div class="fluxo-cal-navegacao">
+              <button type="button" aria-label="Mês anterior" id="fluxoCalAnterior" onclick="navegarCalendarioFluxo(-1)">‹</button>
+              <strong id="fluxoCalTitulo" class="fluxo-cal-titulo"></strong>
+              <button type="button" aria-label="Próximo mês" onclick="navegarCalendarioFluxo(1)">›</button>
+              <button type="button" onclick="irParaMesAtualFluxo()" style="padding:0 8px;font-size:11px;">Hoje</button>
+            </div>
           </div>
+          <div class="fluxo-cal-resumos">
+            <button class="fluxo-cal-resumo" type="button" onclick="verContasMesCalendario('Receita')" title="Ver contas previstas a receber no mês">
+              <small>A receber no mês</small><strong id="fluxoCalAReceberMes">R$ 0,00</strong>
+            </button>
+            <button class="fluxo-cal-resumo saidas" type="button" onclick="verContasMesCalendario('Despesa')" title="Ver contas previstas a pagar no mês">
+              <small>A pagar no mês</small><strong id="fluxoCalAPagarMes">R$ 0,00</strong>
+            </button>
+          </div>
+          <div class="fluxo-cal-legenda">
+            <span class="entrada"><b>E</b> Entrada</span>
+            <span class="saida"><b>S</b> Saída</span>
+            <span><b>=</b> Saldo acumulado</span>
+          </div>
+          <div class="fluxo-cal-semana" aria-hidden="true">
+            <span>Dom.</span><span>Seg.</span><span>Ter.</span><span>Qua.</span><span>Qui.</span><span>Sex.</span><span>Sáb.</span>
+          </div>
+          <div id="fluxoCalendarioGrade" class="fluxo-cal-grade" aria-label="Calendário mensal de entradas, saídas e saldos"></div>
         </div>
       </div>
 
@@ -1225,6 +1293,7 @@
                   <th class="ps-3">Descrição / Parcela</th>
                   <th class="text-end">Valor</th>
                   <th class="text-center" style="width: 170px;">Simular Nova Data</th>
+                  <th class="text-center">Ações</th>
                 </tr>
               </thead>
               <tbody id="tbodyModalDetalhes"></tbody>
@@ -1337,6 +1406,8 @@
     var lancamentosSimulados = null; 
     var listaAlteracoesSimuladas = {}; 
     var chartInstance = null; var modalBS = null; var modalConfirmBS = null; var modalSimularNovoBS = null; var modalPendenciaBS = null; var toastBS = null;
+    var calendarioFluxoMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    var calendarioFluxoDados = { mapaDatas: {}, mapaPendentes: {}, hoje: "" };
     var pularProximoRecarregamento = false;
     var exibirHistoricoCompleto = false; 
     var exibirHistoricoExtrato = false;
@@ -2075,6 +2146,7 @@
       var btn = document.getElementById('btnAlternarHistorico');
       if(exibirHistoricoCompleto) { btn.innerText = "📉 Ocultar Passado"; btn.className = "btn btn-xs btn-secondary text-white px-2 py-1"; } 
       else { btn.innerText = "👁️ Ver Histórico Passado"; btn.className = "btn btn-xs btn-outline-secondary px-2 py-1"; }
+      if (!exibirHistoricoCompleto) irParaMesAtualFluxo();
       calcularFluxoEGráfico();
     }
 
@@ -2122,32 +2194,54 @@
       }
     }
 
-    function verDetalhesDoDia(dataStr, tipoFiltro) {
-      var bancoDeDadosOrigem = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;
-      var hojeStrFluxo = hojeIsoJs();
-      var listaFiltrada = bancoDeDadosOrigem.filter(function(l) { return normalizarStatus(l.status) !== 'pago no cartao' && dataEfetivaFluxo(l, hojeStrFluxo) === dataStr.trim() && l.tipo === tipoFiltro; });
-      if (listaFiltrada.length === 0) return;
-      
-      var htmlModal = "";
+    function montarDetalhesCalendario(listaFiltrada, titulo) {
+      if (!listaFiltrada.length) return;
+      var htmlModal = '';
       listaFiltrada.forEach(function(item) {
         var dataOriginal = item.data;
         var dataAtualIpt = listaAlteracoesSimuladas[item.id] ? listaAlteracoesSimuladas[item.id] : item.data;
-        var possuiRec = item.recorrenciaId && item.recorrenciaId !== "undefined" && item.recorrenciaId !== "null";
-        
+        var possuiRec = item.recorrenciaId && item.recorrenciaId !== 'undefined' && item.recorrenciaId !== 'null';
         var isSimulado = String(item.id).indexOf('sim_') === 0;
-        var colDataInput = isSimulado 
-          ? `<span class="badge bg-warning text-dark">Simulado</span>`
-          : `<input type="date" class="form-control form-control-sm p-1 py-0 input-simular-data" data-id="${item.id}" data-original="${dataOriginal}" value="${dataAtualIpt}">`;
-
-        htmlModal += `<tr>
-          <td class="ps-3 py-2"><strong>${possuiRec ? '🔁 ' : ''}${item.descricao}</strong><br><small class="text-muted">${item.categoria} (${item.status})</small></td>
-          <td class="text-end pe-2 fw-bold ${tipoFiltro === 'Receita' ? 'text-success' : 'text-danger'}">R$ ${item.valor.toFixed(2)}</td>
-          <td class="pe-3 text-center">${colDataInput}</td>
-        </tr>`;
+        var st = normalizarStatus(item.status);
+        var idNumero = Number(item.id);
+        var colDataInput = isSimulado
+          ? '<span class="badge bg-warning text-dark">Simulado</span>'
+          : '<input type="date" class="form-control form-control-sm p-1 py-0 input-simular-data" data-id="' + item.id + '" data-original="' + dataOriginal + '" value="' + dataAtualIpt + '">';
+        var acoes = '';
+        if (!isSimulado && Number.isFinite(idNumero)) {
+          if (st !== 'consolidado') {
+            acoes += '<button type="button" class="btn btn-sm btn-outline-success" onclick="acaoDetalheCalendario(\'liquidar\',' + idNumero + ')">' +
+              (item.tipo === 'Receita' ? 'Recebido' : 'Pago') + '</button>';
+            acoes += '<button type="button" class="btn btn-sm btn-outline-warning" onclick="acaoDetalheCalendario(\'adiar\',' + idNumero + ')">Adiar</button>';
+          }
+          acoes += '<button type="button" class="btn btn-sm btn-outline-primary" onclick="acaoDetalheCalendario(\'editar\',' + idNumero + ')">Editar</button>';
+        }
+        htmlModal += '<tr>' +
+          '<td class="ps-3 py-2"><strong>' + (possuiRec ? '🔁 ' : '') + item.descricao +
+          '</strong><br><small class="text-muted">' + (item.categoria || 'Sem categoria') +
+          ' (' + item.status + ')</small></td>' +
+          '<td class="text-end pe-2 fw-bold ' + (item.tipo === 'Receita' ? 'text-success' : 'text-danger') +
+          '">' + moedaCompletaCalendario(item.valor) + '</td>' +
+          '<td class="pe-2 text-center">' + colDataInput + '</td>' +
+          '<td class="acao-fluxo-dia"><div class="d-flex flex-wrap gap-1">' + acoes + '</div></td>' +
+          '</tr>';
       });
       document.getElementById('tbodyModalDetalhes').innerHTML = htmlModal;
-      document.getElementById('modalDetalhesTitulo').innerText = `${tipoFiltro}s do dia ${dataStr.split('-').reverse().join('/')}`;
+      document.getElementById('modalDetalhesTitulo').innerText = titulo;
       modalBS.show();
+    }
+
+    function verDetalhesDoDia(dataStr, tipoFiltro) {
+      var bancoDeDadosOrigem = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;
+      var hojeStrFluxo = hojeIsoJs();
+      var listaFiltrada = bancoDeDadosOrigem.filter(function(l) {
+        return normalizarStatus(l.status) !== 'pago no cartao' &&
+          dataEfetivaFluxo(l, hojeStrFluxo) === dataStr.trim() &&
+          (tipoFiltro === 'Todos' || l.tipo === tipoFiltro);
+      });
+      if (!listaFiltrada.length) return;
+      var titulo = tipoFiltro === 'Todos' ? 'Movimentos' : (tipoFiltro === 'Receita' ? 'Entradas' : 'Saídas');
+      montarDetalhesCalendario(listaFiltrada, titulo + ' do dia ' + dataStr.split('-').reverse().join('/'));
     }
 
     function abrirModoEdicao(id) { 
@@ -4195,6 +4289,134 @@ function abrirMeuPluggyV5122() {
 }
 
 
+
+    function dataIsoCalendarioFluxo(dt) {
+      return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+    }
+
+    function moedaCompletaCalendario(valor) {
+      return 'R$ ' + Number(valor || 0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+
+    function navegarCalendarioFluxo(deslocamento) {
+      var alvo = new Date(calendarioFluxoMes.getFullYear(), calendarioFluxoMes.getMonth()+Number(deslocamento), 1);
+      var agora = new Date();
+      var mesAtual = new Date(agora.getFullYear(), agora.getMonth(), 1);
+      if (!exibirHistoricoCompleto && alvo < mesAtual) return;
+      calendarioFluxoMes = alvo;
+      renderizarCalendarioFluxo();
+    }
+
+    function irParaMesAtualFluxo() {
+      var hoje = new Date();
+      calendarioFluxoMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      renderizarCalendarioFluxo();
+    }
+
+    function renderizarCalendarioFluxo(mapaDatas, mapaPendentes, hojeStr) {
+      if (mapaDatas) calendarioFluxoDados.mapaDatas = mapaDatas;
+      if (mapaPendentes) calendarioFluxoDados.mapaPendentes = mapaPendentes;
+      if (hojeStr) calendarioFluxoDados.hoje = hojeStr;
+      var dadosDia = calendarioFluxoDados.mapaDatas;
+      var dadosPendentes = calendarioFluxoDados.mapaPendentes;
+      var hojeIso = calendarioFluxoDados.hoje || hojeIsoJs();
+      var a = calendarioFluxoMes.getFullYear();
+      var m = calendarioFluxoMes.getMonth();
+      var primeiro = new Date(a, m, 1, 12);
+      var ultimo = new Date(a, m+1, 0, 12);
+      var inicio = new Date(a, m, 1-primeiro.getDay(), 12);
+      var quantDias = Math.ceil((primeiro.getDay()+ultimo.getDate())/7)*7;
+      var fim = new Date(a, m, 1-primeiro.getDay()+quantDias-1, 12);
+      var inicioIso = dataIsoCalendarioFluxo(inicio);
+      var mesInicioIso = dataIsoCalendarioFluxo(primeiro);
+      var mesFimIso = dataIsoCalendarioFluxo(ultimo);
+      var saldo = Object.keys(dadosDia).reduce(function(acum, k) {
+        return k < inicioIso ? acum + Number(dadosDia[k].receita || 0) - Number(dadosDia[k].despesa || 0) : acum;
+      }, 0);
+
+      var receberMes = 0, pagarMes = 0;
+      Object.keys(dadosPendentes).forEach(function(k) {
+        if (k >= mesInicioIso && k <= mesFimIso) {
+          receberMes += Number(dadosPendentes[k].receita || 0);
+          pagarMes += Number(dadosPendentes[k].despesa || 0);
+        }
+      });
+      document.getElementById('fluxoCalTitulo').textContent = mesesNomes[m] + ' ' + a;
+      document.getElementById('fluxoCalAReceberMes').textContent = moedaCompletaCalendario(receberMes);
+      document.getElementById('fluxoCalAPagarMes').textContent = moedaCompletaCalendario(pagarMes);
+      var agora = new Date();
+      var mesAtual = new Date(agora.getFullYear(), agora.getMonth(), 1);
+      document.getElementById('fluxoCalAnterior').disabled = !exibirHistoricoCompleto && calendarioFluxoMes <= mesAtual;
+
+      function linhaCalendario(iso, tipo, valor, classe, rotulo, saldoDia, temContas) {
+        var ehSaldo = tipo === 'Todos';
+        var ativo = ehSaldo ? temContas : Number(valor) > 0;
+        var classeFinal = 'fluxo-cal-linha ' + classe + (ativo ? '' : ' sem-valor');
+        var valorVisual = ehSaldo || Number(valor) > 0
+          ? (ehSaldo ? '' : tipo === 'Receita' ? '+' : '-') + Math.round(Math.abs(valor)).toLocaleString('pt-BR')
+          : '-';
+        if (ehSaldo && saldoDia < 0) valorVisual = '-' + Math.round(Math.abs(saldoDia)).toLocaleString('pt-BR');
+        var titulo = (ehSaldo ? 'Saldo acumulado' : tipo === 'Receita' ? 'Entradas' : 'Saídas') +
+          ' em ' + iso.split('-').reverse().join('/') + ': ' +
+          moedaCompletaCalendario(valor);
+        var atributos = ativo ? ' data-fc-dia="' + iso + '" data-fc-tipo="' + tipo + '"' : ' disabled';
+        return '<button type="button" class="' + classeFinal + '"' + atributos +
+          ' title="' + titulo + '" aria-label="' + titulo + '">' +
+          '<span class="fluxo-cal-abrev">' + rotulo + '</span>' +
+          '<span class="fluxo-cal-valor">' + valorVisual + '</span></button>';
+      }
+
+      var partesHtml = [];
+      for (var i = 0; i < quantDias; i++) {
+        var dt = new Date(a, m, 1-primeiro.getDay()+i, 12);
+        var chave = dataIsoCalendarioFluxo(dt);
+        var entrada = Number(dadosDia[chave] ? dadosDia[chave].receita : 0);
+        var saida = Number(dadosDia[chave] ? dadosDia[chave].despesa : 0);
+        saldo += entrada - saida;
+        var temContas = entrada > 0 || saida > 0;
+        var classes = 'fluxo-cal-dia';
+        if (dt.getMonth() !== m) classes += ' fora-mes';
+        if (chave < hojeIso) classes += ' dia-passado';
+        if (chave === hojeIso) classes += ' dia-atual';
+        partesHtml.push(
+          '<div class="' + classes + '" data-dia="' + chave + '">' +
+            '<div class="fluxo-cal-dia-numero">' + dt.getDate() + '</div>' +
+            linhaCalendario(chave, 'Receita', entrada, 'entrada', 'E', saldo, temContas) +
+            linhaCalendario(chave, 'Despesa', saida, 'saida', 'S', saldo, temContas) +
+            linhaCalendario(chave, 'Todos', saldo, 'saldo ' + obterClasseStatusCaixa(saldo), '=', saldo, temContas) +
+          '</div>'
+        );
+      }
+      var grade = document.getElementById('fluxoCalendarioGrade');
+      grade.innerHTML = partesHtml.join('');
+      grade.onclick = function(evento) {
+        var botao = evento.target.closest('button[data-fc-dia][data-fc-tipo]');
+        if (botao && grade.contains(botao)) verDetalhesDoDia(botao.getAttribute('data-fc-dia'), botao.getAttribute('data-fc-tipo'));
+      };
+    }
+
+    function verContasMesCalendario(tipo) {
+      var prefixo = dataIsoCalendarioFluxo(calendarioFluxoMes).substring(0, 7);
+      var hoje = hojeIsoJs();
+      var fonte = lancamentosSimulados || state.lancamentos;
+      var contas = fonte.filter(function(l) {
+        var st = normalizarStatus(l.status);
+        return st !== 'consolidado' && st !== 'pago no cartao' &&
+          l.tipo === tipo && dataEfetivaFluxo(l, hoje).substring(0, 7) === prefixo;
+      }).sort(function(a,b) { return a.data.localeCompare(b.data); });
+      if (!contas.length) { exibirAvisoNaTela('Nenhuma conta prevista para este mês.', 'warning'); return; }
+      montarDetalhesCalendario(contas, (tipo === 'Receita' ? 'A receber' : 'A pagar') + ' em ' + mesesNomes[calendarioFluxoMes.getMonth()]);
+    }
+
+    function acaoDetalheCalendario(acao, id) {
+      if (modalBS) modalBS.hide();
+      window.setTimeout(function() {
+        if (acao === 'liquidar') liquidarLancamentoHoje(id);
+        else if (acao === 'adiar') abrirModalPendencia(id);
+        else if (acao === 'editar') abrirModoEdicao(id);
+      }, 250);
+    }
+
     function calcularFluxoEGráfico() {
       var fonteDadosParaFluxo = lancamentosSimulados ? lancamentosSimulados : state.lancamentos;
       var dHoje = new Date();
@@ -4264,86 +4486,9 @@ function abrirMeuPluggyV5122() {
       document.getElementById('cardMenorSaldoData').innerText = dataMenorSaldo === hojeStr ? 'Hoje / pendências atuais' : dataMenorSaldo.split('-').reverse().join('/');
       document.getElementById('cardMenorSaldoContainer').className = 'stat-card cockpit-card ' + obterClasseStatusCaixa(menorSaldo);
 
-      var todasDatasDisponiveis = Object.keys(mapaDatas).sort();
-      var dataPonteiroInicial = new Date(dHoje.getFullYear(), dHoje.getMonth(), dHoje.getDate(), 12, 0, 0);
-      if (exibirHistoricoCompleto && todasDatasDisponiveis.length > 0) {
-        var p0 = todasDatasDisponiveis[0].split('-');
-        dataPonteiroInicial = new Date(Number(p0[0]), Number(p0[1]) - 1, Number(p0[2]), 12, 0, 0);
-      }
-
-      var dataLimiteFuturaGrafico = new Date(dHoje.getTime() + (90 * 24 * 60 * 60 * 1000));
-      var ultimaDataDoBanco = todasDatasDisponiveis[todasDatasDisponiveis.length - 1] || hojeStr;
-      var pU = ultimaDataDoBanco.split('-');
-      var dataLimiteFuturaTabela = new Date(Number(pU[0]), Number(pU[1]) - 1, Number(pU[2]), 12, 0, 0);
-      var seisMesesPraFrente = new Date(dHoje.getTime() + (180 * 24 * 60 * 60 * 1000));
-      if (dataLimiteFuturaTabela.getTime() < seisMesesPraFrente.getTime()) dataLimiteFuturaTabela = new Date(seisMesesPraFrente.getFullYear(), seisMesesPraFrente.getMonth(), seisMesesPraFrente.getDate(), 12, 0, 0);
-
-      var htmlTabelaDiaria = '', dadosEixoX = [], dadosEixoY = [], mapeamentoDatasGrafico = [], saldoAcumuladoLinha = 0;
-      var stringDataInicialIso = `${dataPonteiroInicial.getFullYear()}-${String(dataPonteiroInicial.getMonth() + 1).padStart(2, '0')}-${String(dataPonteiroInicial.getDate()).padStart(2, '0')}`;
-      todasDatasDisponiveis.forEach(function(dStr) {
-        if (dStr < stringDataInicialIso) saldoAcumuladoLinha += (mapaDatas[dStr].receita - mapaDatas[dStr].despesa);
-      });
-
-      var ponteiroData = new Date(dataPonteiroInicial.getTime());
-      while (ponteiroData.getTime() <= dataLimiteFuturaTabela.getTime()) {
-        var dataLoopStr = `${ponteiroData.getFullYear()}-${String(ponteiroData.getMonth() + 1).padStart(2, '0')}-${String(ponteiroData.getDate()).padStart(2, '0')}`;
-        var recDoDia = mapaDatas[dataLoopStr] ? mapaDatas[dataLoopStr].receita : 0;
-        var despDoDia = mapaDatas[dataLoopStr] ? mapaDatas[dataLoopStr].despesa : 0;
-        saldoAcumuladoLinha += (recDoDia - despDoDia);
-        var dataFormatadaBR = `${String(ponteiroData.getDate()).padStart(2, '0')}/${String(ponteiroData.getMonth() + 1).padStart(2, '0')}`;
-
-        if (ponteiroData.getTime() <= dataLimiteFuturaGrafico.getTime()) {
-          dadosEixoX.push(dataFormatadaBR + '/' + ponteiroData.getFullYear());
-          dadosEixoY.push(saldoAcumuladoLinha);
-          mapeamentoDatasGrafico.push(dataLoopStr);
-        }
-
-        var tdReceita = recDoDia > 0 ? `<button type="button" class="btn-detalhe text-success" onclick="verDetalhesDoDia('${dataLoopStr}', 'Receita')">+R$${recDoDia.toFixed(0)}</button>` : '<span class="text-muted">-</span>';
-        var tdDespesa = despDoDia > 0 ? `<button type="button" class="btn-detalhe text-danger" onclick="verDetalhesDoDia('${dataLoopStr}', 'Despesa')">-R$${despDoDia.toFixed(0)}</button>` : '<span class="text-muted">-</span>';
-        var classeCorLinha = obterClasseStatusCaixa(saldoAcumuladoLinha);
-        var indiceDiaSemana = ponteiroData.getDay();
-        var txtDiaSemana = dsT[indiceDiaSemana];
-        var classeFdsCol = (indiceDiaSemana === 0 || indiceDiaSemana === 6) ? 'col-fim-de-semana' : '';
-
-        htmlTabelaDiaria += `<tr>
-          <td class="${classeFdsCol}"><b>${dataFormatadaBR}</b>${dataLoopStr === hojeStr ? '<br><span class="badge bg-warning text-dark badge-data" style="padding:1px 2px;">Hoje</span>' : ''}<br><span class="badge bg-secondary-subtle text-secondary-emphasis badge-data" style="font-weight:bold;">${txtDiaSemana}</span></td>
-          <td class="${classeFdsCol}">${tdReceita}</td>
-          <td class="${classeFdsCol}">${tdDespesa}</td>
-          <td class="fw-bold ${classeCorLinha}">R$${saldoAcumuladoLinha.toFixed(0)}</td>
-        </tr>`;
-        ponteiroData.setDate(ponteiroData.getDate() + 1);
-      }
-      document.getElementById('tbodyProjecaoDiaria').innerHTML = htmlTabelaDiaria;
-
-      if (chartInstance) chartInstance.destroy();
-      var ctx = document.getElementById('chartFluxo').getContext('2d');
-      var valorMaximoBanco = Math.max(...dadosEixoY, 500);
-      var valorMinimoBanco = Math.min(...dadosEixoY, 0);
-      var maximoEscalaY = Math.ceil(valorMaximoBanco / 500) * 500 + 500;
-      var minimoEscalaY = Math.floor(valorMinimoBanco / 500) * 500;
-
-      chartInstance = new Chart(ctx, {
-        type: 'line',
-        data: { labels: dadosEixoX, datasets: [{ label: 'Saldo projetado', data: dadosEixoY, borderColor: '#1abc9c', backgroundColor: 'rgba(26, 188, 156, 0.05)', borderWidth: 2, fill: true, tension: 0.1 }] },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            y: { min: minimoEscalaY, max: maximoEscalaY, ticks: { font: { size: 10 }, stepSize: 500, autoSkip: false } },
-            x: { ticks: { font: { size: 9 }, maxRotation: 45 } }
-          },
-          onClick: function(evt, activeElements) {
-            if (activeElements && activeElements.length > 0) {
-              var index = activeElements[0].index;
-              var dataIsoClicada = mapeamentoDatasGrafico[index];
-              var dadosDia = mapaDatas[dataIsoClicada] || { receita: 0, despesa: 0 };
-              if (dadosDia.receita > 0) verDetalhesDoDia(dataIsoClicada, 'Receita');
-              else verDetalhesDoDia(dataIsoClicada, 'Despesa');
-            }
-          }
-        }
-      });
+      // Saldo, contas, cores e projeções seguem o mesmo motor da V6.0.1.
+      // Apenas a apresentação muda de tabela/gráfico para calendário mensal.
+      renderizarCalendarioFluxo(mapaDatas, mapaPendentes, hojeStr);
     }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
