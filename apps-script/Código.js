@@ -3907,7 +3907,7 @@ function obterStatusPluggyV5103_() {
       }
 
       var dados = JSON.parse(resp.getContentText() || "{}");
-      var ultima = dados.lastUpdatedAt || dados.updatedAt || "";
+      var ultima = dados.lastUpdatedAt || "";
       var proxima = dados.nextAutoSyncAt || "";
       var proximaEstimada = false;
 
@@ -3928,7 +3928,9 @@ function obterStatusPluggyV5103_() {
         executionStatus: String(dados.executionStatus || ""),
         lastUpdatedAt: ultima,
         nextAutoSyncAt: proxima,
-        proximaEstimada: proximaEstimada
+        proximaEstimada: proximaEstimada,
+        consentExpiresAt: dados.consentExpiresAt || "",
+        codigoErro: String((dados.error || {}).code || "")
       });
     } catch (e) {
       saida.push({
@@ -3938,6 +3940,8 @@ function obterStatusPluggyV5103_() {
     }
   });
 
+  var agoraMs = Date.now();
+  saida.forEach(function(x) { diagnosticarItemPluggyV601_(x, agoraMs); });
   var timestamps = saida
     .map(function(x) {
       var t = x.lastUpdatedAt ? new Date(x.lastUpdatedAt).getTime() : NaN;
@@ -3959,17 +3963,78 @@ function obterStatusPluggyV5103_() {
     proximaEsperada = new Date(maxTs + (24 * 60 + 30) * 60 * 1000).toISOString();
   }
 
+  var previsoes = saida.map(function(x) { return x.nextAutoSyncAt ? Date.parse(x.nextAutoSyncAt) : NaN; }).filter(function(t) { return isFinite(t); });
   return {
     itens: saida,
     referenciaAtualizacao: referencia,
     idadeHoras: idadeHoras,
-    proximaEsperadaAt: proximaEsperada,
-    stale24h: idadeHoras !== null ? idadeHoras >= 24.5 : false,
-    consultadoEm: new Date().toISOString()
+    proximaEsperadaAt: previsoes.length ? new Date(Math.min.apply(null, previsoes)).toISOString() : "",
+    stale24h: saida.some(function(x) { return x.atrasado; }),
+    temProblema: saida.some(function(x) { return !!x.alerta; }),
+    consultadoEm: new Date(agoraMs).toISOString()
   };
 }
 
 
+
+
+function diagnosticarItemPluggyV601_(x, agora) {
+  var ultima = Date.parse(x.lastUpdatedAt || "");
+  var prevista = Date.parse(x.nextAutoSyncAt || "");
+  var vence = Date.parse(x.consentExpiresAt || "");
+  var st = String(x.status || "").toUpperCase();
+  var exec = String(x.executionStatus || "").toUpperCase();
+  var erro = String(x.codigoErro || "").toUpperCase();
+  x.idadeHoras = isFinite(ultima) ? Math.max(0, (agora - ultima) / 3600000) : null;
+  x.atrasoMinutos = isFinite(prevista) ? Math.max(0, Math.floor((agora - prevista) / 60000)) : null;
+  x.atrasado = isFinite(prevista) && agora >= prevista;
+  x.alerta = "";
+  x.diagnostico = "Sem alerta";
+  if (x.erro) {
+    x.alerta = "CONSULTA";
+    x.diagnostico = "Falha ao consultar a Pluggy";
+  } else if ((isFinite(vence) && agora >= vence) || [exec, erro].some(function(c) { return c === "USER_AUTHORIZATION_EXPIRED" || c === "CONSENT_EXPIRED"; })) {
+    x.alerta = "AUTORIZACAO";
+    x.diagnostico = "Autorização vencida. Renove a conexão.";
+  } else if (st === "LOGIN_ERROR" || st === "WAITING_USER_INPUT" || st === "WAITING_USER_ACTION" || exec === "USER_AUTHORIZATION_PENDING") {
+    x.alerta = "INTERACAO";
+    x.diagnostico = "Conexão requer ação do usuário. Confira no Meu Pluggy.";
+  } else if (st === "OUTDATED" || exec === "ERROR" || exec === "CONNECTION_ERROR" || exec === "SITE_NOT_AVAILABLE") {
+    x.alerta = "CONEXAO";
+    x.diagnostico = "Falha de sincronização na Pluggy ou no banco.";
+  } else if (st === "UPDATING" && (!x.atrasado || x.atrasoMinutos < 120)) {
+    x.diagnostico = "Sincronização em andamento.";
+  } else if (x.atrasado) {
+    x.alerta = "ATRASO";
+    x.diagnostico = x.proximaEstimada ? "Janela estimada ultrapassada. Confira o Meu Pluggy." : "Horário de sincronização informado ultrapassado.";
+  } else if (!isFinite(ultima)) {
+    x.alerta = "SEM_DATA";
+    x.diagnostico = "Pluggy não informou a última sincronização.";
+  } else if (exec === "PARTIAL_SUCCESS" || st === "PARTIAL_SUCCESS") {
+    x.alerta = "PARCIAL";
+    x.diagnostico = "Sincronização parcial. Alguns dados podem estar faltando.";
+  }
+  return x;
+}
+
+function notificarDiagnosticoPluggyV601_(status, props) {
+  (status.itens || []).forEach(function(x) {
+    var prop = "MONITOR_PLUGGY_ALERTA_V601_" + x.conta;
+    if (!x.alerta) {
+      props.deleteProperty(prop);
+      return;
+    }
+    var chave = [x.alerta, x.alerta === "ATRASO" ? x.lastUpdatedAt : "", x.alerta === "AUTORIZACAO" ? x.consentExpiresAt : "", x.codigoErro || ""].join("|");
+    if (props.getProperty(prop) === chave) return;
+    var corpo = x.diagnostico;
+    var dt = Date.parse(x.lastUpdatedAt || "");
+    if (isFinite(dt)) corpo += " Última: " + Utilities.formatDate(new Date(dt), "America/Sao_Paulo", "dd/MM HH:mm") + ".";
+    if (x.atrasado && x.atrasoMinutos !== null) corpo += " Atraso: " + Math.floor(x.atrasoMinutos / 60) + "h" + ("0" + x.atrasoMinutos % 60).slice(-2) + ".";
+    if (x.codigoErro || x.executionStatus || x.erro) corpo += " (" + String(x.codigoErro || x.executionStatus || x.erro).slice(0, 100) + ")";
+    var push = enviarPushOneSignalV511_("⚠️ Pluggy " + x.conta + ": " + (x.alerta === "ATRASO" ? "atraso" : "verificar conexão"), corpo, { tipo: "PLUGGY_DIAGNOSTICO", conta: x.conta, motivo: x.alerta });
+    if (push && push.enviado) props.setProperty(prop, chave);
+  });
+}
 
 // =========================
 // V5.12 - SINCRONIZAÇÃO MANUAL PLUGGY
@@ -4428,6 +4493,7 @@ function monitorarPluggyAutomaticamenteV511() {
       return "Monitor: " + erroStatus;
     }
 
+    try { notificarDiagnosticoPluggyV601_(status, props); } catch (pushErro) { Logger.log("Falha push Pluggy: " + pushErro.message); }
     var syncAtual = String(status.referenciaAtualizacao || "");
     // Monitorar PF e PJ individualmente: max(lastUpdatedAt) deixava atualizacoes
     // da conta mais antiga invisiveis se a outra ja tinha atualizado depois.
@@ -4438,15 +4504,25 @@ function monitorarPluggyAutomaticamenteV511() {
       .join("|");
     var chaveAnterior = String(props.getProperty("MONITOR_PLUGGY_ULTIMA_SYNC_CHAVE_V517") || "");
     var mudouSync = !!chaveAtual && chaveAtual !== chaveAnterior;
+    // Reconsulta os movimentos disponíveis mesmo se o proxy não mudou a data.
+    // Não solicita PATCH bancário, que não é suportado no Meu Pluggy.
+    var ultimaBusca = Date.parse(props.getProperty("MONITOR_PLUGGY_ULTIMA_BUSCA_V601") || "");
+    var podeConsultar = !!chaveAtual && !(status.itens || []).some(function(x) {
+      return x.erro || x.alerta === "AUTORIZACAO" || x.alerta === "INTERACAO";
+    });
+    var buscaPeriodica = podeConsultar && (!isFinite(ultimaBusca) || Date.now() - ultimaBusca >= 2 * 3600000);
 
-    if (mudouSync) {
+    if (mudouSync || buscaPeriodica) {
       var imp = importarTudoPluggyV513();
       var novosBanco = Number(imp.novosBanco || 0);
       var novosCartao = Number(imp.novosCartao || 0);
       var novos = novosBanco + novosCartao;
 
       props.setProperty("MONITOR_PLUGGY_ULTIMA_SYNC", syncAtual);
-      props.setProperty("MONITOR_PLUGGY_ULTIMA_SYNC_CHAVE_V517", chaveAtual);
+      if (!(imp.errosCartao || []).length) {
+        props.setProperty("MONITOR_PLUGGY_ULTIMA_SYNC_CHAVE_V517", chaveAtual);
+        props.setProperty("MONITOR_PLUGGY_ULTIMA_BUSCA_V601", new Date().toISOString());
+      }
       props.setProperty("MONITOR_PLUGGY_ULTIMOS_NOVOS", String(novos));
       props.setProperty("MONITOR_PLUGGY_ULTIMO_ERRO", "");
       props.deleteProperty("MONITOR_PLUGGY_ULTIMO_ALERTA_ATRASO");
@@ -4469,27 +4545,7 @@ function monitorarPluggyAutomaticamenteV511() {
         );
       }
 
-      return "Monitor: sincronização nova detectada. " + imp.mensagem;
-    }
-
-    // Se passou da janela provável (mais recente + 24h30), avisa apenas uma vez
-    // para aquela janela esperada.
-    if (status.stale24h && status.proximaEsperadaAt) {
-      var chaveAtraso = String(status.proximaEsperadaAt);
-      var jaAvisado = String(props.getProperty("MONITOR_PLUGGY_ULTIMO_ALERTA_ATRASO") || "");
-
-      if (jaAvisado !== chaveAtraso) {
-        enviarPushOneSignalV511_(
-          "⚠️ Pluggy ainda não atualizou",
-          "A sincronização passou da janela provável de 24h30. Abra o app para conferir.",
-          {
-            tipo: "PLUGGY_ATRASADO",
-            previsto: chaveAtraso
-          }
-        );
-
-        props.setProperty("MONITOR_PLUGGY_ULTIMO_ALERTA_ATRASO", chaveAtraso);
-      }
+      return "Monitor: " + (mudouSync ? "sincronização nova detectada. " : "busca periódica. ") + imp.mensagem;
     }
 
     props.setProperty("MONITOR_PLUGGY_ULTIMO_ERRO", "");
