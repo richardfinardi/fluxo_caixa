@@ -2866,29 +2866,35 @@ function renderizarStatusPluggyV5103_(statusPluggy) {
     return;
   }
 
-  var stale = !!st.stale24h;
+  var stale = !!st.stale24h || !!st.temProblema;
   box.className = 'pluggy-sync-v5103 ' + (stale ? 'pluggy-sync-atrasado' : 'pluggy-sync-ok');
 
   var detalhes = itens.map(function(i) {
+    var conta = escapeHtmlBancoV59_(i.conta || '?');
     if (i.erro) {
-      return '<span><b>' + escapeHtmlBancoV59_(i.conta) + ':</b> erro ao consultar</span>';
+      return '<div><b>🔴 ' + conta + ':</b> ' + escapeHtmlBancoV59_(i.erro) + '</div>';
     }
-
     var statusExec = String(i.executionStatus || i.status || '').toUpperCase();
-    var icone = statusExec === 'SUCCESS' || statusExec === 'UPDATED' ? '🟢' : '🟡';
-
-    return '<span>' + icone + ' <b>' + escapeHtmlBancoV59_(i.conta) + ':</b> ' +
+    var icone = i.alerta ? '🟠' : statusExec === 'SUCCESS' || statusExec === 'UPDATED' ? '🟢' : '🟡';
+    var atraso = i.atrasado && i.atrasoMinutos != null
+      ? ' • atraso: ' + Math.floor(i.atrasoMinutos / 60) + 'h ' + (i.atrasoMinutos % 60) + 'min' : '';
+    var prevista = i.nextAutoSyncAt ? ' • próxima ' + (i.proximaEstimada ? 'estimada' : 'informada') + ': ' + dataHoraPluggyV5103_(i.nextAutoSyncAt) : '';
+    return '<div>' + icone + ' <b>' + conta + ':</b> última ' +
       dataHoraPluggyV5103_(i.lastUpdatedAt) +
       (i.lastUpdatedAt ? ' (' + idadePluggyV5103_(i.lastUpdatedAt) + ')' : '') +
-      '</span>';
-  }).join('<span class="pluggy-sync-sep">•</span>');
+      escapeHtmlBancoV59_(atraso + prevista) +
+      (i.diagnostico && (i.alerta || i.status === 'UPDATING') ? '<br><span class="pluggy-sync-alerta">' + escapeHtmlBancoV59_(i.diagnostico) + '</span>' : '') +
+      (i.codigoErro ? ' • ' + escapeHtmlBancoV59_(i.codigoErro) : '') +
+      (i.consentExpiresAt ? '<br><span>Autorização até ' + dataHoraPluggyV5103_(i.consentExpiresAt) + '</span>' : '') +
+      '</div>';
+  }).join('');
 
   var proxima = st.proximaEsperadaAt
     ? dataHoraPluggyV5103_(st.proximaEsperadaAt)
     : '—';
 
-  var alerta = stale
-    ? '<div class="pluggy-sync-alerta">⚠️ Passou da janela provável de atualização (24h30). Os movimentos mais recentes podem ainda não ter chegado ao Pluggy.</div>'
+  var alerta = stale && !st.temProblema
+    ? '<div class="pluggy-sync-alerta">⚠️ Janela provável ultrapassada. Os movimentos mais recentes podem ainda não ter chegado ao Pluggy.</div>'
     : '';
 
   var manual = bancoV59.ultimaSincronizacaoManual;
@@ -2914,7 +2920,7 @@ function renderizarStatusPluggyV5103_(statusPluggy) {
   box.innerHTML =
     '<div class="pluggy-sync-titulo">🔄 Sincronização Pluggy</div>' +
     '<div class="pluggy-sync-itens">' + detalhes + '</div>' +
-    '<div class="pluggy-sync-proxima">Próxima provável: <b>' + proxima + '</b> <span class="text-muted">(mais recente + 24h30)</span></div>' +
+    '<div class="pluggy-sync-proxima">Próxima janela entre as contas: <b>' + proxima + '</b></div>' +
     '<div class="text-muted mt-1" style="font-size:10px;">Atualização manual do Meu Pluggy é feita no portal; depois volte e use “Já atualizei — buscar movimentos”.</div>' +
     alerta;
 }
