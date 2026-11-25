@@ -590,17 +590,17 @@ public final class MainActivity extends Activity {
         final String description="Banco: "+money(totalBank)+" em "+movements.size()+" movimento(s)\n"
                 +"Fluxo: "+money(totalFlow)+" em "+flows.size()+" lançamento(s)\n"
                 +"Diferença: "+money(delta);
-        if(delta<-.01){error("O fluxo supera o banco.\n"+description+
-                "\nRevise os itens antes de conciliar.");return;}
+        if(delta!=0 && totalFlow<=0 && delta<=.01){error("Não é possível ratear um total previsto zerado.");return;}
         if(delta>.01){
             LinearLayout fields=form();
             EditText note=input(fields,"Descrição do complemento","Diferença de conciliação",false);
             String[] cats=categories();
             Spinner cat=picker(fields,cats,0);
             new AlertDialog.Builder(this).setTitle("3/3 • Registrar diferença")
-                    .setMessage(description+"\nO complemento será registrado separadamente no fluxo.")
+                    .setMessage(description+"\nEscolha ratear a diferença (preservando o previsto) ou registrar um complemento separado.")
                     .setView(fields).setNegativeButton("Cancelar",null)
-                    .setPositiveButton("Confirmar",(d,w)->{
+                    .setNeutralButton("Ratear",(d,w)->{confirm("Confirmar rateio?\n"+description,()->sendGroup(movements,flows,null));})
+                    .setPositiveButton("Complemento",(d,w)->{
                         try{
                             JSONObject extra=new JSONObject();
                             extra.put("descricao",note.getText().toString().trim());
@@ -609,7 +609,7 @@ public final class MainActivity extends Activity {
                             sendGroup(movements,flows,extra);
                         }catch(Exception e){error(e.getMessage());}
                     }).show();
-        }else confirm("Conciliar o grupo?\n"+description,()->sendGroup(movements,flows,null));
+        }else confirm("Conciliar o grupo?\n"+description+(delta!=0?"\nA diferença será rateada, mantendo o valor previsto.":""),()->sendGroup(movements,flows,null));
     }
 
     private void sendGroup(ArrayList<JSONObject> movements,ArrayList<JSONObject> flows,JSONObject extra){
@@ -626,6 +626,7 @@ public final class MainActivity extends Activity {
             args.put("banco",bankGroup);args.put("fluxo",flowGroup);
             args.put("observacao","Conciliação N:N pelo aplicativo Android");
             args.put("ajustarValorRealizado",false);
+            args.put("ratearDiferenca",extra==null);
             if(extra!=null)args.put("lancamentoDiferenca",extra);
             request("conciliarGrupoBancoV515",args,true,response->loadBank());
         }catch(Exception e){error(e.getMessage());}
