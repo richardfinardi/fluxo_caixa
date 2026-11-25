@@ -1,7 +1,7 @@
 // REDEPLOY V5.14.0 - token clasp renovado 2026-09-30
 // DEPLOY V5.14.0 - 2026-09-30
 // V5.15.0 - conciliação bancária N:N
-var VERSAO_SISTEMA = "6.0.1";
+var VERSAO_SISTEMA = "6.0.2";
 var ESTRUTURA_CACHE_EXECUCAO_ = false;
 var COL_LANC_ID = 8;
 var COL_LANC_ORIGEM = 9;
@@ -3380,6 +3380,27 @@ function idConciliacaoBancoV515_() {
   return "CONC-" + new Date().getTime() + "-" + String(Math.floor(Math.random() * 900) + 100);
 }
 
+function ratearValorConciliacaoV602_(valores, totalBanco) {
+  var centavos = valores.map(function(v) {
+    var n = Math.round(Number(v) * 100);
+    if (!Number.isSafeInteger(n) || n < 0) throw new Error("Valor do fluxo inválido.");
+    return n;
+  });
+  var alvo = Math.round(Number(totalBanco) * 100);
+  var total = centavos.reduce(function(a,b) { return a+b; }, 0);
+  if (!Number.isSafeInteger(alvo) || alvo < 0 || !Number.isSafeInteger(total) || total <= 0)
+    throw new Error("Não é possível ratear sobre um total previsto zerado ou inválido.");
+  var acumulado = 0;
+  var distribuido = 0;
+  return centavos.map(function(v, i) {
+    acumulado += v;
+    var limite = i === centavos.length - 1 ? alvo : Math.round(alvo * (acumulado / total));
+    var atual = limite - distribuido;
+    distribuido = limite;
+    return atual / 100;
+  });
+}
+
 function conciliarGrupoBancoV515(dados) {
   garantirEstruturaV58_();
   dados = dados || {};
@@ -3470,10 +3491,13 @@ function conciliarGrupoBancoV515(dados) {
   var ajusteUnitario = dados.ajustarValorRealizado === true &&
     movimentos.length === 1 && lancamentos.length === 1;
 
-  // N:N com transferencia nao prevista: lancamento complementar auditavel.
-  // Nunca apagar a diferenca nem mexer nos valores das contas selecionadas.
+  // Ajuste manual confirmado: preserva o previsto e rateia o realizado pelo banco.
+  // O modo complementar anterior permanece disponível para valores não previstos.
+  var ajusteGrupo = !ajusteUnitario && diferenca !== 0 &&
+    (dados.ratearDiferenca === true || Math.abs(diferenca) <= 0.01);
+  var valoresRateados = ajusteGrupo ? ratearValorConciliacaoV602_(lancamentos.map(function(x) { return x.valor; }), totalBanco) : null;
   var complementar = null;
-  if (Math.abs(diferenca) > 0.01 && !ajusteUnitario) {
+  if (Math.abs(diferenca) > 0.01 && !ajusteUnitario && !ajusteGrupo) {
     if (diferenca < 0) {
       throw new Error("O fluxo excede o banco em R$ " + Math.abs(diferenca).toFixed(2) +
         ". Revise os itens; um complemento negativo nao e permitido.");
@@ -3506,6 +3530,8 @@ function conciliarGrupoBancoV515(dados) {
     throw new Error("Data bancaria invalida; conciliacao nao realizada.");
   }
   var observacao = String(dados.observacao || "Conciliação bancária N:N").trim();
+  if (ajusteGrupo) observacao += " | Rateio proporcional: previsto R$ " + totalFluxo.toFixed(2) +
+    " | realizado R$ " + totalBanco.toFixed(2) + " | diferença R$ " + diferenca.toFixed(2);
 
   // Completa o grupo com a parte que saiu/entrou do banco mas nao estava prevista.
   if (complementar) {
@@ -3532,7 +3558,7 @@ function conciliarGrupoBancoV515(dados) {
     tipoEsperado,
     totalBanco,
     Number((totalFluxo + (complementar ? complementar.valor : 0)).toFixed(2)),
-    complementar ? 0 : (ajusteUnitario ? diferenca : 0),
+    complementar ? 0 : ((ajusteUnitario || ajusteGrupo) ? diferenca : 0),
     observacao
   ]);
 
@@ -3547,16 +3573,16 @@ function conciliarGrupoBancoV515(dados) {
     shItens.getRange(shItens.getLastRow() + 1, 1, itens.length, 5).setValues(itens);
   }
 
-  lancamentos.forEach(function(x) {
+  lancamentos.forEach(function(x, indice) {
     var linha = x.linha;
     var dataOriginal = isoData_(linha[0]);
 
     if (linha[12] === "" || linha[12] === null) linha[12] = x.valor;
-    var valorRealizado = ajusteUnitario ? totalBanco : x.valor;
+    var valorRealizado = ajusteUnitario ? totalBanco : (ajusteGrupo ? valoresRateados[indice] : x.valor);
     linha[13] = valorRealizado;
-    linha[14] = ajusteUnitario ? diferenca : 0;
+    linha[14] = (ajusteUnitario || ajusteGrupo) ? Number((valorRealizado - x.valor).toFixed(2)) : 0;
     // Valor alimenta o caixa; ValorPrevisto (coluna 13) preserva a previsao original.
-    if (ajusteUnitario) linha[2] = valorRealizado;
+    if (ajusteUnitario || ajusteGrupo) linha[2] = valorRealizado;
     linha[15] = movimentos.length === 1
       ? movimentos[0].mov.idPluggy
       : "GRUPO:" + idConciliacao;
@@ -3583,6 +3609,11 @@ function conciliarGrupoBancoV515(dados) {
       "Complemento R$ " + complementar.valor.toFixed(2) +
       " | descricao=" + complementar.descricao + " | categoria=" + complementar.categoria);
   }
+  if (ajusteGrupo) {
+    registrarLog_("BANCO_AJUSTE_VALOR_NN", idConciliacao,
+      "Rateio | previsto=" + totalFluxo.toFixed(2) + " | realizado=" + totalBanco.toFixed(2) +
+      " | diferenca=" + diferenca.toFixed(2));
+  }
   if (ajusteUnitario && Math.abs(diferenca) > 0.01) {
     registrarLog_("BANCO_AJUSTE_VALOR_1A1", idConciliacao,
       "Lançamento " + lancamentos[0].idLancamento +
@@ -3593,7 +3624,8 @@ function conciliarGrupoBancoV515(dados) {
 
   return "Conciliação " + idConciliacao + " concluída: " +
     movimentos.length + " banco ↔ " + lancamentos.length + " fluxo." +
-    (complementar ? " Complemento de R$ " + complementar.valor.toFixed(2) + " criado e conciliado." : "");
+    (complementar ? " Complemento de R$ " + complementar.valor.toFixed(2) + " criado e conciliado." : "") +
+    (ajusteGrupo ? " Diferença de R$ " + diferenca.toFixed(2) + " rateada; total realizado R$ " + totalBanco.toFixed(2) + "." : "");
 }
 
 function conciliarMovimentoBancoV510(dados) {
